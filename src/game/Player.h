@@ -1205,7 +1205,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool IsValidPos( uint8 bag, uint8 slot, bool explicit_pos );
         uint8 GetBankBagSlotCount() const { return GetByteValue(PLAYER_BYTES_2, 2); }
         void SetBankBagSlotCount(uint8 count) { SetByteValue(PLAYER_BYTES_2, 2, count); }
-        bool HasItemCount( uint32 item, uint32 count, bool inBankAlso = false ) const;
+        bool HasItemCount( uint32 item, int32 count, bool inBankAlso = false ) const;
         bool HasItemFitToSpellReqirements(SpellEntry const* spellInfo, Item const* ignoreItem = NULL);
         bool CanNoReagentCast(SpellEntry const* spellInfo) const;
         bool HasItemOrGemWithIdEquipped( uint32 item, uint32 count, uint8 except_slot = NULL_SLOT) const;

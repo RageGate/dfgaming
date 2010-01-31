@@ -8777,16 +8777,24 @@ bool Player::IsValidPos( uint8 bag, uint8 slot, bool explicit_pos )
 }
 
 
-bool Player::HasItemCount( uint32 item, uint32 count, bool inBankAlso ) const
+bool Player::HasItemCount( uint32 item, int32 count, bool inBankAlso ) const
 {
     uint32 tempcount = 0;
-    for(int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
+	for(int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
     {
         Item *pItem = GetItemByPos( INVENTORY_SLOT_BAG_0, i );
         if( pItem && pItem->GetEntry() == item )
         {
             tempcount += pItem->GetCount();
-            if( tempcount >= count )
+
+            if (count == -1)
+            {
+                if (tempcount > 0)
+                {
+                    return false;
+                }
+            }
+            else if( tempcount >= count )
                 return true;
         }
     }
@@ -8796,7 +8804,14 @@ bool Player::HasItemCount( uint32 item, uint32 count, bool inBankAlso ) const
         if( pItem && pItem->GetEntry() == item )
         {
             tempcount += pItem->GetCount();
-            if( tempcount >= count )
+            if (count == -1)
+            {
+                if (tempcount > 0)
+                {
+                    return false;
+                }
+            }
+            else if( tempcount >= count )
                 return true;
         }
     }
@@ -8810,7 +8825,14 @@ bool Player::HasItemCount( uint32 item, uint32 count, bool inBankAlso ) const
                 if( pItem && pItem->GetEntry() == item )
                 {
                     tempcount += pItem->GetCount();
-                    if( tempcount >= count )
+                    if (count == -1)
+                    {
+                        if (tempcount > 0)
+                        {
+                            return false;
+                        }
+                    }
+                    else if( tempcount >= count )
                         return true;
                 }
             }
@@ -8825,7 +8847,14 @@ bool Player::HasItemCount( uint32 item, uint32 count, bool inBankAlso ) const
             if( pItem && pItem->GetEntry() == item )
             {
                 tempcount += pItem->GetCount();
-                if( tempcount >= count )
+                if (count == -1)
+                {
+                    if (tempcount > 0)
+                    {
+                        return false;
+                    }
+                }
+                else if( tempcount >= count )
                     return true;
             }
         }
@@ -8839,7 +8868,14 @@ bool Player::HasItemCount( uint32 item, uint32 count, bool inBankAlso ) const
                     if( pItem && pItem->GetEntry() == item )
                     {
                         tempcount += pItem->GetCount();
-                        if( tempcount >= count )
+                        if (count == -1)
+                        {
+                           if (tempcount > 0)
+                           {
+                               return false;
+                           }
+                        }
+                        else if( tempcount >= count )
                             return true;
                     }
                 }
@@ -8847,7 +8883,14 @@ bool Player::HasItemCount( uint32 item, uint32 count, bool inBankAlso ) const
         }
     }
 
-    return false;
+	if (count == -1)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 bool Player::HasItemOrGemWithIdEquipped( uint32 item, uint32 count, uint8 except_slot ) const
