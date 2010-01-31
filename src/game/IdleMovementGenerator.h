@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,8 +25,9 @@ class MANGOS_DLL_SPEC IdleMovementGenerator : public MovementGenerator
 {
     public:
 
-        void Initialize(Unit &) {  }
-        void Finalize(Unit &) {  }
+        void Initialize(Unit &) {}
+        void Finalize(Unit &) {}
+        void Interrupt(Unit &) {}
         void Reset(Unit &);
         bool Update(Unit &, const uint32 &) { return true; }
         MovementGeneratorType GetMovementGeneratorType() { return IDLE_MOTION_TYPE; }
@@ -41,12 +42,23 @@ class MANGOS_DLL_SPEC DistractMovementGenerator : public MovementGenerator
 
         void Initialize(Unit& owner);
         void Finalize(Unit& owner);
-        void Reset(Unit& owner) { Initialize(owner); }
+        void Interrupt(Unit& );
+        void Reset(Unit& );
         bool Update(Unit& owner, const uint32& time_diff);
         MovementGeneratorType GetMovementGeneratorType() { return DISTRACT_MOTION_TYPE; }
 
     private:
         uint32 m_timer;
+};
+
+class MANGOS_DLL_SPEC AssistanceDistractMovementGenerator : public DistractMovementGenerator
+{
+    public:
+        AssistanceDistractMovementGenerator(uint32 timer) :
+            DistractMovementGenerator(timer) {}
+
+        MovementGeneratorType GetMovementGeneratorType() { return ASSISTANCE_DISTRACT_MOTION_TYPE; }
+        void Finalize(Unit& unit);
 };
 
 #endif

@@ -1,4 +1,4 @@
-# Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+# Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,20 +20,8 @@
 SUBDIRS = dep doc sql src
 
 ## Additional files to include when running 'make dist'
-# Win32 project workspace for Visual Studio .NET 2003
-EXTRA_DIST = \
-	win/mangosdVC71.sln \
-	win/VC71/framework.vcproj \
-	win/VC71/game.vcproj \
-	win/VC71/mangosd.vcproj \
-	win/VC71/realmd.vcproj \
-	win/VC71/shared.vcproj \
-	win/VC71/zlib.vcproj \
-	win/VC71/g3dlite.vcproj \
-	win/VC71/zthread.vcproj
-
 # Win32 project workspace for Visual Studio .NET 2005
-EXTRA_DIST += \
+EXTRA_DIST = \
 	win/mangosdVC80.sln \
 	win/VC80/framework.vcproj \
 	win/VC80/game.vcproj \
@@ -41,8 +29,7 @@ EXTRA_DIST += \
 	win/VC80/realmd.vcproj \
 	win/VC80/shared.vcproj \
 	win/VC80/zlib.vcproj \
-	win/VC80/g3dlite.vcproj \
-	win/VC80/zthread.vcproj
+	win/VC80/g3dlite.vcproj
 
 # Win32 project workspace for Visual Studio .NET 2008
 EXTRA_DIST += \
@@ -53,6 +40,18 @@ EXTRA_DIST += \
 	win/VC90/realmd.vcproj \
 	win/VC90/shared.vcproj \
 	win/VC90/zlib.vcproj \
-	win/VC90/g3dlite.vcproj \
-	win/VC90/zthread.vcproj
+	win/VC90/g3dlite.vcproj
+
+# Win32 project workspace for Visual Studio .NET 2010
+EXTRA_DIST += \
+	win/mangosdVC100.sln \
+	win/VC100/framework.vcxproj \
+	win/VC100/game.vcxproj \
+	win/VC100/mangosd.vcxproj \
+	win/VC100/realmd.vcxproj \
+	win/VC100/shared.vcxproj \
+	win/VC100/zlib.vcxproj \
+	win/VC100/g3dlite.vcxproj
+
+ACLOCAL_AMFLAGS = -I m4
 

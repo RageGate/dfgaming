@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,8 +19,7 @@
 #ifndef DATABASE_H
 #define DATABASE_H
 
-#include "zthread/Thread.h"
-#include "../src/zthread/ThreadImpl.h"
+#include "Threading.h"
 #include "Utilities/UnorderedMap.h"
 #include "Database/SqlDelayThread.h"
 
@@ -28,8 +27,8 @@ class SqlTransaction;
 class SqlResultQueue;
 class SqlQueryHolder;
 
-typedef UNORDERED_MAP<ZThread::ThreadImpl*, SqlTransaction*> TransactionQueues;
-typedef UNORDERED_MAP<ZThread::ThreadImpl*, SqlResultQueue*> QueryQueues;
+typedef UNORDERED_MAP<ACE_Based::Thread* , SqlTransaction*> TransactionQueues;
+typedef UNORDERED_MAP<ACE_Based::Thread* , SqlResultQueue*> QueryQueues;
 
 #define MAX_QUERY_LEN   32*1024
 
@@ -40,8 +39,8 @@ class MANGOS_DLL_SPEC Database
 
         TransactionQueues m_tranQueues;                     ///< Transaction queues from diff. threads
         QueryQueues m_queryQueues;                          ///< Query queues from diff threads
-        SqlDelayThread* m_threadBody;                       ///< Pointer to delay sql executer
-        ZThread::Thread* m_delayThread;                     ///< Pointer to executer thread
+        SqlDelayThread* m_threadBody;                       ///< Pointer to delay sql executer (owned by m_delayThread)
+        ACE_Based::Thread* m_delayThread;                   ///< Pointer to executer thread
 
     public:
 
@@ -53,6 +52,8 @@ class MANGOS_DLL_SPEC Database
 
         virtual QueryResult* Query(const char *sql) = 0;
         QueryResult* PQuery(const char *format,...) ATTR_PRINTF(2,3);
+        virtual QueryNamedResult* QueryNamed(const char *sql) = 0;
+        QueryNamedResult* PQueryNamed(const char *format,...) ATTR_PRINTF(2,3);
 
         /// Async queries and query holders, implemented in DatabaseImpl.h
 
@@ -78,16 +79,16 @@ class MANGOS_DLL_SPEC Database
         template<class Class, typename ParamType1>
             bool AsyncPQuery(Class *object, void (Class::*method)(QueryResult*, ParamType1), ParamType1 param1, const char *format,...) ATTR_PRINTF(5,6);
         template<class Class, typename ParamType1, typename ParamType2>
-            bool AsyncPQuery(Class *object, void (Class::*method)(QueryResult*, ParamType1, ParamType2), ParamType1 param1, ParamType2 param2, const char *format,...) ATTR_PRINTF(5,6);
+            bool AsyncPQuery(Class *object, void (Class::*method)(QueryResult*, ParamType1, ParamType2), ParamType1 param1, ParamType2 param2, const char *format,...) ATTR_PRINTF(6,7);
         template<class Class, typename ParamType1, typename ParamType2, typename ParamType3>
-            bool AsyncPQuery(Class *object, void (Class::*method)(QueryResult*, ParamType1, ParamType2, ParamType3), ParamType1 param1, ParamType2 param2, ParamType3 param3, const char *format,...) ATTR_PRINTF(5,6);
+            bool AsyncPQuery(Class *object, void (Class::*method)(QueryResult*, ParamType1, ParamType2, ParamType3), ParamType1 param1, ParamType2 param2, ParamType3 param3, const char *format,...) ATTR_PRINTF(7,8);
         // PQuery / static
         template<typename ParamType1>
-            bool AsyncPQuery(void (*method)(QueryResult*, ParamType1), ParamType1 param1, const char *format,...) ATTR_PRINTF(5,6);
+            bool AsyncPQuery(void (*method)(QueryResult*, ParamType1), ParamType1 param1, const char *format,...) ATTR_PRINTF(4,5);
         template<typename ParamType1, typename ParamType2>
             bool AsyncPQuery(void (*method)(QueryResult*, ParamType1, ParamType2), ParamType1 param1, ParamType2 param2, const char *format,...) ATTR_PRINTF(5,6);
         template<typename ParamType1, typename ParamType2, typename ParamType3>
-            bool AsyncPQuery(void (*method)(QueryResult*, ParamType1, ParamType2, ParamType3), ParamType1 param1, ParamType2 param2, ParamType3 param3, const char *format,...) ATTR_PRINTF(5,6);
+            bool AsyncPQuery(void (*method)(QueryResult*, ParamType1, ParamType2, ParamType3), ParamType1 param1, ParamType2 param2, ParamType3 param3, const char *format,...) ATTR_PRINTF(6,7);
         template<class Class>
         // QueryHolder
             bool DelayQueryHolder(Class *object, void (Class::*method)(QueryResult*, SqlQueryHolder*), SqlQueryHolder *holder);
@@ -128,6 +129,7 @@ class MANGOS_DLL_SPEC Database
         // sets the result queue of the current thread, be careful what thread you call this from
         void SetResultQueue(SqlResultQueue * queue);
 
+        bool CheckRequiredField(char const* table_name, char const* required_name);
     private:
         bool m_logSQL;
         std::string m_logsDir;

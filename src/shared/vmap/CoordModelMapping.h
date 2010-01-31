@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -72,12 +72,7 @@ namespace VMAP
             const std::string getKeyString() const;
             inline const G3D::Array<std::string>& getFilenames() const { return(iFilenames); }
 
-            static const std::string getKeyString(unsigned int pMapId, int pXPos, int pYPos)
-            {
-                char b[100];
-                sprintf(b,"%03u_%d_%d", pMapId, pXPos, pYPos);
-                return(std::string(b));
-            }
+            static const std::string getKeyString(unsigned int pMapId, int pXPos, int pYPos);
 
     };
 

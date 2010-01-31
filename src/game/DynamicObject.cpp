@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,13 +25,14 @@
 #include "GridNotifiers.h"
 #include "CellImpl.h"
 #include "GridNotifiersImpl.h"
+#include "SpellMgr.h"
 
-DynamicObject::DynamicObject() : WorldObject()
+DynamicObject::DynamicObject() : WorldObject(), m_isActiveObject(false)
 {
     m_objectType |= TYPEMASK_DYNAMICOBJECT;
     m_objectTypeId = TYPEID_DYNAMICOBJECT;
-                                                            // 2.3.2 - 0x58
-    m_updateFlag = (UPDATEFLAG_LOWGUID | UPDATEFLAG_HIGHGUID | UPDATEFLAG_HAS_POSITION);
+
+    m_updateFlag = (UPDATEFLAG_HIGHGUID | UPDATEFLAG_HAS_POSITION | UPDATEFLAG_POSITION);
 
     m_valuesCount = DYNAMICOBJECT_END;
 }
@@ -39,23 +40,26 @@ DynamicObject::DynamicObject() : WorldObject()
 void DynamicObject::AddToWorld()
 {
     ///- Register the dynamicObject for guid lookup
-    if(!IsInWorld()) ObjectAccessor::Instance().AddObject(this);
+    if(!IsInWorld())
+        GetMap()->GetObjectsStore().insert<DynamicObject>(GetGUID(), (DynamicObject*)this);
+
     Object::AddToWorld();
 }
 
 void DynamicObject::RemoveFromWorld()
 {
     ///- Remove the dynamicObject from the accessor
-    if(IsInWorld()) ObjectAccessor::Instance().RemoveObject(this);
+    if(IsInWorld())
+        GetMap()->GetObjectsStore().erase<DynamicObject>(GetGUID(), (DynamicObject*)NULL);
+
     Object::RemoveFromWorld();
 }
 
 bool DynamicObject::Create( uint32 guidlow, Unit *caster, uint32 spellId, uint32 effIndex, float x, float y, float z, int32 duration, float radius )
 {
-    SetInstanceId(caster->GetInstanceId());
-
-    WorldObject::_Create(guidlow, HIGHGUID_DYNAMICOBJECT, caster->GetMapId(), caster->GetPhaseMask());
-    Relocate(x,y,z,0);
+    WorldObject::_Create(guidlow, HIGHGUID_DYNAMICOBJECT, caster->GetPhaseMask());
+    SetMap(caster->GetMap());
+    Relocate(x, y, z, 0);
 
     if(!IsPositionValid())
     {
@@ -69,23 +73,24 @@ bool DynamicObject::Create( uint32 guidlow, Unit *caster, uint32 spellId, uint32
     SetUInt32Value( DYNAMICOBJECT_BYTES, 0x00000001 );
     SetUInt32Value( DYNAMICOBJECT_SPELLID, spellId );
     SetFloatValue( DYNAMICOBJECT_RADIUS, radius);
-    SetFloatValue( DYNAMICOBJECT_POS_X, x );
-    SetFloatValue( DYNAMICOBJECT_POS_Y, y );
-    SetFloatValue( DYNAMICOBJECT_POS_Z, z );
     SetUInt32Value( DYNAMICOBJECT_CASTTIME, getMSTime() );  // new 2.4.0
 
     m_aliveDuration = duration;
     m_radius = radius;
     m_effIndex = effIndex;
     m_spellId = spellId;
-    m_casterGuid = caster->GetGUID();
+
+    // set to active for far sight case
+    if(SpellEntry const* spellEntry = sSpellStore.LookupEntry(spellId))
+        m_isActiveObject = IsSpellHaveEffect(spellEntry,SPELL_EFFECT_ADD_FARSIGHT);
+
     return true;
 }
 
 Unit* DynamicObject::GetCaster() const
 {
     // can be not found in some cases
-    return ObjectAccessor::GetUnit(*this,m_casterGuid);
+    return ObjectAccessor::GetUnit(*this, GetCasterGUID());
 }
 
 void DynamicObject::Update(uint32 p_time)
@@ -105,20 +110,23 @@ void DynamicObject::Update(uint32 p_time)
     else
         deleteThis = true;
 
-    // TODO: make a timer and update this in larger intervals
-    CellPair p(MaNGOS::ComputeCellPair(GetPositionX(), GetPositionY()));
-    Cell cell(p);
-    cell.data.Part.reserved = ALL_DISTRICT;
-    cell.SetNoCreate();
+    // have radius and work as persistent effect
+    if(m_radius)
+    {
+        // TODO: make a timer and update this in larger intervals
+        CellPair p(MaNGOS::ComputeCellPair(GetPositionX(), GetPositionY()));
+        Cell cell(p);
+        cell.data.Part.reserved = ALL_DISTRICT;
+        cell.SetNoCreate();
 
-    MaNGOS::DynamicObjectUpdater notifier(*this,caster);
+        MaNGOS::DynamicObjectUpdater notifier(*this, caster);
 
-    TypeContainerVisitor<MaNGOS::DynamicObjectUpdater, WorldTypeMapContainer > world_object_notifier(notifier);
-    TypeContainerVisitor<MaNGOS::DynamicObjectUpdater, GridTypeMapContainer > grid_object_notifier(notifier);
+        TypeContainerVisitor<MaNGOS::DynamicObjectUpdater, WorldTypeMapContainer > world_object_notifier(notifier);
+        TypeContainerVisitor<MaNGOS::DynamicObjectUpdater, GridTypeMapContainer > grid_object_notifier(notifier);
 
-    CellLock<GridReadGuard> cell_lock(cell, p);
-    cell_lock->Visit(cell_lock, world_object_notifier, *GetMap());
-    cell_lock->Visit(cell_lock, grid_object_notifier,  *GetMap());
+        cell.Visit(p, world_object_notifier, *GetMap(), *this, m_radius);
+        cell.Visit(p, grid_object_notifier,  *GetMap(), *this, m_radius);
+    }
 
     if(deleteThis)
     {
@@ -136,12 +144,20 @@ void DynamicObject::Delete()
 void DynamicObject::Delay(int32 delaytime)
 {
     m_aliveDuration -= delaytime;
-    for(AffectedSet::iterator iunit= m_affected.begin();iunit != m_affected.end();++iunit)
+    for(AffectedSet::iterator iunit= m_affected.begin(); iunit != m_affected.end(); ++iunit)
         if (*iunit)
             (*iunit)->DelayAura(m_spellId, m_effIndex, delaytime);
 }
 
-bool DynamicObject::isVisibleForInState(Player const* u, bool inVisibleList) const
+bool DynamicObject::isVisibleForInState(Player const* u, WorldObject const* viewPoint, bool inVisibleList) const
 {
-    return IsInWorld() && u->IsInWorld() && IsWithinDistInMap(u,World::GetMaxVisibleDistanceForObject()+(inVisibleList ? World::GetVisibleObjectGreyDistance() : 0.0f), false);
+    if(!IsInWorld() || !u->IsInWorld())
+        return false;
+
+    // always seen by owner
+    if(GetCasterGUID()==u->GetGUID())
+        return true;
+
+    // normal case
+    return IsWithinDistInMap(viewPoint, World::GetMaxVisibleDistanceForObject() + (inVisibleList ? World::GetVisibleObjectGreyDistance() : 0.0f), false);
 }

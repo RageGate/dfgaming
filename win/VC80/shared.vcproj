@@ -47,7 +47,7 @@
 				AdditionalOptions="/MP"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\..\dep\include;..\..\dep\include\g3dlite;..\..\src\framework;..\..\src\shared;..\..\dep\ACE_wrappers"
-				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_DEPRECATE"
+				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -79,6 +79,7 @@
 				Name="VCLibrarianTool"
 				AdditionalDependencies=".\g3dlite__$(PlatformName)_$(ConfigurationName)\g3dlite.lib user32.lib"
 				OutputFile=".\shared__$(PlatformName)_$(ConfigurationName)\shared.lib"
+				AdditionalLibraryDirectories="dep\lib\$(PlatformName)_$(ConfigurationName)"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -129,7 +130,7 @@
 				AdditionalOptions="/MP"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\..\dep\include;..\..\dep\include\g3dlite;..\..\src\framework;..\..\src\shared;..\..\dep\ACE_wrappers"
-				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_DEPRECATE"
+				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -161,6 +162,7 @@
 				Name="VCLibrarianTool"
 				AdditionalDependencies=".\g3dlite__$(PlatformName)_$(ConfigurationName)\g3dlite.lib user32.lib"
 				OutputFile=".\shared__$(PlatformName)_$(ConfigurationName)\shared.lib"
+				AdditionalLibraryDirectories="dep\lib\$(PlatformName)_$(ConfigurationName)"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -239,6 +241,7 @@
 				Name="VCLibrarianTool"
 				AdditionalDependencies=".\g3dlite__$(PlatformName)_$(ConfigurationName)\g3dlite.lib user32.lib"
 				OutputFile=".\shared__$(PlatformName)_$(ConfigurationName)\shared.lib"
+				AdditionalLibraryDirectories="dep\lib\$(PlatformName)_$(ConfigurationName)"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -317,6 +320,7 @@
 				Name="VCLibrarianTool"
 				AdditionalDependencies=".\g3dlite__$(PlatformName)_$(ConfigurationName)\g3dlite.lib user32.lib"
 				OutputFile=".\shared__$(PlatformName)_$(ConfigurationName)\shared.lib"
+				AdditionalLibraryDirectories="dep\lib\$(PlatformName)_debug"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -397,6 +401,7 @@
 				Name="VCLibrarianTool"
 				AdditionalDependencies=".\g3dlite__$(PlatformName)_$(ConfigurationName)\g3dlite.lib user32.lib"
 				OutputFile=".\shared__$(PlatformName)_$(ConfigurationName)\shared.lib"
+				AdditionalLibraryDirectories="dep\lib\$(PlatformName)_$(ConfigurationName)"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -477,6 +482,7 @@
 				Name="VCLibrarianTool"
 				AdditionalDependencies=".\g3dlite__$(PlatformName)_$(ConfigurationName)\g3dlite.lib user32.lib"
 				OutputFile=".\shared__$(PlatformName)_$(ConfigurationName)\shared.lib"
+				AdditionalLibraryDirectories="dep\lib\$(PlatformName)_debug"
 				SuppressStartupBanner="true"
 			/>
 			<Tool
@@ -611,14 +617,6 @@
 			Name="Util"
 			>
 			<File
-				RelativePath="..\..\src\shared\Base.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\shared\Base.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\src\shared\ByteBuffer.h"
 				>
 			</File>
@@ -720,6 +718,14 @@
 			</File>
 			<File
 				RelativePath="..\..\src\shared\Auth\Hmac.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\shared\Auth\SARC4.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\shared\Auth\SARC4.h"
 				>
 			</File>
 			<File
@@ -852,6 +858,10 @@
 			>
 		</File>
 		<File
+			RelativePath="..\..\src\shared\LockedQueue.h"
+			>
+		</File>
+		<File
 			RelativePath="..\..\src\shared\revision.h"
 			>
 			<FileConfiguration
@@ -901,6 +911,10 @@
 		</File>
 		<File
 			RelativePath="..\..\src\shared\revision_nr.h"
+			>
+		</File>
+		<File
+			RelativePath="..\..\src\shared\revision_sql.h"
 			>
 		</File>
 		<File
@@ -954,6 +968,14 @@
 					Outputs="..\..\src\shared\SystemConfig.h"
 				/>
 			</FileConfiguration>
+		</File>
+		<File
+			RelativePath="..\..\src\shared\Threading.cpp"
+			>
+		</File>
+		<File
+			RelativePath="..\..\src\shared\Threading.h"
+			>
 		</File>
 	</Files>
 	<Globals>

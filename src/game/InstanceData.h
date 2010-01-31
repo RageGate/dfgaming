@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,14 +54,14 @@ class MANGOS_DLL_SPEC InstanceData
         //This is to prevent players from entering during boss encounters.
         virtual bool IsEncounterInProgress() const { return false; };
 
-        //Called when a player successfully enters the instance.
+        //Called when a player successfully enters the instance (after really added to map)
         virtual void OnPlayerEnter(Player *) {}
 
         //Called when a gameobject is created
         virtual void OnObjectCreate(GameObject *) {}
 
         //called on creature creation
-        virtual void OnCreatureCreate(Creature * /*creature*/, uint32 /*creature_entry*/) {}
+        virtual void OnCreatureCreate(Creature * /*creature*/) {}
 
         //All-purpose data storage 64 bit
         virtual uint64 GetData64(uint32 /*Data*/) { return 0; }
@@ -70,5 +70,9 @@ class MANGOS_DLL_SPEC InstanceData
         //All-purpose data storage 32 bit
         virtual uint32 GetData(uint32 /*Type*/) { return 0; }
         virtual void SetData(uint32 /*Type*/, uint32 /*Data*/) {}
+
+        // Achievement criteria additional requirements check
+        // NOTE: not use this if same can be checked existed requirement types from AchievementCriteriaRequirementType
+        virtual bool CheckAchievementCriteriaMeet(uint32 /*criteria_id*/, Player const* /*source*/, Unit const* /*target*/ = NULL, uint32 /*miscvalue1*/ = 0);
 };
 #endif

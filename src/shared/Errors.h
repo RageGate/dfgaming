@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +19,59 @@
 #ifndef MANGOSSERVER_ERRORS_H
 #define MANGOSSERVER_ERRORS_H
 
-#define WPAssert( assertion ) { if( !(assertion) ) { fprintf( stderr, "\n%s:%i ASSERTION FAILED:\n  %s\n", __FILE__, __LINE__, #assertion ); assert( #assertion &&0 ); } }
-#define WPError( assertion, errmsg ) if( ! (assertion) ) { sLog.outError( "%s:%i ERROR:\n  %s\n", __FILE__, __LINE__, (char *)errmsg ); assert( false ); }
-#define WPWarning( assertion, errmsg ) if( ! (assertion) ) { sLog.outError( "%s:%i WARNING:\n  %s\n", __FILE__, __LINE__, (char *)errmsg ); }
+#include "Common.h"
 
-#define WPFatal( assertion, errmsg ) if( ! (assertion) ) { sLog.outError( "%s:%i FATAL ERROR:\n  %s\n", __FILE__, __LINE__, (char *)errmsg ); assert( #assertion &&0 ); abort(); }
+#ifndef HAVE_CONFIG_H
+#  define HAVE_ACE_STACK_TRACE_H 1
+#endif
 
-#define ASSERT WPAssert
+#ifdef HAVE_ACE_STACK_TRACE_H
+#  include "ace/Stack_Trace.h"
+#endif
+
+#ifdef HAVE_ACE_STACK_TRACE_H
+// Normal assert.
+#define WPError(CONDITION) \
+if (!(CONDITION)) \
+{ \
+    ACE_Stack_Trace st; \
+    printf("%s:%i: Error: Assertion in %s failed: %s\nStack Trace:\n%s", \
+        __FILE__, __LINE__, __FUNCTION__, STRINGIZE(CONDITION), st.c_str()); \
+    assert(STRINGIZE(CONDITION) && 0); \
+}
+
+// Just warn.
+#define WPWarning(CONDITION) \
+if (!(CONDITION)) \
+{ \
+    ACE_Stack_Trace st; \
+    printf("%s:%i: Warning: Assertion in %s failed: %s\nStack Trace:\n%s",\
+        __FILE__, __LINE__, __FUNCTION__, STRINGIZE(CONDITION), st.c_str()); \
+}
+#else
+// Normal assert.
+#define WPError(CONDITION) \
+if (!(CONDITION)) \
+{ \
+    printf("%s:%i: Error: Assertion in %s failed: %s", \
+        __FILE__, __LINE__, __FUNCTION__, STRINGIZE(CONDITION)); \
+    assert(STRINGIZE(CONDITION) && 0); \
+}
+
+// Just warn.
+#define WPWarning(CONDITION) \
+if (!(CONDITION)) \
+{ \
+    ACE_Stack_Trace st; \
+    printf("%s:%i: Warning: Assertion in %s failed: %s",\
+        __FILE__, __LINE__, __FUNCTION__, STRINGIZE(CONDITION)); \
+}
+#endif
+
+#ifdef MANGOS_DEBUG
+#  define ASSERT WPError
+#else
+#  define ASSERT WPError // Error even if in release mode.
+#endif
+
 #endif

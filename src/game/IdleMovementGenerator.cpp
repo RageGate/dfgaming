@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,8 @@
  */
 
 #include "IdleMovementGenerator.h"
-#include "Unit.h"
+#include "CreatureAI.h"
+#include "Creature.h"
 
 IdleMovementGenerator si_idleMovement;
 
@@ -38,6 +39,17 @@ DistractMovementGenerator::Finalize(Unit& owner)
     owner.clearUnitState(UNIT_STAT_DISTRACTED);
 }
 
+void
+DistractMovementGenerator::Reset(Unit& owner)
+{
+    Initialize(owner);
+}
+
+void
+DistractMovementGenerator::Interrupt(Unit& owner)
+{
+}
+
 bool
 DistractMovementGenerator::Update(Unit& /*owner*/, const uint32& time_diff)
 {
@@ -46,4 +58,18 @@ DistractMovementGenerator::Update(Unit& /*owner*/, const uint32& time_diff)
 
     m_timer -= time_diff;
     return true;
+}
+
+void
+AssistanceDistractMovementGenerator::Finalize(Unit &unit)
+{
+    unit.clearUnitState(UNIT_STAT_DISTRACTED);
+    if (Unit* victim = unit.getVictim())
+    {
+        if (unit.isAlive())
+        {
+            unit.AttackStop(true);
+            ((Creature*)&unit)->AI()->AttackStart(victim);
+        }
+    }
 }

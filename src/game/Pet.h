@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,6 +46,17 @@ enum PetSaveMode
     PET_SAVE_NOT_IN_SLOT       =  100                       // for avoid conflict with stable size grow will use 100
 };
 
+// There might be a lot more
+enum PetModeFlags
+{
+    PET_MODE_UNKNOWN_0         = 0x0000001,
+    PET_MODE_UNKNOWN_2         = 0x0000100,
+    PET_MODE_DISABLE_ACTIONS   = 0x8000000,
+
+    // autoset in client at summon
+    PET_MODE_DEFAULT           = PET_MODE_UNKNOWN_0 | PET_MODE_UNKNOWN_2,
+};
+
 enum HappinessState
 {
     UNHAPPY = 1,
@@ -69,10 +80,10 @@ enum PetSpellType
 
 struct PetSpell
 {
-    uint16 active;
+    uint8 active;                                           // use instead enum (not good use *uint8* limited enum in case when value in enum not possitive in *int8*)
 
-    PetSpellState state : 16;
-    PetSpellType type   : 16;
+    PetSpellState state : 8;
+    PetSpellType type   : 8;
 };
 
 enum ActionFeedback
@@ -91,6 +102,9 @@ enum PetTalk
 
 enum PetNameInvalidReason
 {
+    // custom, not send
+    PET_NAME_SUCCESS                                        = 0,
+
     PET_NAME_INVALID                                        = 1,
     PET_NAME_NO_NAME                                        = 2,
     PET_NAME_TOO_SHORT                                      = 3,
@@ -106,15 +120,12 @@ enum PetNameInvalidReason
     PET_NAME_DECLENSION_DOESNT_MATCH_BASE_NAME              = 16
 };
 
-typedef UNORDERED_MAP<uint32, PetSpell*> PetSpellMap;
-typedef std::map<uint32,uint32> TeachSpellMap;
+typedef UNORDERED_MAP<uint32, PetSpell> PetSpellMap;
 typedef std::vector<uint32> AutoSpellList;
 
 #define HAPPINESS_LEVEL_SIZE        333000
 
 #define ACTIVE_SPELLS_MAX           4
-
-#define OWNER_MAX_DISTANCE 100
 
 #define PET_FOLLOW_DIST  1
 #define PET_FOLLOW_ANGLE (M_PI/2)
@@ -161,7 +172,8 @@ class Pet : public Creature
         HappinessState GetHappinessState();
         void GivePetXP(uint32 xp);
         void GivePetLevel(uint32 level);
-        bool InitStatsForLevel(uint32 level);
+        void SynchronizeLevelWithOwner();
+        bool InitStatsForLevel(uint32 level, Unit* owner = NULL);
         bool HaveInDiet(ItemPrototype const* item) const;
         uint32 GetCurrentFoodBenefitLevel(uint32 itemlevel);
         void SetDuration(int32 dur) { m_duration = dur; }
@@ -181,8 +193,10 @@ class Pet : public Creature
         bool CanTakeMoreActiveSpells(uint32 SpellIconID);
         void ToggleAutocast(uint32 spellid, bool apply);
 
+        void ApplyModeFlags(PetModeFlags mode, bool apply);
+        PetModeFlags GetModeFlags() const { return m_petModeFlags; }
+
         bool HasSpell(uint32 spell) const;
-        void AddTeachSpell(uint32 learned_id, uint32 source_id) { m_teachspells[learned_id] = source_id; }
 
         void LearnPetPassives();
         void CastPetAuras(bool current);
@@ -195,22 +209,21 @@ class Pet : public Creature
         void _LoadSpells();
         void _SaveSpells();
 
-        bool addSpell(uint32 spell_id,uint16 active = ACT_DECIDE, PetSpellState state = PETSPELL_NEW, PetSpellType type = PETSPELL_NORMAL);
+        bool addSpell(uint32 spell_id,ActiveStates active = ACT_DECIDE, PetSpellState state = PETSPELL_NEW, PetSpellType type = PETSPELL_NORMAL);
         bool learnSpell(uint32 spell_id);
         void learnSpellHighRank(uint32 spellid);
-        void learnLevelupSpells();
-        bool unlearnSpell(uint32 spell_id);
-        bool removeSpell(uint32 spell_id);
-        bool _removeSpell(uint32 spell_id);
+        void InitLevelupSpellsForLevel();
+        bool unlearnSpell(uint32 spell_id, bool learn_prev, bool clear_ab = true);
+        bool removeSpell(uint32 spell_id, bool learn_prev, bool clear_ab = true);
+        void CleanupActionBar();
 
         PetSpellMap     m_spells;
-        TeachSpellMap   m_teachspells;
         AutoSpellList   m_autospells;
 
         void InitPetCreateSpells();
-        void CheckLearning(uint32 spellid);
 
         bool resetTalents(bool no_cost = false);
+        static void resetTalentsForAllPetsOf(Player* owner, Pet* online_pet = NULL);
         uint32 resetTalentsCost() const;
         void InitTalentForLevel();
 
@@ -243,6 +256,8 @@ class Pet : public Creature
         DeclinedName *m_declinedname;
 
     private:
+        PetModeFlags m_petModeFlags;
+
         void SaveToDB(uint32, uint8)                        // overwrited of Creature::SaveToDB     - don't must be called
         {
             assert(false);

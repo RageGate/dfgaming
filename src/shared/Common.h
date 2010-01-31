@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -55,16 +55,16 @@
 #include "Platform/Define.h"
 
 #if COMPILER == COMPILER_MICROSOFT
-#   pragma warning(disable:4996)                            // 'function': was declared deprecated
+#  pragma warning(disable:4996)                             // 'function': was declared deprecated
 #ifndef __SHOW_STUPID_WARNINGS__
-#   pragma warning(disable:4005)                            // 'identifier' : macro redefinition
-#   pragma warning(disable:4018)                            // 'expression' : signed/unsigned mismatch
-#   pragma warning(disable:4244)                            // 'argument' : conversion from 'type1' to 'type2', possible loss of data
-#   pragma warning(disable:4267)                            // 'var' : conversion from 'size_t' to 'type', possible loss of data
-#   pragma warning(disable:4305)                            // 'identifier' : truncation from 'type1' to 'type2'
-#   pragma warning(disable:4311)                            // 'variable' : pointer truncation from 'type' to 'type'
-#   pragma warning(disable:4355)                            // 'this' : used in base member initializer list
-#   pragma warning(disable:4800)                            // 'type' : forcing value to bool 'true' or 'false' (performance warning)
+#  pragma warning(disable:4005)                             // 'identifier' : macro redefinition
+#  pragma warning(disable:4018)                             // 'expression' : signed/unsigned mismatch
+#  pragma warning(disable:4244)                             // 'argument' : conversion from 'type1' to 'type2', possible loss of data
+#  pragma warning(disable:4267)                             // 'var' : conversion from 'size_t' to 'type', possible loss of data
+#  pragma warning(disable:4305)                             // 'identifier' : truncation from 'type1' to 'type2'
+#  pragma warning(disable:4311)                             // 'variable' : pointer truncation from 'type' to 'type'
+#  pragma warning(disable:4355)                             // 'this' : used in base member initializer list
+#  pragma warning(disable:4800)                             // 'type' : forcing value to bool 'true' or 'false' (performance warning)
 #endif                                                      // __SHOW_STUPID_WARNINGS__
 #endif                                                      // __GNUC__
 
@@ -79,12 +79,7 @@
 #include <math.h>
 #include <errno.h>
 #include <signal.h>
-
-#if PLATFORM == PLATFORM_WINDOWS
-#define STRCASECMP stricmp
-#else
-#define STRCASECMP strcasecmp
-#endif
+#include <assert.h>
 
 #include <set>
 #include <list>
@@ -94,10 +89,13 @@
 #include <sstream>
 #include <algorithm>
 
-#include <zthread/FastMutex.h>
-#include <zthread/LockedQueue.h>
-#include <zthread/Runnable.h>
-#include <zthread/Thread.h>
+#include "LockedQueue.h"
+#include "Threading.h"
+
+#include <ace/Basic_Types.h>
+#include <ace/Guard_T.h>
+#include <ace/RW_Thread_Mutex.h>
+#include <ace/Thread_Mutex.h>
 
 #if PLATFORM == PLATFORM_WINDOWS
 #  define FD_SETSIZE 4096
@@ -118,25 +116,35 @@
 
 #if COMPILER == COMPILER_MICROSOFT
 
-#include <float.h>
+#  include <float.h>
 
-#define I64FMT "%016I64X"
-#define I64FMTD "%I64u"
-#define SI64FMTD "%I64d"
-#define snprintf _snprintf
-#define atoll __atoi64
-#define vsnprintf _vsnprintf
-#define strdup _strdup
-#define finite(X) _finite(X)
+#  define I32FMT "%08I32X"
+#  define I64FMT "%016I64X"
+#  define snprintf _snprintf
+#  define vsnprintf _vsnprintf
+#  define finite(X) _finite(X)
 
 #else
 
-#define stricmp strcasecmp
-#define strnicmp strncasecmp
-#define I64FMT "%016llX"
-#define I64FMTD "%llu"
-#define SI64FMTD "%lld"
+#  define stricmp strcasecmp
+#  define strnicmp strncasecmp
+
+#  define I32FMT "%08X"
+#  if ACE_SIZEOF_LONG == 8
+#    define I64FMT "%016lX"
+#  else
+#    define I64FMT "%016llX"
+#  endif /* ACE_SIZEOF_LONG == 8 */
+
 #endif
+
+#define UI64FMTD ACE_UINT64_FORMAT_SPECIFIER
+#define UI64LIT(N) ACE_UINT64_LITERAL(N)
+
+#define SI64FMTD ACE_INT64_FORMAT_SPECIFIER
+#define SI64LIT(N) ACE_INT64_LITERAL(N)
+
+#define SIZEFMTD ACE_SIZE_T_FORMAT_SPECIFIER
 
 inline float finiteAlways(float f) { return finite(f) ? f : 0.0f; }
 
@@ -165,7 +173,7 @@ enum AccountTypes
 
 enum LocaleConstant
 {
-    LOCALE_enUS = 0,
+    LOCALE_enUS = 0,                                        // also enGB
     LOCALE_koKR = 1,
     LOCALE_frFR = 2,
     LOCALE_deDE = 3,
@@ -178,21 +186,38 @@ enum LocaleConstant
 
 #define MAX_LOCALE 9
 
+LocaleConstant GetLocaleByName(const std::string& name);
+
 extern char const* localeNames[MAX_LOCALE];
 
-LocaleConstant GetLocaleByName(const std::string& name);
+struct LocaleNameStr
+{
+    char const* name;
+    LocaleConstant locale;
+};
+
+// used for iterate all names including alternative
+extern LocaleNameStr fullLocaleNameList[];
+
+//operator new[] based version of strdup() function! Release memory by using operator delete[] !
+inline char * mangos_strdup(const char * source)
+{
+    char * dest = new char[strlen(source) + 1];
+    strcpy(dest, source);
+    return dest;
+}
 
 // we always use stdlibc++ std::max/std::min, undefine some not C++ standard defines (Win API and some pother platforms)
 #ifdef max
-#undef max
+#  undef max
 #endif
 
 #ifdef min
-#undef min
+#  undef min
 #endif
 
 #ifndef M_PI
-#define M_PI            3.14159265358979323846
+#  define M_PI          3.14159265358979323846
 #endif
 
 #endif

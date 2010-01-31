@@ -1,4 +1,4 @@
-# Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+# Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 ## CPP flags for includes, defines, etc.
 AM_CPPFLAGS = $(MANGOS_INCLUDES) -I$(top_builddir)/src/shared -I$(srcdir)/../../dep/include -I$(srcdir)/../framework -I$(srcdir)/../shared  -I$(srcdir)/../game -I$(srcdir) -DSYSCONFDIR=\"$(sysconfdir)/\"
 
-## Build world list daemon as standalone program
+## Build world daemon as standalone program
 bin_PROGRAMS = mangos-worldd
 mangos_worldd_SOURCES = \
 	CliRunnable.cpp \
@@ -33,8 +33,19 @@ mangos_worldd_SOURCES = \
 	WorldRunnable.h
 
 ## Link world daemon against the shared library
-mangos_worldd_LDADD = ../bindings/universal/libmangosscript.la ../game/libmangosgame.a ../shared/Database/libmangosdatabase.a ../shared/Config/libmangosconfig.a ../shared/Auth/libmangosauth.a ../shared/libmangosshared.a ../shared/vmap/libmangosvmaps.a ../framework/libmangosframework.a ../../dep/src/sockets/libmangossockets.a  ../../dep/src/zthread/libZThread.la ../../dep/src/g3dlite/libg3dlite.a
-mangos_worldd_LDFLAGS = -L../../dep/src/sockets -L../../dep/src/zthread -L../../dep/src/g3dlite -L../bindings/universal/ -L$(libdir) $(MANGOS_LIBS) -export-dynamic
+mangos_worldd_LDADD = \
+	../bindings/universal/libmangosscript.la \
+	../game/libmangosgame.a \
+	../shared/Database/libmangosdatabase.a \
+	../shared/Config/libmangosconfig.a \
+	../shared/Auth/libmangosauth.a \
+	../shared/libmangosshared.a \
+	../shared/vmap/libmangosvmaps.a \
+	../framework/libmangosframework.a \
+	../../dep/src/sockets/libmangossockets.a \
+	../../dep/src/g3dlite/libg3dlite.a
+
+mangos_worldd_LDFLAGS = -L../../dep/src/sockets -L../../dep/src/g3dlite -L../bindings/universal/ -L$(libdir) $(MANGOS_LIBS) -export-dynamic
 
 ## Additional files to include when running 'make dist'
 #  Include world daemon configuration

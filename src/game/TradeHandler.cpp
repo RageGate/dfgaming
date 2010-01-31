@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -451,38 +451,36 @@ void WorldSession::SendCancelTrade()
 void WorldSession::HandleCancelTradeOpcode(WorldPacket& /*recvPacket*/)
 {
     // sended also after LOGOUT COMPLETE
-    if(_player)                                             // needed because STATUS_AUTHED
+    if(_player)                                             // needed because STATUS_LOGGEDIN_OR_RECENTLY_LOGGOUT
         _player->TradeCancel(true);
 }
 
 void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
 {
-    CHECK_PACKET_SIZE(recvPacket,8);
-
-    if( GetPlayer()->pTrader )
+    if (GetPlayer()->pTrader)
         return;
 
     uint64 ID;
 
-    if( !GetPlayer()->isAlive() )
+    if (!GetPlayer()->isAlive())
     {
         SendTradeStatus(TRADE_STATUS_YOU_DEAD);
         return;
     }
 
-    if( GetPlayer()->hasUnitState(UNIT_STAT_STUNNED) )
+    if (GetPlayer()->hasUnitState(UNIT_STAT_STUNNED))
     {
         SendTradeStatus(TRADE_STATUS_YOU_STUNNED);
         return;
     }
 
-    if( isLogingOut() )
+    if (isLogingOut())
     {
         SendTradeStatus(TRADE_STATUS_YOU_LOGOUT);
         return;
     }
 
-    if( GetPlayer()->isInFlight() )
+    if (GetPlayer()->isInFlight())
     {
         SendTradeStatus(TRADE_STATUS_TARGET_TO_FAR);
         return;
@@ -492,55 +490,55 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
 
     Player* pOther = ObjectAccessor::FindPlayer( ID );
 
-    if( !pOther )
+    if (!pOther)
     {
         SendTradeStatus(TRADE_STATUS_NO_TARGET);
         return;
     }
 
-    if( pOther == GetPlayer() || pOther->pTrader )
+    if (pOther == GetPlayer() || pOther->pTrader)
     {
         SendTradeStatus(TRADE_STATUS_BUSY);
         return;
     }
 
-    if( !pOther->isAlive() )
+    if (!pOther->isAlive())
     {
         SendTradeStatus(TRADE_STATUS_TARGET_DEAD);
         return;
     }
 
-    if( pOther->isInFlight() )
+    if (pOther->isInFlight())
     {
         SendTradeStatus(TRADE_STATUS_TARGET_TO_FAR);
         return;
     }
 
-    if( pOther->hasUnitState(UNIT_STAT_STUNNED) )
+    if (pOther->hasUnitState(UNIT_STAT_STUNNED))
     {
         SendTradeStatus(TRADE_STATUS_TARGET_STUNNED);
         return;
     }
 
-    if( pOther->GetSession()->isLogingOut() )
+    if (pOther->GetSession()->isLogingOut())
     {
         SendTradeStatus(TRADE_STATUS_TARGET_LOGOUT);
         return;
     }
 
-    if( pOther->GetSocial()->HasIgnore(GetPlayer()->GetGUIDLow()) )
+    if (pOther->GetSocial()->HasIgnore(GetPlayer()->GetGUIDLow()))
     {
         SendTradeStatus(TRADE_STATUS_IGNORE_YOU);
         return;
     }
 
-    if(pOther->GetTeam() !=_player->GetTeam() )
+    if (pOther->GetTeam() !=_player->GetTeam() )
     {
         SendTradeStatus(TRADE_STATUS_WRONG_FACTION);
         return;
     }
 
-    if( pOther->GetDistance2d( _player ) > 10.0f )
+    if (!pOther->IsWithinDistInMap(_player,10.0f,false))
     {
         SendTradeStatus(TRADE_STATUS_TARGET_TO_FAR);
         return;
@@ -558,8 +556,6 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
 
 void WorldSession::HandleSetTradeGoldOpcode(WorldPacket& recvPacket)
 {
-    CHECK_PACKET_SIZE(recvPacket,4);
-
     if(!_player->pTrader)
         return;
 
@@ -575,8 +571,6 @@ void WorldSession::HandleSetTradeGoldOpcode(WorldPacket& recvPacket)
 
 void WorldSession::HandleSetTradeItemOpcode(WorldPacket& recvPacket)
 {
-    CHECK_PACKET_SIZE(recvPacket,1+1+1);
-
     if(!_player->pTrader)
         return;
 
@@ -598,7 +592,7 @@ void WorldSession::HandleSetTradeItemOpcode(WorldPacket& recvPacket)
 
     // check cheating, can't fail with correct client operations
     Item* item = _player->GetItemByPos(bag,slot);
-    if(!item || tradeSlot!=TRADE_SLOT_NONTRADED && !item->CanBeTraded())
+    if (!item || (tradeSlot != TRADE_SLOT_NONTRADED && !item->CanBeTraded()))
     {
         SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
         return;
@@ -624,8 +618,6 @@ void WorldSession::HandleSetTradeItemOpcode(WorldPacket& recvPacket)
 
 void WorldSession::HandleClearTradeItemOpcode(WorldPacket& recvPacket)
 {
-    CHECK_PACKET_SIZE(recvPacket,1);
-
     if(!_player->pTrader)
         return;
 

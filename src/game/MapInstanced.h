@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 
 #include "Map.h"
 #include "InstanceSaveMgr.h"
+#include "DBCEnums.h"
 
 class MANGOS_DLL_DECL MapInstanced : public Map
 {
@@ -38,8 +39,8 @@ class MANGOS_DLL_DECL MapInstanced : public Map
         bool RemoveBones(uint64 guid, float x, float y);
         void UnloadAll(bool pForce);
 
-        Map* GetInstance(const WorldObject* obj);
-        Map* FindMap(uint32 InstanceId) { return _FindMap(InstanceId); }
+        Map* CreateInstance(const uint32 mapId, Player * player);
+        Map* FindMap(uint32 InstanceId) const { return _FindMap(InstanceId); }
         void DestroyInstance(uint32 InstanceId);
         void DestroyInstance(InstancedMaps::iterator &itr);
 
@@ -57,18 +58,18 @@ class MANGOS_DLL_DECL MapInstanced : public Map
         }
 
         InstancedMaps &GetInstancedMaps() { return m_InstancedMaps; }
+        virtual void InitVisibilityDistance();
 
     private:
 
-        InstanceMap* CreateInstance(uint32 InstanceId, InstanceSave *save, uint8 difficulty);
-        BattleGroundMap* CreateBattleGround(uint32 InstanceId);
+        InstanceMap* CreateInstance(uint32 InstanceId, InstanceSave *save, Difficulty difficulty);
+        BattleGroundMap* CreateBattleGroundMap(uint32 InstanceId, BattleGround* bg);
 
         InstancedMaps m_InstancedMaps;
 
-        Map* _FindMap(uint32 InstanceId)
+        Map* _FindMap(uint32 InstanceId) const
         {
-            InstancedMaps::iterator i = m_InstancedMaps.find(InstanceId);
-
+            InstancedMaps::const_iterator i = m_InstancedMaps.find(InstanceId);
             return(i == m_InstancedMaps.end() ? NULL : i->second);
         }
 

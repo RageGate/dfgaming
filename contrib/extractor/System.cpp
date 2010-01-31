@@ -166,6 +166,43 @@ void HandleArgs(int argc, char * arg[])
     }
 }
 
+uint32 ReadBuild(int locale)
+{
+    // include build info file also
+    std::string filename  = std::string("component.wow-")+langs[locale]+".txt";
+    //printf("Read %s file... ", filename.c_str());
+
+    MPQFile m(filename.c_str());
+    if(m.isEof())
+    {
+        printf("Fatal error: Not found %s file!\n", filename.c_str());
+        exit(1);
+    }
+
+    std::string text = m.getPointer();
+    m.close();
+
+    size_t pos = text.find("version=\"");
+    size_t pos1 = pos + strlen("version=\"");
+    size_t pos2 = text.find("\"",pos1);
+    if (pos == text.npos || pos2 == text.npos || pos1 >= pos2)
+    {
+        printf("Fatal error: Invalid  %s file format!\n", filename.c_str());
+        exit(1);
+    }
+
+    std::string build_str = text.substr(pos1,pos2-pos1);
+
+    int build = atoi(build_str.c_str());
+    if (build <= 0)
+    {
+        printf("Fatal error: Invalid  %s file format!\n", filename.c_str());
+        exit(1);
+    }
+
+    return build;
+}
+
 uint32 ReadMapDBC()
 {
     printf("Read Map.dbc file... ");
@@ -241,10 +278,11 @@ void ReadLiquidTypeTableDBC()
 #define MAP_MAGIC             'SPAM'
 #define MAP_VERSION_MAGIC     '0.1w'
 #define MAP_AREA_MAGIC        'AERA'
-#define MAP_HEIGTH_MAGIC      'TGHM'
+#define MAP_HEIGHT_MAGIC      'TGHM'
 #define MAP_LIQUID_MAGIC      'QILM'
 
-struct map_fileheader{
+struct map_fileheader
+{
     uint32 mapMagic;
     uint32 versionMagic;
     uint32 areaMapOffset;
@@ -256,17 +294,20 @@ struct map_fileheader{
 };
 
 #define MAP_AREA_NO_AREA      0x0001
-struct map_areaHeader{
+
+struct map_areaHeader
+{
     uint32 fourcc;
     uint16 flags;
     uint16 gridArea;
 };
 
-#define MAP_HEIGHT_NO_HIGHT   0x0001
+#define MAP_HEIGHT_NO_HEIGHT  0x0001
 #define MAP_HEIGHT_AS_INT16   0x0002
 #define MAP_HEIGHT_AS_INT8    0x0004
 
-struct map_heightHeader{
+struct map_heightHeader
+{
     uint32 fourcc;
     uint32 flags;
     float  gridHeight;
@@ -284,9 +325,10 @@ struct map_heightHeader{
 
 
 #define MAP_LIQUID_NO_TYPE    0x0001
-#define MAP_LIQUID_NO_HIGHT   0x0002
+#define MAP_LIQUID_NO_HEIGHT  0x0002
 
-struct map_liquidHeader{
+struct map_liquidHeader
+{
     uint32 fourcc;
     uint16 flags;
     uint16 liquidType;
@@ -511,20 +553,20 @@ bool ConvertADT(char *filename, char *filename2, int cell_y, int cell_x)
     map.heightMapSize = sizeof(map_heightHeader);
 
     map_heightHeader heightHeader;
-    heightHeader.fourcc = MAP_HEIGTH_MAGIC;
+    heightHeader.fourcc = MAP_HEIGHT_MAGIC;
     heightHeader.flags = 0;
     heightHeader.gridHeight    = minHeight;
     heightHeader.gridMaxHeight = maxHeight;
 
     if (maxHeight == minHeight)
-        heightHeader.flags |=MAP_HEIGHT_NO_HIGHT;
+        heightHeader.flags |= MAP_HEIGHT_NO_HEIGHT;
 
     // Not need store if flat surface
     if (CONF_allow_float_to_int && (maxHeight - minHeight) < CONF_flat_height_delta_limit)
-        heightHeader.flags |=MAP_HEIGHT_NO_HIGHT;
+        heightHeader.flags |= MAP_HEIGHT_NO_HEIGHT;
 
     // Try store as packed in uint16 or uint8 values
-    if (!(heightHeader.flags&MAP_HEIGHT_NO_HIGHT))
+    if (!(heightHeader.flags & MAP_HEIGHT_NO_HEIGHT))
     {
         float step;
         // Try Store as uint values
@@ -756,22 +798,22 @@ bool ConvertADT(char *filename, char *filename2, int cell_y, int cell_x)
         liquidHeader.liquidLevel = minHeight;
 
         if (maxHeight == minHeight)
-            liquidHeader.flags|=MAP_LIQUID_NO_HIGHT;
+            liquidHeader.flags |= MAP_LIQUID_NO_HEIGHT;
 
         // Not need store if flat surface
         if (CONF_allow_float_to_int && (maxHeight - minHeight) < CONF_flat_liquid_delta_limit)
-            liquidHeader.flags|=MAP_LIQUID_NO_HIGHT;
+            liquidHeader.flags |= MAP_LIQUID_NO_HEIGHT;
 
         if (!fullType)
-            liquidHeader.flags|=MAP_LIQUID_NO_TYPE;
+            liquidHeader.flags |= MAP_LIQUID_NO_TYPE;
 
-        if (liquidHeader.flags&MAP_LIQUID_NO_TYPE)
+        if (liquidHeader.flags & MAP_LIQUID_NO_TYPE)
             liquidHeader.liquidType = type;
         else
             map.liquidMapSize+=sizeof(liquid_type);
      
-        if (!(liquidHeader.flags&MAP_LIQUID_NO_HIGHT))
-            map.liquidMapSize+=sizeof(float)*liquidHeader.width*liquidHeader.height;
+        if (!(liquidHeader.flags & MAP_LIQUID_NO_HEIGHT))
+            map.liquidMapSize += sizeof(float)*liquidHeader.width*liquidHeader.height;
     }
 
     // Ok all data prepared - store it
@@ -789,14 +831,14 @@ bool ConvertADT(char *filename, char *filename2, int cell_y, int cell_x)
 
     // Store height data
     fwrite(&heightHeader, sizeof(heightHeader), 1, output);
-    if (!(heightHeader.flags&MAP_HEIGHT_NO_HIGHT))
+    if (!(heightHeader.flags & MAP_HEIGHT_NO_HEIGHT))
     {
-        if (heightHeader.flags&MAP_HEIGHT_AS_INT16)
+        if (heightHeader.flags & MAP_HEIGHT_AS_INT16)
         {
             fwrite(uint16_V9, sizeof(uint16_V9), 1, output);
             fwrite(uint16_V8, sizeof(uint16_V8), 1, output);
         }
-        else if (heightHeader.flags&MAP_HEIGHT_AS_INT8)
+        else if (heightHeader.flags & MAP_HEIGHT_AS_INT8)
         {
             fwrite(uint8_V9, sizeof(uint8_V9), 1, output);
             fwrite(uint8_V8, sizeof(uint8_V8), 1, output);
@@ -814,7 +856,7 @@ bool ConvertADT(char *filename, char *filename2, int cell_y, int cell_x)
         fwrite(&liquidHeader, sizeof(liquidHeader), 1, output);
         if (!(liquidHeader.flags&MAP_LIQUID_NO_TYPE))
             fwrite(liquid_type, sizeof(liquid_type), 1, output);
-        if (!(liquidHeader.flags&MAP_LIQUID_NO_HIGHT))
+        if (!(liquidHeader.flags&MAP_LIQUID_NO_HEIGHT))
         {
             for (int y=0; y<liquidHeader.height;y++)
                 fwrite(&liquid_height[y+liquidHeader.offsetY][liquidHeader.offsetX], sizeof(float), liquidHeader.width, output);
@@ -873,11 +915,27 @@ void ExtractMapsFromMpq()
     delete [] map_ids;
 }
 
+bool ExtractFile( char const* mpq_name, std::string const& filename ) 
+{
+    FILE *output = fopen(filename.c_str(), "wb");
+    if(!output)
+    {
+        printf("Can't create the output file '%s'\n", filename.c_str());
+        return false;
+    }
+    MPQFile m(mpq_name);
+    if(!m.isEof())
+        fwrite(m.getPointer(), 1, m.getSize(), output);
+
+    fclose(output);
+    return true;
+}
+
 void ExtractDBCFiles(int locale, bool basicLocale)
 {
     printf("Extracting dbc files...\n");
 
-    set<string> dbcfiles;
+    std::set<std::string> dbcfiles;
 
     // get DBC file list
     for(ArchiveSet::iterator i = gOpenArchives.begin(); i != gOpenArchives.end();++i)
@@ -889,7 +947,7 @@ void ExtractDBCFiles(int locale, bool basicLocale)
                     dbcfiles.insert(*iter);
     }
 
-    string path = output_path;
+    std::string path = output_path;
     path += "/dbc/";
     CreateDir(path);
     if(!basicLocale)
@@ -899,6 +957,14 @@ void ExtractDBCFiles(int locale, bool basicLocale)
         CreateDir(path);
     }
 
+    // extract Build info file
+    {
+        string mpq_name = std::string("component.wow-") + langs[locale] + ".txt";
+        string filename = path + mpq_name;
+
+        ExtractFile(mpq_name.c_str(), filename);
+    }
+
     // extract DBCs
     int count = 0;
     for (set<string>::iterator iter = dbcfiles.begin(); iter != dbcfiles.end(); ++iter)
@@ -906,18 +972,8 @@ void ExtractDBCFiles(int locale, bool basicLocale)
         string filename = path;
         filename += (iter->c_str() + strlen("DBFilesClient\\"));
 
-        FILE *output = fopen(filename.c_str(), "wb");
-        if(!output)
-        {
-            printf("Can't create the output file '%s'\n", filename.c_str());
-            continue;
-        }
-        MPQFile m(iter->c_str());
-        if(!m.isEof())
-            fwrite(m.getPointer(), 1, m.getSize(), output);
-
-        fclose(output);
-        ++count;
+        if(ExtractFile(iter->c_str(), filename))
+            ++count;
     }
     printf("Extracted %u DBC files\n\n", count);
 }
@@ -967,6 +1023,7 @@ int main(int argc, char * arg[])
     HandleArgs(argc, arg);
 
     int FirstLocale = -1;
+    uint32 build = 0;
 
     for (int i = 0; i < LANG_COUNT; i++)
     {
@@ -982,14 +1039,18 @@ int main(int argc, char * arg[])
             if((CONF_extract & EXTRACT_DBC) == 0)
             {
                 FirstLocale = i;
+                build = ReadBuild(FirstLocale);
+                printf("Detected client build: %u\n", build);
                 break;
             }
 
             //Extract DBC files
             if(FirstLocale < 0)
             {
-                ExtractDBCFiles(i, true);
                 FirstLocale = i;
+                build = ReadBuild(FirstLocale);
+                printf("Detected client build: %u\n", build);
+                ExtractDBCFiles(i, true);
             }
             else
                 ExtractDBCFiles(i, false);

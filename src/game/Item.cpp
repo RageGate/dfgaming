@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "Common.h"
 #include "Item.h"
 #include "ObjectMgr.h"
+#include "ObjectDefines.h"
 #include "WorldPacket.h"
 #include "Database/DatabaseEnv.h"
 #include "ItemEnchantmentMgr.h"
@@ -233,8 +234,8 @@ Item::Item( )
 {
     m_objectType |= TYPEMASK_ITEM;
     m_objectTypeId = TYPEID_ITEM;
-                                                            // 2.3.2 - 0x18
-    m_updateFlag = (UPDATEFLAG_LOWGUID | UPDATEFLAG_HIGHGUID);
+
+    m_updateFlag = UPDATEFLAG_HIGHGUID;
 
     m_valuesCount = ITEM_END;
     m_slot = 0;
@@ -255,7 +256,7 @@ bool Item::Create( uint32 guidlow, uint32 itemid, Player const* owner)
     SetUInt64Value(ITEM_FIELD_OWNER, owner ? owner->GetGUID() : 0);
     SetUInt64Value(ITEM_FIELD_CONTAINED, owner ? owner->GetGUID() : 0);
 
-    ItemPrototype const *itemProto = objmgr.GetItemPrototype(itemid);
+    ItemPrototype const *itemProto = ObjectMgr::GetItemPrototype(itemid);
     if(!itemProto)
         return false;
 
@@ -377,6 +378,16 @@ bool Item::LoadFromDB(uint32 guid, uint64 owner_guid, QueryResult *result)
     if(!proto)
         return false;
 
+    // update max durability (and durability) if need
+    if(proto->MaxDurability!= GetUInt32Value(ITEM_FIELD_MAXDURABILITY))
+    {
+        SetUInt32Value(ITEM_FIELD_MAXDURABILITY,proto->MaxDurability);
+        if(GetUInt32Value(ITEM_FIELD_DURABILITY) > proto->MaxDurability)
+            SetUInt32Value(ITEM_FIELD_DURABILITY,proto->MaxDurability);
+
+        need_save = true;
+    }
+
     // recalculate suffix factor
     if(GetItemRandomPropertyId() < 0)
     {
@@ -431,12 +442,12 @@ void Item::DeleteFromInventoryDB()
 
 ItemPrototype const *Item::GetProto() const
 {
-    return objmgr.GetItemPrototype(GetEntry());
+    return ObjectMgr::GetItemPrototype(GetEntry());
 }
 
 Player* Item::GetOwner()const
 {
-    return objmgr.GetPlayer(GetOwnerGUID());
+    return sObjectMgr.GetPlayer(GetOwnerGUID());
 }
 
 uint32 Item::GetSkill()
@@ -696,18 +707,22 @@ bool Item::IsEquipped() const
     return !IsInBag() && m_slot < EQUIPMENT_SLOT_END;
 }
 
-bool Item::CanBeTraded() const
+bool Item::CanBeTraded(bool mail) const
 {
-    if(IsSoulBound())
-        return false;
-    if(IsBag() && (Player::IsBagPos(GetPos()) || !((Bag const*)this)->IsEmpty()) )
+    if (m_lootGenerated)
         return false;
 
-    if(Player* owner = GetOwner())
+    if ((!mail || !IsBoundAccountWide()) && IsSoulBound())
+        return false;
+
+    if (IsBag() && (Player::IsBagPos(GetPos()) || !((Bag const*)this)->IsEmpty()) )
+        return false;
+
+    if (Player* owner = GetOwner())
     {
-        if(owner->CanUnequipItem(GetPos(),false) !=  EQUIP_ERR_OK )
+        if (owner->CanUnequipItem(GetPos(),false) !=  EQUIP_ERR_OK )
             return false;
-        if(owner->GetLootGUID()==GetGUID())
+        if (owner->GetLootGUID()==GetGUID())
             return false;
     }
 
@@ -759,6 +774,23 @@ bool Item::IsFitToSpellRequirements(SpellEntry const* spellInfo) const
     }
 
     return true;
+}
+
+bool Item::IsTargetValidForItemUse(Unit* pUnitTarget)
+{
+    ItemRequiredTargetMapBounds bounds = sObjectMgr.GetItemRequiredTargetMapBounds(GetProto()->ItemId);
+
+    if (bounds.first == bounds.second)
+        return true;
+
+    if (!pUnitTarget)
+        return false;
+
+    for(ItemRequiredTargetMap::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
+        if(itr->second.IsFitToRequirements(pUnitTarget))
+            return true;
+
+    return false;
 }
 
 void Item::SetEnchantment(EnchantmentSlot slot, uint32 id, uint32 duration, uint32 charges)
@@ -908,7 +940,7 @@ Item* Item::CreateItem( uint32 item, uint32 count, Player const* player )
     if ( count < 1 )
         return NULL;                                        //don't create item at zero count
 
-    ItemPrototype const *pProto = objmgr.GetItemPrototype( item );
+    ItemPrototype const *pProto = ObjectMgr::GetItemPrototype( item );
     if( pProto )
     {
         if ( count > pProto->GetMaxStackSize())
@@ -917,7 +949,7 @@ Item* Item::CreateItem( uint32 item, uint32 count, Player const* player )
         assert(count !=0 && "pProto->Stackable==0 but checked at loading already");
 
         Item *pItem = NewItemOrBag( pProto );
-        if( pItem->Create(objmgr.GenerateLowGuid(HIGHGUID_ITEM), item, player) )
+        if( pItem->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_ITEM), item, player) )
         {
             pItem->SetCount( count );
             return pItem;
@@ -940,4 +972,86 @@ Item* Item::CloneItem( uint32 count, Player const* player ) const
     newItem->SetUInt32Value( ITEM_FIELD_DURATION,     GetUInt32Value( ITEM_FIELD_DURATION ) );
     newItem->SetItemRandomProperties(GetItemRandomPropertyId());
     return newItem;
+}
+
+bool Item::IsBindedNotWith( Player const* player ) const
+{
+    // not binded item
+    if(!IsSoulBound())
+        return false;
+
+    // own item
+    if(GetOwnerGUID()== player->GetGUID())
+        return false;
+
+    // not BOA item case
+    if(!IsBoundAccountWide())
+        return true;
+
+    // online
+    if(Player* owner = sObjectMgr.GetPlayer(GetOwnerGUID()))
+    {
+        return owner->GetSession()->GetAccountId() != player->GetSession()->GetAccountId();
+    }
+    // offline slow case
+    else
+    {
+        return sObjectMgr.GetPlayerAccountIdByGUID(GetOwnerGUID()) != player->GetSession()->GetAccountId();
+    }
+}
+
+void Item::AddToClientUpdateList()
+{
+    if (Player* pl = GetOwner())
+        pl->GetMap()->AddUpdateObject(this);
+}
+
+void Item::RemoveFromClientUpdateList()
+{
+    if (Player* pl = GetOwner())
+        pl->GetMap()->RemoveUpdateObject(this);
+}
+
+void Item::BuildUpdateData(UpdateDataMapType& update_players)
+{
+    if (Player* pl = GetOwner())
+        BuildUpdateDataForPlayer(pl, update_players);
+
+    ClearUpdateMask(false);
+}
+
+uint8 Item::CanBeMergedPartlyWith( ItemPrototype const* proto ) const
+{
+    // check item type
+    if (GetEntry() != proto->ItemId)
+        return EQUIP_ERR_ITEM_CANT_STACK;
+
+    // check free space (full stacks can't be target of merge
+    if (GetCount() >= proto->GetMaxStackSize())
+        return EQUIP_ERR_ITEM_CANT_STACK;
+
+    // not allow merge looting currently items
+    if (m_lootGenerated)
+        return EQUIP_ERR_ALREADY_LOOTED;
+
+    return EQUIP_ERR_OK;
+}
+
+bool ItemRequiredTarget::IsFitToRequirements( Unit* pUnitTarget ) const
+{
+    if(pUnitTarget->GetTypeId() != TYPEID_UNIT)
+        return false;
+
+    if(pUnitTarget->GetEntry() != m_uiTargetEntry)
+        return false;
+
+    switch(m_uiType)
+    {
+        case ITEM_TARGET_TYPE_CREATURE:
+            return pUnitTarget->isAlive();
+        case ITEM_TARGET_TYPE_DEAD:
+            return !pUnitTarget->isAlive();
+        default:
+            return false;
+    }
 }

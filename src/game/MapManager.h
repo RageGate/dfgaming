@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +21,14 @@
 
 #include "Platform/Define.h"
 #include "Policies/Singleton.h"
-#include "zthread/Mutex.h"
+#include "ace/Thread_Mutex.h"
 #include "Common.h"
 #include "Map.h"
 #include "GridStates.h"
 
 class Transport;
 
-class MANGOS_DLL_DECL MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::ClassLevelLockable<MapManager, ZThread::Mutex> >
+class MANGOS_DLL_DECL MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::ClassLevelLockable<MapManager, ACE_Thread_Mutex> >
 {
 
     friend class MaNGOS::OperatorNew<MapManager>;
@@ -37,17 +37,16 @@ class MANGOS_DLL_DECL MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::
 
     public:
 
-        Map* GetMap(uint32, const WorldObject* obj);
-        Map* FindMap(uint32 mapid) { return _findMap(mapid); }
-        Map* FindMap(uint32 mapid, uint32 instanceId);
+        Map* CreateMap(uint32, const WorldObject* obj);
+        Map const* CreateBaseMap(uint32 id) const { return const_cast<MapManager*>(this)->_createBaseMap(id); }
+        Map* FindMap(uint32 mapid, uint32 instanceId = 0) const;
 
         // only const version for outer users
-        Map const* GetBaseMap(uint32 id) const { return const_cast<MapManager*>(this)->_GetBaseMap(id); }
         void DeleteInstance(uint32 mapid, uint32 instanceId);
 
         uint16 GetAreaFlag(uint32 mapid, float x, float y, float z) const
         {
-            Map const* m = GetBaseMap(mapid);
+            Map const* m = CreateBaseMap(mapid);
             return m->GetAreaFlag(x, y, z);
         }
         uint32 GetAreaId(uint32 mapid, float x, float y, float z) const
@@ -83,7 +82,7 @@ class MANGOS_DLL_DECL MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::
             i_timer.Reset();
         }
 
-        void LoadGrid(int mapid, float x, float y, const WorldObject* obj, bool no_unload = false);
+        //void LoadGrid(int mapid, int instId, float x, float y, const WorldObject* obj, bool no_unload = false);
         void UnloadAll();
 
         static bool ExistMapAndVMap(uint32 mapid, float x, float y);
@@ -106,7 +105,7 @@ class MANGOS_DLL_DECL MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::
 
         static bool IsValidMapCoord(WorldLocation const& loc)
         {
-            return IsValidMapCoord(loc.mapid,loc.x,loc.y,loc.z,loc.o);
+            return IsValidMapCoord(loc.mapid,loc.coord_x,loc.coord_y,loc.coord_z,loc.orientation);
         }
 
         void DoDelayedMovesAndRemoves();
@@ -123,6 +122,7 @@ class MANGOS_DLL_DECL MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::
         void RemoveBonesFromMap(uint32 mapid, uint64 guid, float x, float y);
         uint32 GenerateInstanceId() { return ++i_MaxInstanceId; }
         void InitMaxInstanceId();
+        void InitializeVisibilityDistanceInfo();
 
         /* statistics */
         uint32 GetNumInstances();
@@ -140,18 +140,21 @@ class MANGOS_DLL_DECL MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::
         MapManager(const MapManager &);
         MapManager& operator=(const MapManager &);
 
-        Map* _GetBaseMap(uint32 id);
+        Map* _createBaseMap(uint32 id);
         Map* _findMap(uint32 id) const
         {
             MapMapType::const_iterator iter = i_maps.find(id);
             return (iter == i_maps.end() ? NULL : iter->second);
         }
 
-        typedef MaNGOS::ClassLevelLockable<MapManager, ZThread::Mutex>::Lock Guard;
+        typedef MaNGOS::ClassLevelLockable<MapManager, ACE_Thread_Mutex>::Lock Guard;
         uint32 i_gridCleanUpDelay;
         MapMapType i_maps;
         IntervalTimer i_timer;
 
         uint32 i_MaxInstanceId;
 };
+
+#define sMapMgr MapManager::Instance()
+
 #endif

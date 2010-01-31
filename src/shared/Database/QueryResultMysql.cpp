@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,20 +20,15 @@
 
 #include "DatabaseEnv.h"
 
-QueryResultMysql::QueryResultMysql(MYSQL_RES *result, uint64 rowCount, uint32 fieldCount) :
-QueryResult(rowCount, fieldCount), mResult(result)
+QueryResultMysql::QueryResultMysql(MYSQL_RES *result, MYSQL_FIELD *fields, uint64 rowCount, uint32 fieldCount) :
+    QueryResult(rowCount, fieldCount), mResult(result)
 {
 
     mCurrentRow = new Field[mFieldCount];
     ASSERT(mCurrentRow);
 
-    MYSQL_FIELD *fields = mysql_fetch_fields(mResult);
-
     for (uint32 i = 0; i < mFieldCount; i++)
-    {
-        mFieldNames[i] = fields[i].name;
         mCurrentRow[i].SetType(ConvertNativeType(fields[i].type));
-    }
 }
 
 QueryResultMysql::~QueryResultMysql()

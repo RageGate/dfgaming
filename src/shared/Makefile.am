@@ -1,4 +1,4 @@
-# Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+# Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,12 +30,11 @@ noinst_LIBRARIES = libmangosshared.a
 
 #  libmangosshared library will later be reused by ...
 libmangosshared_a_SOURCES = \
-	Base.cpp \
-	Base.h \
 	ByteBuffer.h \
 	Common.cpp \
 	Common.h \
 	Errors.h \
+	LockedQueue.h \
 	Log.cpp \
 	Log.h \
 	MemoryLeaks.cpp \
@@ -43,10 +42,13 @@ libmangosshared_a_SOURCES = \
 	ProgressBar.cpp \
 	ProgressBar.h \
 	Timer.h \
+	Threading.cpp \
+	Threading.h \
 	Util.cpp \
 	Util.h \
 	WorldPacket.h \
 	revision_nr.h \
+	revision_sql.h \
 	revision.h
 
 # Get revision (git or svn)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@
 #define MANGOS_GRIDNOTIFIERS_H
 
 #include "ObjectGridLoader.h"
-#include "ByteBuffer.h"
 #include "UpdateData.h"
 #include <iostream>
 
@@ -30,6 +29,7 @@
 #include "GameObject.h"
 #include "Player.h"
 #include "Unit.h"
+#include "CreatureAI.h"
 
 class Player;
 //class Map;
@@ -445,6 +445,25 @@ namespace MaNGOS
         template<class NOT_INTERESTED> void Visit(GridRefManager<NOT_INTERESTED> &) {}
     };
 
+    template<class Do>
+    struct MANGOS_DLL_DECL CreatureWorker
+    {
+        uint32 i_phaseMask;
+        Do& i_do;
+
+        CreatureWorker(WorldObject const* searcher, Do& _do)
+            : i_phaseMask(searcher->GetPhaseMask()), i_do(_do) {}
+
+        void Visit(CreatureMapType &m)
+        {
+            for(CreatureMapType::iterator itr=m.begin(); itr != m.end(); ++itr)
+                if(itr->getSource()->InSamePhase(i_phaseMask))
+                    i_do(itr->getSource());
+        }
+
+        template<class NOT_INTERESTED> void Visit(GridRefManager<NOT_INTERESTED> &) {}
+    };
+
     // Player searchers
 
     template<class Check>
@@ -494,7 +513,7 @@ namespace MaNGOS
         void Visit(PlayerMapType &m)
         {
             for(PlayerMapType::iterator itr=m.begin(); itr != m.end(); ++itr)
-                if(itr->getSource()->InSamePhase(i_searcher) && itr->getSource()->GetDistance(i_searcher) <= i_dist)
+                if (itr->getSource()->InSamePhase(i_searcher) && itr->getSource()->IsWithinDist(i_searcher,i_dist))
                     i_do(itr->getSource());
         }
 
@@ -700,7 +719,7 @@ namespace MaNGOS
             bool operator()(Unit* u)
             {
                 if(u->isAlive() && u->isInCombat() && !i_obj->IsHostileTo(u) && i_obj->IsWithinDistInMap(u, i_range) &&
-                    (u->isFeared() || u->isCharmed() || u->isFrozen() || u->hasUnitState(UNIT_STAT_STUNNED) || u->hasUnitState(UNIT_STAT_CONFUSED)))
+                    (u->isCharmed() || u->isFrozen() || u->hasUnitState(UNIT_STAT_CAN_NOT_REACT)))
                 {
                     return true;
                 }
@@ -740,6 +759,25 @@ namespace MaNGOS
                     return true;
                 else
                     return false;
+            }
+        private:
+            WorldObject const* i_obj;
+            Unit const* i_funit;
+            float i_range;
+    };
+
+    class AnyUnfriendlyVisibleUnitInObjectRangeCheck
+    {
+        public:
+            AnyUnfriendlyVisibleUnitInObjectRangeCheck(WorldObject const* obj, Unit const* funit, float range)
+                : i_obj(obj), i_funit(funit), i_range(range) {}
+
+            bool operator()(Unit* u)
+            {
+                return u->isAlive()
+                    && i_obj->IsWithinDistInMap(u, i_range)
+                    && !i_funit->IsFriendlyTo(u)
+                    && u->isVisibleForOrDetect(i_funit,i_funit,false);
             }
         private:
             WorldObject const* i_obj;
@@ -788,7 +826,7 @@ namespace MaNGOS
             bool operator()(Unit* u)
             {
                 if( u->isTargetableForAttack() && i_obj->IsWithinDistInMap(u, i_range) &&
-                    !i_funit->IsFriendlyTo(u) && u->isVisibleForOrDetect(i_funit,false)  )
+                    !i_funit->IsFriendlyTo(u) && u->isVisibleForOrDetect(i_funit,i_funit,false)  )
                 {
                     i_range = i_obj->GetDistance(u);        // use found unit range as new range limit for next check
                     return true;
@@ -808,8 +846,8 @@ namespace MaNGOS
     class AnyAoETargetUnitInObjectRangeCheck
     {
         public:
-            AnyAoETargetUnitInObjectRangeCheck(WorldObject const* obj, Unit const* funit, float range)
-                : i_obj(obj), i_funit(funit), i_range(range)
+            AnyAoETargetUnitInObjectRangeCheck(WorldObject const* obj, Unit const* funit, float range, bool hitHidden = true)
+                : i_obj(obj), i_funit(funit), i_range(range), i_hitHidden(hitHidden)
             {
                 Unit const* check = i_funit;
                 Unit const* owner = i_funit->GetOwner();
@@ -824,6 +862,8 @@ namespace MaNGOS
                     return false;
                 if(u->GetTypeId()==TYPEID_UNIT && ((Creature*)u)->isTotem())
                     return false;
+                if (!i_hitHidden && !u->isVisibleForOrDetect(i_funit, i_funit, false))
+                    return false;
 
                 if(( i_targetForPlayer ? !i_funit->IsFriendlyTo(u) : i_funit->IsHostileTo(u) )&& i_obj->IsWithinDistInMap(u, i_range))
                     return true;
@@ -834,6 +874,39 @@ namespace MaNGOS
             bool i_targetForPlayer;
             WorldObject const* i_obj;
             Unit const* i_funit;
+            float i_range;
+            bool i_hitHidden;
+    };
+
+    // do attack at call of help to friendly crearture
+    class CallOfHelpCreatureInRangeDo
+    {
+        public:
+            CallOfHelpCreatureInRangeDo(Unit* funit, Unit* enemy, float range)
+                : i_funit(funit), i_enemy(enemy), i_range(range)
+            {}
+            void operator()(Creature* u)
+            {
+                if (u == i_funit)
+                    return;
+
+                if (!u->CanAssistTo(i_funit, i_enemy, false))
+                    return;
+
+                // too far
+                if (!i_funit->IsWithinDistInMap(u, i_range))
+                    return;
+
+                // only if see assisted creature
+                if (!i_funit->IsWithinLOSInMap(u))
+                    return;
+
+                if (u->AI())
+                    u->AI()->AttackStart(i_enemy);
+            }
+        private:
+            Unit* const i_funit;
+            Unit* const i_enemy;
             float i_range;
     };
 
@@ -893,6 +966,38 @@ namespace MaNGOS
             Unit* const i_funit;
             Unit* const i_enemy;
             float i_range;
+    };
+
+    class NearestAssistCreatureInCreatureRangeCheck
+    {
+        public:
+            NearestAssistCreatureInCreatureRangeCheck(Creature* obj, Unit* enemy, float range)
+                : i_obj(obj), i_enemy(enemy), i_range(range) {}
+
+            bool operator()(Creature* u)
+            {
+                if(u == i_obj)
+                    return false;
+                if(!u->CanAssistTo(i_obj,i_enemy))
+                    return false;
+
+                if(!i_obj->IsWithinDistInMap(u, i_range))
+                    return false;
+
+                if(!i_obj->IsWithinLOSInMap(u))
+                    return false;
+
+                i_range = i_obj->GetDistance(u);            // use found unit range as new range limit for next check
+                return true;
+            }
+            float GetLastRange() const { return i_range; }
+        private:
+            Creature* const i_obj;
+            Unit* const i_enemy;
+            float  i_range;
+
+            // prevent clone this object
+            NearestAssistCreatureInCreatureRangeCheck(NearestAssistCreatureInCreatureRangeCheck const&);
     };
 
     // Success at unit in range, range update for next check (this can be use with CreatureLastSearcher to find nearest creature)
@@ -970,7 +1075,7 @@ namespace MaNGOS
             ~LocalizedPacketListDo()
             {
                 for(size_t i = 0; i < i_data_cache.size(); ++i)
-                    for(int j = 0; j < i_data_cache[i].size(); ++j)
+                    for(size_t j = 0; j < i_data_cache[i].size(); ++j)
                         delete i_data_cache[i][j];
             }
             void operator()( Player* p );
