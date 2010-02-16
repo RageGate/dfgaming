@@ -1892,9 +1892,15 @@ void Spell::SetTargetMap(uint32 effIndex, uint32 targetMode, UnitList& targetUni
             if(m_spellInfo->Effect[effIndex] != SPELL_EFFECT_DUEL)
                 targetUnitMap.push_back(m_caster);
             break;
-        case TARGET_SINGLE_ENEMY:
+        case TARGET_PERIODIC_TRIGGER_AURA:
         {
-            if(Unit* pUnitTarget = m_caster->SelectMagnetTarget(m_targets.getUnitTarget(), m_spellInfo))
+            Unit* pTarget;
+            // search for dummy aura link, that contains the target
+            Aura* pAura = NULL;
+            if(m_triggeredByAuraSpell)
+                pAura = m_caster->GetLinkedDummyAura(m_triggeredByAuraSpell->Id);
+            pTarget = pAura ? pAura->GetTarget() : m_targets.getUnitTarget();
+            if(Unit* pUnitTarget = m_caster->SelectMagnetTarget(pTarget, m_spellInfo))
             {
                 m_targets.setUnitTarget(pUnitTarget);
                 targetUnitMap.push_back(pUnitTarget);
