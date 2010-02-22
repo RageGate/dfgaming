@@ -1513,7 +1513,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         void SetCurrentCastedSpell(Spell * pSpell);
         virtual void ProhibitSpellSchool(SpellSchoolMask /*idSchoolMask*/, uint32 /*unTimeMs*/ ) { }
-        void InterruptSpell(CurrentSpellTypes spellType, bool withDelayed = true);
+        void InterruptSpell(CurrentSpellTypes spellType, bool withDelayed = true, bool sendAutoRepeatCancelToClient = true);
         void FinishSpell(CurrentSpellTypes spellType, bool ok = true);
 
         // set withDelayed to true to account delayed spells as casted
@@ -1657,6 +1657,11 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         Aura* GetDummyAura(uint32 spell_id) const;
 
+        // those dummy aura links are used to provide unit target for spells with TARGET_PERIODIC_TRIGGER_AURA
+        Aura* GetLinkedDummyAura(uint32 spell_id) const;
+        void AddDummyAuraLink(Aura* m_Aura) { m_dummyAuraLink.push_back(m_Aura); }
+        void RemoveDummyAuraLink(Aura* m_Aura);
+
         uint32 m_AuraFlags;
 
         uint32 GetDisplayId() { return GetUInt32Value(UNIT_FIELD_DISPLAYID); }
@@ -1792,9 +1797,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         explicit Unit ();
 
         void _UpdateSpells(uint32 time);
-
         void _UpdateAutoRepeatSpell();
-        bool m_AutoRepeatFirstCast;
 
         uint32 m_attackTimer[MAX_ATTACK];
 
@@ -1810,6 +1813,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         AuraList m_deletedAuras;                            // auras removed while in ApplyModifier and waiting deleted
 
         AuraList m_scAuras;                                 // casted by unit single per-caster auras
+        AuraList m_dummyAuraLink;                           // custom linked dummy auras
 
         typedef std::list<uint64> DynObjectGUIDs;
         DynObjectGUIDs m_dynObjGUIDs;

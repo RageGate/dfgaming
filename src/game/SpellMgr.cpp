@@ -419,7 +419,7 @@ bool IsPositiveTarget(uint32 targetA, uint32 targetB)
         case TARGET_IN_FRONT_OF_CASTER:
         case TARGET_ALL_ENEMY_IN_AREA_CHANNELED:
         case TARGET_CURRENT_ENEMY_COORDINATES:
-        case TARGET_SINGLE_ENEMY:
+        case TARGET_PERIODIC_TRIGGER_AURA:
         case TARGET_IN_FRONT_OF_CASTER_30:
             return false;
         case TARGET_CASTER_COORDINATES:
@@ -456,7 +456,7 @@ bool IsExplicitNegativeTarget(uint32 targetA)
     {
         case TARGET_CHAIN_DAMAGE:
         case TARGET_CURRENT_ENEMY_COORDINATES:
-        case TARGET_SINGLE_ENEMY:
+        case TARGET_PERIODIC_TRIGGER_AURA:
             return true;
         default:
             break;
