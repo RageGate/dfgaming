@@ -209,7 +209,7 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
                             break;
                         // Drink
                         case SPELL_AURA_MOD_POWER_REGEN:
-                        case SPELL_AURA_OBS_MOD_MANA:
+                        case SPELL_AURA_OBS_MOD_ENERGY:
                             drink = true;
                             break;
                         default:
@@ -1385,6 +1385,10 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                     if( (spellInfo_1->Id == 8326 && spellInfo_2->Id == 20584) ||
                         (spellInfo_2->Id == 8326 && spellInfo_1->Id == 20584) )
                          return false;
+
+                    // Kindred Spirits
+                    if( spellInfo_1->SpellIconID == 3559 && spellInfo_2->SpellIconID == 3559 )
+                        return false;
 
                     break;
                 }

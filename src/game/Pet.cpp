@@ -205,6 +205,8 @@ bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool 
             SetUInt32Value(UNIT_FIELD_BYTES_0, 2048);
             SetUInt32Value(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE);
                                                             // this enables popup window (pet dismiss, cancel)
+            if (cinfo->family == CREATURE_FAMILY_GHOUL)     // TODO: more generic way!?
+                setPowerType(POWER_ENERGY);
             break;
         case HUNTER_PET:
             SetUInt32Value(UNIT_FIELD_BYTES_0, 0x02020100);
@@ -472,6 +474,18 @@ void Pet::setDeathState(DeathState s)                       // overwrite virtual
                 ModifyPower(POWER_HAPPINESS, -HAPPINESS_LEVEL_SIZE);
 
             SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED);
+        }
+
+        // send cooldown for summon spell if necessary
+        if (Player* p_owner = GetCharmerOrOwnerPlayerOrPlayerItself())
+        {
+            SpellEntry const *spellInfo = sSpellStore.LookupEntry(GetUInt32Value(UNIT_CREATED_BY_SPELL));
+            if (spellInfo && spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
+                p_owner->SendCooldownEvent(spellInfo);
+            // Raise Dead hack
+            if (spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT && spellInfo->SpellFamilyFlags & 0x1000)
+                if (spellInfo = sSpellStore.LookupEntry(46584))
+                    p_owner->SendCooldownEvent(spellInfo);
         }
     }
     else if(getDeathState()==ALIVE)

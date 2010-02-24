@@ -3821,7 +3821,7 @@ bool Unit::AddAura(Aura *Aur)
                     case SPELL_AURA_PERIODIC_HEAL:
                     case SPELL_AURA_OBS_MOD_HEALTH:
                     case SPELL_AURA_PERIODIC_MANA_LEECH:
-                    case SPELL_AURA_OBS_MOD_MANA:
+                    case SPELL_AURA_OBS_MOD_ENERGY:
                     case SPELL_AURA_POWER_BURN_MANA:
                         break;
                     case SPELL_AURA_PERIODIC_ENERGIZE:      // all or self or clear non-stackable
@@ -4818,7 +4818,7 @@ void Unit::SendPeriodicAuraLog(SpellPeriodicAuraLogInfo *pInfo)
             data << uint32(pInfo->overDamage);              // overheal?
             data << uint8(pInfo->critical ? 1 : 0);         // new 3.1.2 critical flag
             break;
-        case SPELL_AURA_OBS_MOD_MANA:
+        case SPELL_AURA_OBS_MOD_ENERGY:
         case SPELL_AURA_PERIODIC_ENERGIZE:
             data << uint32(mod->m_miscvalue);               // power type
             data << uint32(pInfo->damage);                  // damage
@@ -7024,6 +7024,31 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAu
             }
             break;
         }
+        case SPELLFAMILY_PET:
+        {
+            // improved cower
+            if (dummySpell->SpellIconID == 958 && procSpell->SpellIconID == 958)
+            {
+                triggered_spell_id = dummySpell->Id == 53180 ? 54200 : 54201;
+                target = this;
+                break;
+            }
+            // guard dog
+            if (dummySpell->SpellIconID == 201 && procSpell->SpellIconID == 201)
+            {
+                triggered_spell_id = 54445;
+                target = this;
+                break;
+            }
+            // silverback
+            if (dummySpell->SpellIconID == 1582 && procSpell->SpellIconID == 201)
+            {
+                triggered_spell_id = dummySpell->Id == 62764 ? 62800 : 62801;
+                target = this;
+                break;
+            }
+            break;
+        }
         default:
             break;
     }
@@ -8627,7 +8652,14 @@ void Unit::SetPet(Pet* pet)
     SetPetGUID(pet ? pet->GetGUID() : 0);
 
     if(pet && GetTypeId() == TYPEID_PLAYER)
+    {
         ((Player*)this)->SendPetGUIDs();
+
+        // set infinite cooldown for summon spell
+        SpellEntry const *spellInfo = sSpellStore.LookupEntry(pet->GetUInt32Value(UNIT_CREATED_BY_SPELL));
+        if (spellInfo && spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
+            ((Player*)this)->AddSpellAndCategoryCooldowns(spellInfo, 0, NULL,true);
+    }
 
     // FIXME: hack, speed must be set only at follow
     if(pet && GetTypeId()==TYPEID_PLAYER)
@@ -8643,6 +8675,13 @@ void Unit::SetCharm(Unit* pet)
 void Unit::AddGuardian( Pet* pet )
 {
     m_guardianPets.insert(pet->GetGUID());
+
+    if(GetTypeId() == TYPEID_PLAYER)
+    {
+        SpellEntry const *spellInfo = sSpellStore.LookupEntry(pet->GetUInt32Value(UNIT_CREATED_BY_SPELL));
+        if (spellInfo && spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
+            ((Player*)this)->AddSpellAndCategoryCooldowns(spellInfo, 0, NULL,true);
+    }
 }
 
 void Unit::RemoveGuardian( Pet* pet )
@@ -12314,7 +12353,7 @@ void Unit::ProcDamageAndSpellFor( bool isVictim, Unit * pTarget, uint32 procFlag
             }
             case SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN:
             case SPELL_AURA_MANA_SHIELD:
-            case SPELL_AURA_OBS_MOD_MANA:
+            case SPELL_AURA_OBS_MOD_ENERGY:
             case SPELL_AURA_ADD_PCT_MODIFIER:
             case SPELL_AURA_DUMMY:
             {
