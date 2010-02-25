@@ -6001,6 +6001,15 @@ void Aura::HandleSpellSpecificBoosts(bool apply)
                 cast_at_remove = true;
                 spellId1 = 60242;                           // Darkmoon Card: Illusion
             }
+            else if(GetId() == 45661)                       // Encapsulate
+            {
+                // we need to cast with target GUID because of target problems with trigger spell
+                if (apply)
+                    m_target->CastSpell(m_target, 45665, true, NULL, this, m_target->GetGUID());
+                else
+                    m_target->RemoveAurasByCasterSpell(45665, m_target->GetGUID());
+                return;
+            }
             else
                 return;
             break;
