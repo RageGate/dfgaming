@@ -9126,14 +9126,27 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
     }
 
     // .. taken pct: dummy auras
-    if (pVictim->GetTypeId() == TYPEID_PLAYER)
+    AuraList const& mDummyAuras = pVictim->GetAurasByType(SPELL_AURA_DUMMY);
+    for(AuraList::const_iterator i = mDummyAuras.begin(); i != mDummyAuras.end(); ++i)
     {
-        //Cheat Death
-        if (Aura *dummy = pVictim->GetDummyAura(45182))
+        SpellEntry const* spellInfo = (*i)->GetSpellProto();
+
+        // Blessing of Sanctuary (TODO: probably dmg reduction not constant)
+        if (spellInfo->SpellFamilyName == SPELLFAMILY_PALADIN && (spellInfo->SpellFamilyFlags & UI64LIT(0x0000000010000000)))
         {
+            if (!(spellProto->SchoolMask & (*i)->GetModifier()->m_miscvalue))
+                continue;
+            TakenTotalMod *= (100.0f + (*i)->GetModifier()->m_amount)/100.0f;
+            continue;
+        }
+        //Cheat Death
+        if (spellInfo->Id == 45182)
+        {
+            if (pVictim->GetTypeId() != TYPEID_PLAYER)
+                continue;
             float mod = -((Player*)pVictim)->GetRatingBonusValue(CR_CRIT_TAKEN_SPELL)*2*4;
-            if (mod < float(dummy->GetModifier()->m_amount))
-                mod = float(dummy->GetModifier()->m_amount);
+            if (mod < float((*i)->GetModifier()->m_amount))
+                mod = float((*i)->GetModifier()->m_amount);
             TakenTotalMod *= (mod+100.0f)/100.0f;
         }
     }
@@ -10067,7 +10080,17 @@ uint32 Unit::MeleeDamageBonus(Unit *pVictim, uint32 pdamage,WeaponAttackType att
     AuraList const& mDummyAuras = pVictim->GetAurasByType(SPELL_AURA_DUMMY);
     for(AuraList::const_iterator i = mDummyAuras.begin(); i != mDummyAuras.end(); ++i)
     {
-        switch((*i)->GetSpellProto()->SpellIconID)
+        SpellEntry const* spellInfo = (*i)->GetSpellProto();
+
+        // Blessing of Sanctuary (TODO: probably dmg reduction not constant)
+        if (spellInfo->SpellFamilyName == SPELLFAMILY_PALADIN && (spellInfo->SpellFamilyFlags & UI64LIT(0x0000000010000000)))
+        {
+            if (!(schoolMask & (*i)->GetModifier()->m_miscvalue))
+                continue;
+            TakenPercent *= (100.0f + (*i)->GetModifier()->m_amount)/100.0f;
+            continue;
+        }
+        switch(spellInfo->SpellIconID)
         {
             //Cheat Death
             case 2109:
