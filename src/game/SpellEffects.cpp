@@ -5517,6 +5517,36 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->RemoveSpellsCausingAura(SPELL_AURA_MOD_STUN);
                     return;
                 }
+                case 55328:                                 // Stoneclaw Totem I
+                case 55329:                                 // Stoneclaw Totem II
+                case 55330:                                 // Stoneclaw Totem III
+                case 55332:                                 // Stoneclaw Totem IV
+                case 55333:                                 // Stoneclaw Totem V
+                case 55335:                                 // Stoneclaw Totem VI
+                case 55278:                                 // Stoneclaw Totem VII
+                case 58589:                                 // Stoneclaw Totem VIII
+                case 58590:                                 // Stoneclaw Totem IX
+                case 58591:                                 // Stoneclaw Totem X
+                {
+                    if ( !unitTarget )
+                        return;
+
+                    // Absorb shield for totems
+                    for (uint8 i = 0; i < MAX_TOTEM; i++)
+                    {
+                        Unit* totem = ObjectAccessor::GetUnit( *unitTarget,  unitTarget->m_TotemSlot[i]);
+                        if (totem)
+                            m_caster->CastCustomSpell(totem, 55277, &damage, NULL, NULL, true);
+                    }
+
+                    // Glyph of Stoneclaw Totem, absorb shield shield for master
+                    if (Aura* auraGlyph = unitTarget->GetDummyAura(63298))
+                    {
+                        int32 playerAbsorb = damage * auraGlyph->GetModifier()->m_amount;
+                        m_caster->CastCustomSpell(unitTarget, 55277, &playerAbsorb, NULL, NULL, true);
+                    }
+                    return;
+                }
                 case 55693:                                 // Remove Collapsing Cave Aura
                 {
                     if (!unitTarget)
