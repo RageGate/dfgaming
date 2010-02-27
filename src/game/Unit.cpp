@@ -9554,7 +9554,7 @@ int32 Unit::SpellHealingBonus(Unit *pVictim, SpellEntry const *spellProto, int32
         TakenTotalMod *= (100.0f + maxval) / 100.0f;
 
     // No heal amount for this class spells
-    if (spellProto->DmgClass == SPELL_DAMAGE_CLASS_NONE)
+    if (spellProto->DmgClass == SPELL_DAMAGE_CLASS_NONE && spellProto->Id != 52042)     // healing stream totem hack
     {
         healamount = int32(healamount * TakenTotalMod);
         return healamount < 0 ? 0 : healamount;
