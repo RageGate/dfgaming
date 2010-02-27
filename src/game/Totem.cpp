@@ -68,16 +68,18 @@ void Totem::Summon(Unit* owner)
     AIM_Initialize();
 
     // there are some totems, which exist just for their visual appeareance
-    if (!GetSpell())
+    if (!m_spells[0])
         return;
 
     switch(m_type)
     {
         case TOTEM_PASSIVE:
-            CastSpell(this, GetSpell(), true);
+            for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+                CastSpell(this, m_spells[i], true);
             break;
         case TOTEM_STATUE:
-            CastSpell(GetOwner(), GetSpell(), true);
+           for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+                CastSpell(GetOwner(), m_spells[i], true);
             break;
         default: break;
     }
@@ -86,7 +88,8 @@ void Totem::Summon(Unit* owner)
 void Totem::UnSummon()
 {
     CombatStop();
-    RemoveAurasDueToSpell(GetSpell());
+     for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+        RemoveAurasDueToSpell(m_spells[i]);
 
     if (Unit *owner = GetOwner())
     {
@@ -100,7 +103,8 @@ void Totem::UnSummon()
             }
         }
 
-        owner->RemoveAurasDueToSpell(GetSpell());
+        for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+            owner->RemoveAurasDueToSpell(m_spells[i]);
 
         //remove aura all party members too
         if (owner->GetTypeId() == TYPEID_PLAYER)
@@ -114,7 +118,8 @@ void Totem::UnSummon()
                 {
                     Player* Target = itr->getSource();
                     if(Target && pGroup->SameSubGroup((Player*)owner, Target))
-                        Target->RemoveAurasDueToSpell(GetSpell());
+                        for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+                            Target->RemoveAurasDueToSpell(m_spells[i]);
                 }
             }
         }
@@ -145,7 +150,7 @@ Unit *Totem::GetOwner()
 void Totem::SetTypeBySummonSpell(SpellEntry const * spellProto)
 {
     // Get spell casted by totem
-    SpellEntry const * totemSpell = sSpellStore.LookupEntry(GetSpell());
+    SpellEntry const * totemSpell = sSpellStore.LookupEntry(m_spells[0]);
     if (totemSpell)
     {
         // If spell have cast time -> so its active totem
