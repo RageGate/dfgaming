@@ -3105,6 +3105,10 @@ void Spell::finish(bool ok)
             }
         }
     }
+    // HACK: remove Arcane Blast buffs at any non-Arcane Blast arcane damage spell
+    // more elegant way: set the spellmod of 36032 as last affected and no charges (but we don't have access from spell :-/)
+    if ((m_spellInfo->SpellFamilyName == SPELLFAMILY_MAGE) && (m_spellInfo->SpellFamilyFlags & UI64LIT(0x0000800000201000)))
+        m_caster->RemoveAurasDueToSpell(36032);         // Arcane Blast buff
 
     // Heal caster for all health leech from all targets
     if (m_healthLeech)
