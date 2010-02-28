@@ -5366,8 +5366,8 @@ SpellCastResult Spell::CheckRange(bool strict)
 
 int32 Spell::CalculatePowerCost()
 {
-    // item cast not used power
-    if (m_CastItem)
+    // item cast and triggered not use power
+    if (m_CastItem || m_IsTriggeredSpell)
         return 0;
 
     // Spell drain all exist power on cast (Only paladin lay of Hands)
@@ -5434,8 +5434,8 @@ int32 Spell::CalculatePowerCost()
 
 SpellCastResult Spell::CheckPower()
 {
-    // item cast not used power
-    if(m_CastItem)
+    // item cast, and triggered not use power
+    if(m_CastItem || m_IsTriggeredSpell)
         return SPELL_CAST_OK;
 
     // Do precise power regen on spell cast
