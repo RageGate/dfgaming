@@ -38,6 +38,7 @@
 class Creature;
 class Unit;
 class GameObject;
+class Vehicle;
 class WorldObject;
 class Map;
 
@@ -50,7 +51,11 @@ class HashMapHolder
         typedef ACE_Thread_Mutex LockType;
         typedef MaNGOS::GeneralLock<LockType > Guard;
 
-        static void Insert(T* o) { m_objectMap[o->GetGUID()] = o; }
+        static void Insert(T* o)
+        {
+            Guard guard(i_lock);
+            m_objectMap[o->GetGUID()] = o;
+        }
 
         static void Remove(T* o)
         {
@@ -60,6 +65,7 @@ class HashMapHolder
 
         static T* Find(uint64 guid)
         {
+			Guard guard(i_lock);
             typename MapType::iterator itr = m_objectMap.find(guid);
             return (itr != m_objectMap.end()) ? itr->second : NULL;
         }
@@ -91,13 +97,21 @@ class MANGOS_DLL_DECL ObjectAccessor : public MaNGOS::Singleton<ObjectAccessor, 
         // global (obj used for map only location local guid objects (pets currently)
         static Unit*   GetUnitInWorld(WorldObject const& obj, uint64 guid);
 
-        // FIXME: map local object with global search
+        // map local object with global search
         static Creature*   GetCreatureInWorld(uint64 guid)   { return FindHelper<Creature>(guid); }
         static GameObject* GetGameObjectInWorld(uint64 guid) { return FindHelper<GameObject>(guid); }
+        static Pet*        GetGameObjectInWorld(uint64 guid, Pet*        /*fake*/) { return FindHelper<Pet>(guid); }
+        static Vehicle*    GetGameObjectInWorld(uint64 guid, Vehicle*    /*fake*/) { return FindHelper<Vehicle>(guid); }
 
         // possible local search for specific object map
         static Object* GetObjectByTypeMask(WorldObject const &, uint64, uint32 typemask);
+        static Creature* GetCreatureOrPetOrVehicle(WorldObject const &, uint64);
         static Unit* GetUnit(WorldObject const &, uint64);
+        //static Player* GetPlayer(Unit const &, uint64 guid) { return FindPlayer(guid); }
+        //static Corpse* GetCorpse(WorldObject const &u, uint64 guid);
+        //static Pet* GetPet(uint64 guid) { return GetObjectInWorld(guid, (Pet*)NULL); }
+        static Vehicle* GetVehicle(uint64 guid) { return GetGameObjectInWorld(guid, (Vehicle*)NULL); }
+        //static Player* FindPlayer(uint64);
 
         // Player access
         static Player* FindPlayer(uint64 guid);
@@ -126,14 +140,16 @@ class MANGOS_DLL_DECL ObjectAccessor : public MaNGOS::Singleton<ObjectAccessor, 
         void RemoveObject(Player *object) { HashMapHolder<Player>::Remove(object); }
 
         // TODO: This methods will need lock in MT environment
-        static void LinkMap(Map* map)   { i_mapList.push_back(map); }
-        static void DelinkMap(Map* map) { i_mapList.remove(map); }
+        static void LinkMap(Map* map)   { ACE_Guard<ACE_Thread_Mutex> guard(m_Lock); i_mapList.push_back(map); }
+        static void DelinkMap(Map* map) { ACE_Guard<ACE_Thread_Mutex> guard(m_Lock); i_mapList.remove(map); }
     private:
+		static ACE_Thread_Mutex  m_Lock;
         // TODO: This methods will need lock in MT environment
         // Theoreticaly multiple threads can enter and search in this method but
         // in that case linking/delinking other map should be guarded
         template <class OBJECT> static OBJECT* FindHelper(uint64 guid)
         {
+			ACE_Guard<ACE_Thread_Mutex> guard(m_Lock);
             for (std::list<Map*>::const_iterator i = i_mapList.begin() ; i != i_mapList.end(); ++i)
             {
                 if (OBJECT* ret = (*i)->GetObjectsStore().find(guid, (OBJECT*)NULL))
@@ -165,7 +181,11 @@ inline Unit* ObjectAccessor::GetUnitInWorld(WorldObject const& obj, uint64 guid)
     if (IS_PET_GUID(guid))
         return obj.IsInWorld() ? obj.GetMap()->GetPet(guid) : NULL;
 
+    if (IS_VEHICLE_GUID(guid))
+        return obj.IsInWorld() ? ((Unit*)obj.GetMap()->GetVehicle(guid)) : NULL;
+
     return GetCreatureInWorld(guid);
+
 }
 
 #define sObjectAccessor ObjectAccessor::Instance()

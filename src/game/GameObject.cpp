@@ -334,7 +334,8 @@ void GameObject::Update(uint32 /*p_time*/)
                         Unit *caster =  owner ? owner : ok;
 
                         caster->CastSpell(ok, goInfo->trap.spellId, true, NULL, NULL, GetGUID());
-                        m_cooldownTime = time(NULL) + 4;        // 4 seconds
+                        // use template cooldown if provided
+                        m_cooldownTime = time(NULL) + (goInfo->trap.cooldown ? goInfo->trap.cooldown : uint32(4));
 
                         // count charges
                         if(goInfo->trap.charges > 0)
@@ -435,14 +436,8 @@ void GameObject::Update(uint32 /*p_time*/)
             if(!m_respawnDelayTime)
                 return;
 
-            if(!m_spawnedByDefault)
-            {
-                m_respawnTime = 0;
-                return;
-            }
-
             // since pool system can fail to roll unspawned object, this one can remain spawned, so must set respawn nevertheless
-            m_respawnTime = time(NULL) + m_respawnDelayTime;
+            m_respawnTime = m_spawnedByDefault ? time(NULL) + m_respawnDelayTime : 0;
 
             // if option not set then object will be saved at grid unload
             if(sWorld.getConfig(CONFIG_BOOL_SAVE_RESPAWN_TIME_IMMEDIATLY))
@@ -1535,3 +1530,36 @@ bool GameObject::IsFriendlyTo(Unit const* unit) const
     return tester_faction->IsFriendlyTo(*target_faction);
 }
 
+void GameObject::DealSiegeDamage(uint32 damage)
+{
+    if (!GetGOInfo()->destructibleBuilding.intactNumHits)
+        return;
+
+    if (m_actualHealth > damage)
+        m_actualHealth -= damage;
+    else
+        m_actualHealth = 0;
+
+    if (HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_DAMAGED)) // from damaged to destroyed
+    {
+        if(!GetGOInfo()->destructibleBuilding.intactNumHits)
+        {
+            RemoveFlag(GAMEOBJECT_FLAGS, GO_FLAG_DAMAGED);
+            SetFlag(GAMEOBJECT_FLAGS, GO_FLAG_DESTROYED);
+            SetUInt32Value(GAMEOBJECT_DISPLAYID, GetGOInfo()->destructibleBuilding.destroyedDisplayId);
+        }
+    }
+    else // from intact to damaged
+    {
+        if (m_actualHealth <= GetGOInfo()->destructibleBuilding.damagedNumHits)
+        {
+            if (!GetGOInfo()->destructibleBuilding.destroyedDisplayId)
+                m_actualHealth = 0;
+            else if (!m_actualHealth)
+               m_actualHealth = 1;
+
+            SetFlag(GAMEOBJECT_FLAGS, GO_FLAG_DAMAGED);
+            SetUInt32Value(GAMEOBJECT_DISPLAYID, GetGOInfo()->destructibleBuilding.damagedDisplayId);
+        }
+    }
+}

@@ -60,6 +60,7 @@
 #include "Spell.h"
 #include "SocialMgr.h"
 #include "AchievementMgr.h"
+#include "GameEventMgr.h"
 
 #include <cmath>
 
@@ -363,7 +364,6 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
     // group is initialized in the reference constructor
     SetGroupInvite(NULL);
     m_groupUpdateMask = 0;
-    m_auraUpdateMask = 0;
 
     duel = NULL;
 
@@ -489,6 +489,7 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
     m_summon_z = 0.0f;
 
     m_mover = this;
+    m_mover_in_queve = NULL;
 
     m_miniPet = 0;
     m_contestedPvPTimer = 0;
@@ -1181,7 +1182,7 @@ void Player::Update( uint32 p_time )
                     }
                 }
                 //120 degrees of radiant range
-                else if( !HasInArc( 2*M_PI_F/3, pVictim ))
+                else if( !HasInArc( 2*M_PI_F/3, pVictim ) && !GetVehicleGUID()) // - on vehicles is wrong facing set?
                 {
                     setAttackTimer(BASE_ATTACK,100);
                     if(m_swingErrorMsg != 2)                // send single time (client auto repeat)
@@ -1294,14 +1295,13 @@ void Player::Update( uint32 p_time )
 
     if (isAlive())
     {
-        // if no longer casting, set regen power as soon as it is up.
-        if (!IsUnderLastManaUseEffect())
-            SetFlag(UNIT_FIELD_FLAGS_2, UNIT_FLAG2_REGENERATE_POWER);
-
         if (!m_regenTimer)
             RegenerateAll();
     }
-
+    if (!isAlive() && !HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
+    {
+        SetHealth(0);
+    }
     if (m_deathState == JUST_DIED)
     {
         KillPlayer();
@@ -1651,6 +1651,7 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
         m_transport = NULL;
         m_movementInfo.SetTransportData(0, 0.0f, 0.0f, 0.0f, 0.0f, 0, -1);
     }
+    ExitVehicle();
 
     // The player was ported to another map and looses the duel immediately.
     // We have to perform this check before the teleport, otherwise the
@@ -2131,7 +2132,7 @@ Creature* Player::GetNPCIfCanInteractWith(uint64 guid, uint32 npcflagmask)
         return NULL;
 
     // exist (we need look pets also for some interaction (quest/etc)
-    Creature *unit = GetMap()->GetCreatureOrPetOrVehicle(guid);
+    Creature *unit = ObjectAccessor::GetCreatureOrPetOrVehicle(*this,guid);
     if (!unit)
         return NULL;
 
@@ -3688,11 +3689,12 @@ bool Player::resetTalents(bool no_cost)
     */
 
 
-    if(m_canTitanGrip)
+    if(CanTitanGrip())
     {
-        m_canTitanGrip = false;
+        SetCanTitanGrip(false);
         if(sWorld.getConfig(CONFIG_BOOL_OFFHAND_CHECK_AT_TALENTS_RESET))
             AutoUnequipOffhandIfNeed();
+        RemoveAurasDueToSpellByCancel(49152);
     }
 
     return true;
@@ -5800,10 +5802,16 @@ bool Player::SetPosition(float x, float y, float z, float orientation, bool tele
 
     // code block for underwater state update
     UpdateUnderwaterState(m, x, y, z);
-
+    CheckTradeDistance();
     CheckExploreSystem();
 
     return true;
+}
+
+void Player::CheckTradeDistance()
+{
+    if(GetTrader() && !IsWithinDistInMap(GetTrader(), INTERACTION_DISTANCE))
+        TradeCancel(true);
 }
 
 void Player::SaveRecallPosition()
@@ -6023,6 +6031,8 @@ void Player::RewardReputation(Unit *pVictim, float rate)
     if(!Rep)
         return;
 
+  
+
     if(Rep->repfaction1 && (!Rep->team_dependent || GetTeam()==ALLIANCE))
     {
         int32 donerep1 = CalculateReputationGain(pVictim->getLevel(), Rep->repvalue1, Rep->repfaction1, false);
@@ -6218,6 +6228,21 @@ bool Player::RewardHonor(Unit *uVictim, uint32 groupsize, float honor)
 
             honor = ((f * diff_level * (190 + v_rank*10))/6);
             honor *= ((float)k_level) / 70.0f;              //factor of dependence on levels of the killer
+
+            //check for event
+            uint32 reqmap = 0;
+            //arathi basin
+            if(sGameEventMgr.IsActiveEvent(41))
+                reqmap = 529;
+            // eye of storm
+            if(sGameEventMgr.IsActiveEvent(42))
+                reqmap = 566;
+            // warsong gulch
+            if(sGameEventMgr.IsActiveEvent(43))
+                reqmap = 489;
+
+            if (GetMapId() == reqmap)
+                honor *= 1.5;
 
             // count the number of playerkills in one day
             ApplyModUInt32Value(PLAYER_FIELD_KILLS, 1, true);
@@ -6511,6 +6536,10 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
 
     // check some item equip limitations (in result lost CanTitanGrip at talent reset, for example)
     AutoUnequipOffhandIfNeed();
+    if (!HasAura(49152) && IsTwoHandUsedInDualWield() && CanTitanGrip())
+    {
+        CastSpell(this, 49152, true);
+    }
 
     // recent client version not send leave/join channel packets for built-in local channels
     UpdateLocalChannels( newZone );
@@ -7861,7 +7890,7 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
             NumberOfFields = 83;
             break;
         case 3277:
-            NumberOfFields = 16;
+            NumberOfFields = 17;
             break;
         case 3358:
         case 3820:
@@ -7886,6 +7915,9 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
             break;
         case 3703:
             NumberOfFields = 11;
+            break;
+        case 4384:
+            NumberOfFields = 30;
             break;
         default:
             NumberOfFields = 12;
@@ -8020,6 +8052,7 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
                 data << uint32(0x641) << uint32(0x3);       // 12 1601 unk (max flag captures?)
                 data << uint32(0x922) << uint32(0x1);       // 13 2338 horde (0 - hide, 1 - flag ok, 2 - flag picked up (flashing), 3 - flag picked up (not flashing)
                 data << uint32(0x923) << uint32(0x1);       // 14 2339 alliance (0 - hide, 1 - flag ok, 2 - flag picked up (flashing), 3 - flag picked up (not flashing)
+                data << uint32(0x1098)<< uint32(0x19);      // 15 4248 time remaining in minutes
             }
             break;
         case 3358:                                          // AB
@@ -8204,6 +8237,41 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
             }
             break;
         case 3703:                                          // Shattrath City
+            break;
+        case 4384:                                          // SA
+            /*if (bg && bg->GetTypeID() == BATTLEGROUND_SA)
+                bg->FillInitialWorldStates(data);
+            else
+            {*/
+                // 1-3 A defend, 4-6 H defend, 7-9 unk defend, 1 - ok, 2 - half destroyed, 3 - destroyed
+                data << uint32(0xf09) << uint32(0x4);       // 7  3849 Gate of Temple
+                data << uint32(0xe36) << uint32(0x4);       // 8  3638 Gate of Yellow Moon
+                data << uint32(0xe27) << uint32(0x4);       // 9  3623 Gate of Green Emerald
+                data << uint32(0xe24) << uint32(0x4);       // 10 3620 Gate of Blue Sapphire
+                data << uint32(0xe21) << uint32(0x4);       // 11 3617 Gate of Red Sun
+                data << uint32(0xe1e) << uint32(0x4);       // 12 3614 Gate of Purple Ametyst
+
+                data << uint32(0xdf3) << uint32(0x0);       // 13 3571 bonus timer (1 - on, 0 - off)
+                data << uint32(0xded) << uint32(0x0);       // 14 3565 Horde Attacker
+                data << uint32(0xdec) << uint32(0x1);       // 15 3564 Alliance Attacker
+                // End Round (timer), better explain this by example, eg. ends in 19:59 -> A:BC
+                data << uint32(0xde9) << uint32(0x9);       // 16 3561 C
+                data << uint32(0xde8) << uint32(0x5);       // 17 3560 B
+                data << uint32(0xde7) << uint32(0x19);      // 18 3559 A
+                data << uint32(0xe35) << uint32(0x1);       // 19 3637 East g - Horde control
+                data << uint32(0xe34) << uint32(0x1);       // 20 3636 West g - Horde control
+                data << uint32(0xe33) << uint32(0x1);       // 21 3635 South g - Horde control
+                data << uint32(0xe32) << uint32(0x0);       // 22 3634 East g - Alliance control
+                data << uint32(0xe31) << uint32(0x0);       // 23 3633 West g - Alliance control
+                data << uint32(0xe30) << uint32(0x0);       // 24 3632 South g - Alliance control
+                data << uint32(0xe2f) << uint32(0x1);       // 25 3631 Chamber of Ancients - Horde control
+                data << uint32(0xe2e) << uint32(0x0);       // 26 3630 Chamber of Ancients - Alliance control
+                data << uint32(0xe2d) << uint32(0x0);       // 27 3629 Beach1 - Horde control
+                data << uint32(0xe2c) << uint32(0x0);       // 28 3628 Beach2 - Horde control
+                data << uint32(0xe2b) << uint32(0x1);       // 29 3627 Beach1 - Alliance control
+                data << uint32(0xe2a) << uint32(0x1);       // 30 3626 Beach2 - Alliance control
+                // and many unks...
+            //}
             break;
         default:
             data << uint32(0x914) << uint32(0x0);           // 7
@@ -8830,7 +8898,7 @@ bool Player::IsBagPos( uint16 pos )
     return false;
 }
 
-bool Player::IsValidPos( uint8 bag, uint8 slot, bool explicit_pos )
+bool Player::IsValidPos( uint8 bag, uint8 slot, bool explicit_pos ) const
 {
     // post selected
     if(bag == NULL_BAG && !explicit_pos)
@@ -10813,6 +10881,16 @@ Item* Player::EquipItem( uint16 pos, Item *pItem, bool update )
     GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_EQUIP_ITEM, pItem->GetEntry());
     GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_EQUIP_EPIC_ITEM, slot+1);
 
+    // titans grip dmg penalty for 2h weapons
+    ItemPrototype const *pProto = pItem->GetProto();
+    uint32 type = pProto->InventoryType;
+    if (!HasAura(49152))
+    {
+        if (type == INVTYPE_2HWEAPON && CanTitanGrip())
+        {
+            CastSpell(this,49152,true);
+        }
+    }
     return pItem;
 }
 
@@ -10953,6 +11031,19 @@ void Player::RemoveItem( uint8 bag, uint8 slot, bool update )
         pItem->SetSlot( NULL_SLOT );
         if( IsInWorld() && update )
             pItem->SendCreateUpdateToPlayer( this );
+    }
+    // titans grip dmg penalty for 2h weapons removed if player does not have any
+    ItemPrototype const *pProto = pItem->GetProto();
+    uint32 type = pProto->InventoryType;
+    if (HasAura(49152))
+    {
+        if (type == INVTYPE_2HWEAPON)
+        {
+            if (!IsTwoHandUsedInDualWield())
+            {
+                RemoveAurasDueToSpellByCancel(49152);
+            }
+        }
     }
 }
 
@@ -11855,12 +11946,12 @@ void Player::TradeCancel(bool sendback)
     if (pTrader)
     {
         // send yellow "Trade canceled" message to both traders
-        WorldSession* ws;
-        ws = GetSession();
-        if (sendback)
+        WorldSession* ws = GetSession();
+        if (ws && sendback)
             ws->SendCancelTrade();
+
         ws = pTrader->GetSession();
-        if (!ws->PlayerLogout())
+        if (ws && !ws->PlayerLogout())
             ws->SendCancelTrade();
 
         // cleanup
@@ -12294,6 +12385,10 @@ void Player::ApplyEnchantment(Item *item, EnchantmentSlot slot, bool apply, bool
                         case ITEM_MOD_FERAL_ATTACK_POWER:
                         case ITEM_MOD_SPELL_HEALING_DONE:   // deprecated
                         case ITEM_MOD_SPELL_DAMAGE_DONE:    // deprecated
+                            break;
+                        case ITEM_MOD_BLOCK_VALUE:
+                           ((Player*)this)->HandleBaseModValue(SHIELD_BLOCK_VALUE, FLAT_MOD, enchant_amount, apply);
+                            break;
                         default:
                             break;
                     }
@@ -12761,7 +12856,8 @@ void Player::PrepareQuestMenu( uint64 guid )
     QuestRelations* pObjectQIR;
 
     // pets also can have quests
-    if (Creature *pCreature = GetMap()->GetCreatureOrPetOrVehicle(guid))
+    Creature *pCreature = ObjectAccessor::GetCreatureOrPetOrVehicle(*this, guid);
+    if( pCreature )
     {
         pObject = (Object*)pCreature;
         pObjectQR  = &sObjectMgr.mCreatureQuestRelations;
@@ -12855,7 +12951,8 @@ void Player::SendPreparedQuest(uint64 guid)
         std::string title = "";
 
         // need pet case for some quests
-        if (Creature *pCreature = GetMap()->GetCreatureOrPetOrVehicle(guid))
+        Creature *pCreature = ObjectAccessor::GetCreatureOrPetOrVehicle(*this,guid);
+        if (pCreature)
         {
             uint32 textid = GetGossipTextId(pCreature);
 
@@ -12919,7 +13016,8 @@ Quest const * Player::GetNextQuest( uint64 guid, Quest const *pQuest )
     QuestRelations* pObjectQR;
     QuestRelations* pObjectQIR;
 
-    if (Creature *pCreature = GetMap()->GetCreatureOrPetOrVehicle(guid))
+    Creature *pCreature = ObjectAccessor::GetCreatureOrPetOrVehicle(*this,guid);
+    if( pCreature )
     {
         pObject = (Object*)pCreature;
         pObjectQR  = &sObjectMgr.mCreatureQuestRelations;
@@ -13284,6 +13382,17 @@ void Player::RewardQuest( Quest const *pQuest, uint32 reward, Object* questGiver
             DestroyItemCount( pQuest->ReqItemId[i], pQuest->ReqItemCount[i], true);
     }
 
+    //Destroy quest item
+    uint32 srcitem = pQuest->GetSrcItemId();
+    if( srcitem > 0 )
+    {
+        uint32 count = pQuest->GetSrcItemCount();
+        if( count <= 0 )
+            count = 1;
+
+        DestroyItemCount(srcitem, count, true, true);
+    }
+
     RemoveTimedQuest(quest_id);
 
     if (BattleGround* bg = GetBattleGround())
@@ -13351,6 +13460,10 @@ void Player::RewardQuest( Quest const *pQuest, uint32 reward, Object* questGiver
     // honor reward
     if (pQuest->GetRewHonorAddition())
         RewardHonor(NULL, 0, MaNGOS::Honor::hk_honor_at_level(getLevel(), pQuest->GetRewHonorAddition()));
+
+    // arena reward
+    if (pQuest->GetRewArenaPoints())
+        ModifyArenaPoints(pQuest->GetRewArenaPoints());
 
     // title reward
     if (pQuest->GetCharTitleId())
@@ -17729,8 +17842,13 @@ void Player::HandleStealthedUnitsDetection()
 
                 // target aura duration for caster show only if target exist at caster client
                 // send data at target visibility change (adding to client)
+                (*i)->SendInitialVisiblePacketsFor(this);
+
                 if((*i)!=this && (*i)->isType(TYPEMASK_UNIT))
+                {
                     SendAurasForTarget(*i);
+                    BuildVehicleInfo(*i);
+                }
             }
         }
         else
@@ -17765,7 +17883,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
     if(npc)
     {
         // not let cheating with start flight mounted
-        if(IsMounted())
+        if(IsMounted() || GetVehicleGUID())
         {
             WorldPacket data(SMSG_ACTIVATETAXIREPLY, 4);
             data << uint32(ERR_TAXIPLAYERALREADYMOUNTED);
@@ -17794,6 +17912,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
     else
     {
         RemoveSpellsCausingAura(SPELL_AURA_MOUNTED);
+        ExitVehicle();
 
         if( m_ShapeShiftFormSpellId && m_form != FORM_BATTLESTANCE && m_form != FORM_BERSERKERSTANCE && m_form != FORM_DEFENSIVESTANCE && m_form != FORM_SHADOW )
             RemoveAurasDueToSpell(m_ShapeShiftFormSpellId);
@@ -18908,8 +19027,7 @@ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, WorldObject* targe
         if(target->isVisibleForInState(this, viewPoint, false))
         {
             target->SendCreateUpdateToPlayer(this);
-            if(target->GetTypeId()!=TYPEID_GAMEOBJECT||!((GameObject*)target)->IsTransport())
-                m_clientGUIDs.insert(target->GetGUID());
+            m_clientGUIDs.insert(target->GetGUID());
 
             #ifdef MANGOS_DEBUG
             if((sLog.getLogFilter() & LOG_FILTER_VISIBILITY_CHANGES)==0)
@@ -18919,29 +19037,42 @@ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, WorldObject* targe
             // target aura duration for caster show only if target exist at caster client
             // send data at target visibility change (adding to client)
             if(target!=this && target->isType(TYPEMASK_UNIT))
+            {
                 SendAurasForTarget((Unit*)target);
+                BuildVehicleInfo((Unit*)target);
+            }
 
-            if(target->GetTypeId()==TYPEID_UNIT && ((Creature*)target)->isAlive())
+             if (target->isType(TYPEMASK_UNIT) && target != this)
+                 ((Unit*)target)->SendInitialVisiblePacketsFor(this);
+
+             if(target->GetTypeId()==TYPEID_UNIT && ((Creature*)target)->isAlive())
                 ((Creature*)target)->SendMonsterMoveWithSpeedToCurrentDestination(this);
-        }
-    }
-}
-
+         }
+     }
+ }
+ 
 template<class T>
-inline void UpdateVisibilityOf_helper(std::set<uint64>& s64, T* target)
+inline void UpdateVisibilityOf_helper(std::set<uint64>& s64, std::set<Unit*>& visibleNow, T* target)
 {
     s64.insert(target->GetGUID());
 }
 
 template<>
-inline void UpdateVisibilityOf_helper(std::set<uint64>& s64, GameObject* target)
+inline void UpdateVisibilityOf_helper(std::set<uint64>& s64, std::set<Unit*>& visibleNow, Player* target)
 {
-    if(!target->IsTransport())
-        s64.insert(target->GetGUID());
+    s64.insert(target->GetGUID());
+    visibleNow.insert(target);
+}
+
+template<>
+inline void UpdateVisibilityOf_helper(std::set<uint64>& s64, std::set<Unit*>& visibleNow, Creature* target)
+{
+    s64.insert(target->GetGUID());
+    visibleNow.insert(target);
 }
 
 template<class T>
-void Player::UpdateVisibilityOf(WorldObject const* viewPoint, T* target, UpdateData& data, UpdateDataMapType& /*data_updates*/, std::set<WorldObject*>& visibleNow)
+void Player::UpdateVisibilityOf(WorldObject const* viewPoint, T* target, UpdateData& data, std::set<Unit*>& visibleNow)
 {
     if(HaveAtClient(target))
     {
@@ -18962,9 +19093,8 @@ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, T* target, UpdateD
     {
         if(target->isVisibleForInState(this,viewPoint,false))
         {
-            visibleNow.insert(target);
             target->BuildCreateUpdateBlockForPlayer(&data, this);
-            UpdateVisibilityOf_helper(m_clientGUIDs,target);
+            UpdateVisibilityOf_helper(m_clientGUIDs,visibleNow,target);
 
             #ifdef MANGOS_DEBUG
             if((sLog.getLogFilter() & LOG_FILTER_VISIBILITY_CHANGES)==0)
@@ -18974,11 +19104,11 @@ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, T* target, UpdateD
     }
 }
 
-template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, Player*        target, UpdateData& data, UpdateDataMapType& data_updates, std::set<WorldObject*>& visibleNow);
-template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, Creature*      target, UpdateData& data, UpdateDataMapType& data_updates, std::set<WorldObject*>& visibleNow);
-template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, Corpse*        target, UpdateData& data, UpdateDataMapType& data_updates, std::set<WorldObject*>& visibleNow);
-template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, GameObject*    target, UpdateData& data, UpdateDataMapType& data_updates, std::set<WorldObject*>& visibleNow);
-template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, DynamicObject* target, UpdateData& data, UpdateDataMapType& data_updates, std::set<WorldObject*>& visibleNow);
+template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, Player*        target, UpdateData& data, std::set<Unit*>& visibleNow);
+template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, Creature*      target, UpdateData& data, std::set<Unit*>& visibleNow);
+template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, Corpse*        target, UpdateData& data, std::set<Unit*>& visibleNow);
+template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, GameObject*    target, UpdateData& data, std::set<Unit*>& visibleNow);
+template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, DynamicObject* target, UpdateData& data, std::set<Unit*>& visibleNow);
 
 void Player::InitPrimaryProfessions()
 {
@@ -18990,7 +19120,16 @@ void Player::SendComboPoints()
     Unit *combotarget = ObjectAccessor::GetUnit(*this, m_comboTarget);
     if (combotarget)
     {
-        WorldPacket data(SMSG_UPDATE_COMBO_POINTS, combotarget->GetPackGUID().size()+1);
+        WorldPacket data;
+        if(!GetVehicleGUID()){
+            data.Initialize(SMSG_UPDATE_COMBO_POINTS, combotarget->GetPackGUID().size()+1);
+        }else{
+            if(Unit *vehicle = ObjectAccessor::GetUnit(*this, GetVehicleGUID()))
+            {
+                data.Initialize(SMSG_PET_UPDATE_COMBO_POINTS, vehicle->GetPackGUID().size()+combotarget->GetPackGUID().size()+1);
+                data.append(vehicle->GetPackGUID());
+            }else return;
+        }
         data.append(combotarget->GetPackGUID());
         data << uint8(m_comboPoints);
         GetSession()->SendPacket(&data);
@@ -19113,10 +19252,18 @@ void Player::SendInitialPacketsBeforeAddToMap()
         m_movementInfo.AddMovementFlag(MOVEFLAG_FLYING);
 
     m_mover = this;
+    m_mover_in_queve = NULL;
 }
 
 void Player::SendInitialPacketsAfterAddToMap()
 {
+    if(getClass() == CLASS_DEATH_KNIGHT)
+        ResyncRunes(MAX_RUNES);
+
+    WorldPacket data0(SMSG_SET_PHASE_SHIFT, 4);
+    data0 << uint32(GetPhaseMask());
+    GetSession()->SendPacket(&data0);
+
     // update zone
     uint32 newzone, newarea;
     GetZoneAndAreaId(newzone,newarea);
@@ -19156,9 +19303,34 @@ void Player::SendInitialPacketsAfterAddToMap()
         SendMessageToSet(&data2,true);
     }
 
+    if(GetVehicleGUID())
+    {
+        WorldPacket data3(SMSG_FORCE_MOVE_ROOT, 10);
+        data3.append(GetPackGUID());
+        data3 << (uint32)((m_SeatData.s_flags & SF_CAN_CAST) ? 2 : 0);
+        SendMessageToSet(&data3,true);
+    }
     SendAurasForTarget(this);
-    SendEnchantmentDurations();                             // must be after add to map
-    SendItemDurations();                                    // must be after add to map
+    SendEnchantmentDurations();                             // must be after add to map    SendItemDurations();                                    // must be after add to map
+
+    // Juggernaut & Warbringer both need special packet
+    // for alowing charge in combat and Warbringer
+    // for alowing charge in different stances, too
+    if(HasAura(64976) || HasAura(57499))
+    {
+        WorldPacket aura_update(SMSG_AURA_UPDATE);
+        aura_update.append(GetPackGUID());
+        aura_update << uint8(255);
+        if(HasAura(64976))
+            aura_update << uint32(64976);
+        if(HasAura(57499))
+            aura_update << uint32(57499);
+        aura_update << uint8(19);
+        aura_update << uint8(getLevel());
+        aura_update << uint8(1);
+        aura_update << uint8(0);
+        GetSession()->SendPacket(&aura_update);
+    }
 }
 
 void Player::SendUpdateToOutOfRangeGroupMembers()
@@ -19170,7 +19342,7 @@ void Player::SendUpdateToOutOfRangeGroupMembers()
 
     m_groupUpdateMask = GROUP_UPDATE_FLAG_NONE;
     m_auraUpdateMask = 0;
-    if(Pet *pet = GetPet())
+    if(Unit *pet = GetCharmOrPet())
         pet->ResetAuraUpdateMask();
 }
 
@@ -19422,7 +19594,10 @@ void Player::SendAurasForTarget(Unit *target)
 
                     if(!(auraFlags & AFLAG_NOT_CASTER))
                     {
-                        data << uint8(0);                   // packed GUID of someone (caster?)
+                        if(aura->GetCaster())
+                            data.append(aura->GetCaster()->GetPackGUID());
+                        else
+                            data << uint8(0);
                     }
 
                     if(auraFlags & AFLAG_DURATION)          // include aura duration
@@ -19589,7 +19764,7 @@ void Player::UpdateForQuestWorldObjects()
         }
         else if(IS_CREATURE_GUID(*itr) || IS_VEHICLE_GUID(*itr))
         {
-            Creature *obj = GetMap()->GetCreatureOrPetOrVehicle(*itr);
+            Creature *obj = ObjectAccessor::GetCreatureOrPetOrVehicle(*this, *itr);
             if(!obj)
                 continue;
 
@@ -19671,7 +19846,7 @@ void Player::AutoUnequipOffhandIfNeed()
         return;
 
     // need unequip offhand for 2h-weapon without TitanGrip (in any from hands)
-    if (CanTitanGrip() || (offItem->GetProto()->InventoryType != INVTYPE_2HWEAPON && !IsTwoHandUsed()))
+    if (CanTitanGrip() || !((IsTwoHandUsedInDualWield() && offItem->GetProto()->InventoryType != INVTYPE_NON_EQUIP) || offItem->GetProto()->InventoryType == INVTYPE_2HWEAPON))
         return;
 
     ItemPosCountVec off_dest;
@@ -19874,6 +20049,8 @@ bool Player::RewardPlayerAndGroupAtKill(Unit* pVictim)
         {
             /// not get Xp in PvP or no not gray players in group
             xp = (PvP || !not_gray_member_with_max_level) ? 0 : MaNGOS::XP::Gain(not_gray_member_with_max_level, pVictim);
+            if(GetVehicleGUID() && !(m_SeatData.v_flags & VF_GIVE_EXP))
+                xp = 0;
 
             /// skip in check PvP case (for speed, not used)
             bool is_raid = PvP ? false : sMapStore.LookupEntry(GetMapId())->IsRaid() && pGroup->isRaidGroup();
@@ -19927,6 +20104,8 @@ bool Player::RewardPlayerAndGroupAtKill(Unit* pVictim)
     else                                                    // if (!pGroup)
     {
         xp = PvP ? 0 : MaNGOS::XP::Gain(this, pVictim);
+        if(GetVehicleGUID() && !(m_SeatData.v_flags & VF_GIVE_EXP))
+            xp = 0;
 
         // honor can be in PvP and !PvP (racial leader) cases
         if(RewardHonor(pVictim,1))
@@ -20325,7 +20504,7 @@ bool Player::CanCaptureTowerPoint()
            );
 }
 
-uint32 Player::GetBarberShopCost(uint8 newhairstyle, uint8 newhaircolor, uint8 newfacialhair)
+uint32 Player::GetBarberShopCost(uint8 newhairstyle, uint8 newhaircolor, uint8 newfacialhair, BarberShopStyleEntry const* newSkin )
 {
     uint32 level = getLevel();
 
@@ -20335,8 +20514,9 @@ uint32 Player::GetBarberShopCost(uint8 newhairstyle, uint8 newhaircolor, uint8 n
     uint8 hairstyle = GetByteValue(PLAYER_BYTES, 2);
     uint8 haircolor = GetByteValue(PLAYER_BYTES, 3);
     uint8 facialhair = GetByteValue(PLAYER_BYTES_2, 0);
+    uint8 skincolor = GetByteValue(PLAYER_BYTES, 0);
 
-    if((hairstyle == newhairstyle) && (haircolor == newhaircolor) && (facialhair == newfacialhair))
+    if((hairstyle == newhairstyle) && (haircolor == newhaircolor) && (facialhair == newfacialhair) && (!newSkin || (newSkin->hair_id == skincolor)))
         return 0;
 
     GtBarberShopCostBaseEntry const *bsc = sGtBarberShopCostBaseStore.LookupEntry(level - 1);
@@ -20354,6 +20534,9 @@ uint32 Player::GetBarberShopCost(uint8 newhairstyle, uint8 newhaircolor, uint8 n
 
     if(facialhair != newfacialhair)
         cost += bsc->cost * 0.75f;                          // +3/4 of price
+
+    if(newSkin && skincolor != newSkin->hair_id)
+        cost += bsc->cost * 0.75f;                          // ??
 
     return uint32(cost);
 }
@@ -20409,28 +20592,21 @@ void Player::ApplyGlyphs(bool apply)
         ApplyGlyph(i,apply);
 }
 
-void Player::EnterVehicle(Vehicle *vehicle)
-{
-    VehicleEntry const *ve = sVehicleStore.LookupEntry(vehicle->GetVehicleId());
-    if(!ve)
-        return;
+void Player::SendEnterVehicle(Vehicle *vehicle, VehicleSeatEntry const *veSeat)
+{    m_movementInfo.AddMovementFlag(MOVEFLAG_ONTRANSPORT);
+    m_movementInfo.AddMovementFlag(MOVEFLAG_ROOT);
 
-    VehicleSeatEntry const *veSeat = sVehicleSeatStore.LookupEntry(ve->m_seatID[0]);
-    if(!veSeat)
-        return;
+    if(m_transport)                                         // if we were on a transport, leave
+    {
+        m_transport->RemovePassenger(this);
+        m_transport = NULL;
+    }
+    // vehicle is our transport from now, if we get to zeppelin or boat
+    // with vehicle, ONLY my vehicle will be passenger on that transport
+    // player ----> vehicle ----> zeppelin
 
-    vehicle->SetCharmerGUID(GetGUID());
-    vehicle->RemoveFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_SPELLCLICK);
-    vehicle->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED);
-    vehicle->setFaction(getFaction());
-
-    SetCharm(vehicle);                                      // charm
-    SetFarSightGUID(vehicle->GetGUID());                    // set view
-
-    SetClientControl(vehicle, 1);                           // redirect controls to vehicle
-    SetMover(vehicle);
-
-    WorldPacket data(SMSG_ON_CANCEL_EXPECTED_RIDE_VEHICLE_AURA, 0);
+    WorldPacket data(SMSG_BREAK_TARGET, 8);
+    data.append(vehicle->GetPackGUID());
     GetSession()->SendPacket(&data);
 
     data.Initialize(MSG_MOVE_TELEPORT_ACK, 30);
@@ -20469,7 +20645,7 @@ void Player::EnterVehicle(Vehicle *vehicle)
     GetSession()->SendPacket(&data);
 }
 
-void Player::ExitVehicle(Vehicle *vehicle)
+/*void Player::ExitVehicle(Vehicle *vehicle)
 {
     vehicle->SetCharmerGUID(0);
     vehicle->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_SPELLCLICK);
@@ -20499,7 +20675,7 @@ void Player::ExitVehicle(Vehicle *vehicle)
 
     // maybe called at dummy aura remove?
     // CastSpell(this, 45472, true);                        // Parachute
-}
+} */
 
 bool Player::isTotalImmune()
 {
@@ -20563,7 +20739,8 @@ void Player::ConvertRune(uint8 index, RuneType newType)
 
 void Player::ResyncRunes(uint8 count)
 {
-    WorldPacket data(SMSG_RESYNC_RUNES, count * 2);
+    WorldPacket data(SMSG_RESYNC_RUNES, 4 + count * 2);
+    data << uint32(count + 1);
     for(uint32 i = 0; i < count; ++i)
     {
         data << uint8(GetCurrentRune(i));                   // rune type
@@ -21671,23 +21848,8 @@ void Player::SetFarSightGUID( uint64 guid )
 
 void Player::UpdateVisibilityForPlayer()
 {
-    WorldObject const* viewPoint = GetViewPoint();
-    Map* m = GetMap();
-
-    CellPair p(MaNGOS::ComputeCellPair(GetPositionX(), GetPositionY()));
-    Cell cell(p);
-
-    m->UpdatePlayerVisibility(this, cell, p);
-
-    if (this != viewPoint)
-    {
-        CellPair pView(MaNGOS::ComputeCellPair(viewPoint->GetPositionX(), viewPoint->GetPositionY()));
-        Cell cellView(pView);
-
-        m->UpdateObjectsVisibilityFor(this, cellView, pView);
-    }
-    else
-        m->UpdateObjectsVisibilityFor(this, cell, p);
+    if (IsInWorld())
+        GetMap()->AddNotifier(this, false);
 }
 
 void Player::SendDuelCountdown(uint32 counter)

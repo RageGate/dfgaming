@@ -43,6 +43,8 @@
 INSTANTIATE_SINGLETON_2(ObjectAccessor, CLASS_LOCK);
 INSTANTIATE_CLASS_MUTEX(ObjectAccessor, ACE_Thread_Mutex);
 
+ACE_Thread_Mutex ObjectAccessor::m_Lock;
+
 ObjectAccessor::ObjectAccessor() {}
 ObjectAccessor::~ObjectAccessor()
 {
@@ -51,6 +53,21 @@ ObjectAccessor::~ObjectAccessor()
         itr->second->RemoveFromWorld();
         delete itr->second;
     }
+}
+
+Creature*
+ObjectAccessor::GetCreatureOrPetOrVehicle(WorldObject const &u, uint64 guid)
+{
+    if(IS_PLAYER_GUID(guid) || !u.IsInWorld())
+        return NULL;
+
+    if(IS_PET_GUID(guid))
+        return u.GetMap()->GetPet(guid);
+
+    if(IS_VEHICLE_GUID(guid))
+        return u.GetMap()->GetVehicle(guid);
+
+    return u.GetMap()->GetCreature(guid);
 }
 
 Unit*
@@ -62,10 +79,7 @@ ObjectAccessor::GetUnit(WorldObject const &u, uint64 guid)
     if(IS_PLAYER_GUID(guid))
         return FindPlayer(guid);
 
-    if (!u.IsInWorld())
-        return NULL;
-
-    return u.GetMap()->GetCreatureOrPetOrVehicle(guid);
+    return GetCreatureOrPetOrVehicle(u, guid);
 }
 
 Corpse* ObjectAccessor::GetCorpseInMap( uint64 guid, uint32 mapid )
@@ -134,6 +148,7 @@ Player*
 ObjectAccessor::FindPlayerByName(const char *name)
 {
     //TODO: Player Guard
+	Guard guard(*HashMapHolder<Player>::GetLock());
     HashMapHolder<Player>::MapType& m = HashMapHolder<Player>::GetContainer();
     HashMapHolder<Player>::MapType::iterator iter = m.begin();
     for(; iter != m.end(); ++iter)

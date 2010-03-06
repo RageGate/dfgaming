@@ -173,6 +173,73 @@ enum eConfigUint32Values
     CONFIG_UINT32_TIMERBAR_BREATH_MAX,
     CONFIG_UINT32_TIMERBAR_FIRE_GMLEVEL,
     CONFIG_UINT32_TIMERBAR_FIRE_MAX,
+    //
+    CONFIG_UINT32_RATE_HEALTH,
+    CONFIG_UINT32_RATE_POWER_MANA,
+    CONFIG_UINT32_RATE_POWER_RAGE_INCOME,
+    CONFIG_UINT32_RATE_POWER_RAGE_LOSS,
+    CONFIG_UINT32_RATE_POWER_RUNICPOWER_INCOME,
+    CONFIG_UINT32_RATE_POWER_RUNICPOWER_LOSS,
+    CONFIG_UINT32_RATE_POWER_FOCUS,
+    CONFIG_UINT32_RATE_SKILL_DISCOVERY,
+    CONFIG_UINT32_RATE_DROP_ITEM_POOR,
+    CONFIG_UINT32_RATE_DROP_ITEM_NORMAL,
+    CONFIG_UINT32_RATE_DROP_ITEM_UNCOMMON,
+    CONFIG_UINT32_RATE_DROP_ITEM_RARE,
+    CONFIG_UINT32_RATE_DROP_ITEM_EPIC,
+    CONFIG_UINT32_RATE_DROP_ITEM_LEGENDARY,
+    CONFIG_UINT32_RATE_DROP_ITEM_ARTIFACT,
+    CONFIG_UINT32_RATE_DROP_ITEM_REFERENCED,
+    CONFIG_UINT32_RATE_DROP_MONEY,
+    CONFIG_UINT32_RATE_XP_KILL,
+    CONFIG_UINT32_RATE_XP_QUEST,
+    CONFIG_UINT32_RATE_XP_EXPLORE,
+    CONFIG_UINT32_RATE_REPUTATION_GAIN,
+    CONFIG_UINT32_RATE_REPUTATION_LOWLEVEL_KILL,
+    CONFIG_UINT32_RATE_REPUTATION_LOWLEVEL_QUEST,
+    CONFIG_UINT32_RATE_CREATURE_NORMAL_HP,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_ELITE_HP,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_RAREELITE_HP,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_WORLDBOSS_HP,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_RARE_HP,
+    CONFIG_UINT32_RATE_CREATURE_NORMAL_DAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_ELITE_DAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_RAREELITE_DAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_WORLDBOSS_DAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_RARE_DAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_NORMAL_SPELLDAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_ELITE_SPELLDAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_RAREELITE_SPELLDAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_WORLDBOSS_SPELLDAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_ELITE_RARE_SPELLDAMAGE,
+    CONFIG_UINT32_RATE_CREATURE_AGGRO,
+    CONFIG_UINT32_RATE_REST_INGAME,
+    CONFIG_UINT32_RATE_REST_OFFLINE_IN_TAVERN_OR_CITY,
+    CONFIG_UINT32_RATE_REST_OFFLINE_IN_WILDERNESS,
+    CONFIG_UINT32_RATE_DAMAGE_FALL,
+    CONFIG_UINT32_RATE_AUCTION_TIME,
+    CONFIG_UINT32_RATE_AUCTION_DEPOSIT,
+    CONFIG_UINT32_RATE_AUCTION_CUT,
+    CONFIG_UINT32_RATE_HONOR,
+    CONFIG_UINT32_RATE_MINING_AMOUNT,
+    CONFIG_UINT32_RATE_MINING_NEXT,
+    CONFIG_UINT32_RATE_TALENT,
+    CONFIG_UINT32_RATE_CORPSE_DECAY_LOOTED,
+    CONFIG_UINT32_RATE_INSTANCE_RESET_TIME,
+    CONFIG_UINT32_RATE_TARGET_POS_RECALCULATION_RANGE,
+    CONFIG_UINT32_RATE_DURABILITY_LOSS_DAMAGE,
+    CONFIG_UINT32_RATE_DURABILITY_LOSS_PARRY,
+    CONFIG_UINT32_RATE_DURABILITY_LOSS_ABSORB,
+    CONFIG_UINT32_RATE_DURABILITY_LOSS_BLOCK,
+    CONFIG_UINT32_SIGHT_GUARDER,
+    CONFIG_UINT32_SIGHT_MONSTER,
+    CONFIG_UINT32_LISTEN_RANGE_SAY,
+    CONFIG_UINT32_LISTEN_RANGE_YELL,
+    CONFIG_UINT32_LISTEN_RANGE_TEXTEMOTE,
+    CONFIG_UINT32_CREATURE_FAMILY_FLEE_ASSISTANCE_RADIUS,
+    CONFIG_UINT32_CREATURE_FAMILY_ASSISTANCE_RADIUS,
+    CONFIG_UINT32_GROUP_XP_DISTANCE,
+    CONFIG_NUMTHREADS,
     CONFIG_UINT32_VALUE_COUNT
 };
 
@@ -301,6 +368,7 @@ enum eConfigBoolValues
     CONFIG_BOOL_ARENA_AUTO_DISTRIBUTE_POINTS,
     CONFIG_BOOL_ARENA_QUEUE_ANNOUNCER_JOIN,
     CONFIG_BOOL_ARENA_QUEUE_ANNOUNCER_EXIT,
+    CONFIG_BOOL_END_ARENA_IF_NOT_ENOUGH_PLAYERS,
     CONFIG_BOOL_VALUE_COUNT
 };
 
@@ -375,13 +443,15 @@ struct CliCommandHolder
     typedef void Print(void*, const char*);
     typedef void CommandFinished(void*, bool success);
 
+    uint32 m_cliAccountId;                                  // 0 for console and real account id for RA/soap
+    AccountTypes m_cliAccessLevel;
     void* m_callbackArg;
     char *m_command;
     Print* m_print;
     CommandFinished* m_commandFinished;
 
-    CliCommandHolder(void* callbackArg, const char *command, Print* zprint, CommandFinished* commandFinished)
-        : m_callbackArg(callbackArg), m_print(zprint), m_commandFinished(commandFinished)
+    CliCommandHolder(uint32 accountId, AccountTypes cliAccessLevel, void* callbackArg, const char *command, Print* zprint, CommandFinished* commandFinished)
+        : m_cliAccountId(accountId), m_cliAccessLevel(cliAccessLevel), m_callbackArg(callbackArg), m_print(zprint), m_commandFinished(commandFinished)
     {
         size_t len = strlen(command)+1;
         m_command = new char[len];
@@ -521,6 +591,10 @@ class World
         bool IsScriptScheduled() const { return m_scheduledScripts > 0; }
 
         // for max speed access
+        static int32 GetVisibilityNotifyPeriodOnContinents(){ return m_visibility_notify_periodOnContinents; }
+        static int32 GetVisibilityNotifyPeriodInInstances() { return m_visibility_notify_periodInInstances;  }
+        static int32 GetVisibilityNotifyPeriodInBGArenas()  { return m_visibility_notify_periodInBGArenas;   }
+
         static float GetMaxVisibleDistanceOnContinents()    { return m_MaxVisibleDistanceOnContinents; }
         static float GetMaxVisibleDistanceInInstances()     { return m_MaxVisibleDistanceInInctances;  }
         static float GetMaxVisibleDistanceInBGArenas()      { return m_MaxVisibleDistanceInBGArenas;   }
@@ -548,6 +622,7 @@ class World
         //used Script version
         void SetScriptsVersion(char const* version) { m_ScriptsVersion = version ? version : "unknown scripting library"; }
         char const* GetScriptsVersion() { return m_ScriptsVersion.c_str(); }
+        ACE_Thread_Mutex m_spellUpdateLock;
 
     protected:
         void _UpdateGameTime();
@@ -556,6 +631,7 @@ class World
 
         void InitDailyQuestResetTime();
         void ResetDailyQuests();
+        void RandomBG();
     private:
         void setConfig(eConfigUint32Values index, char const* fieldname, uint32 defvalue);
         void setConfig(eConfigInt32Values index, char const* fieldname, int32 defvalue);
@@ -608,6 +684,10 @@ class World
         bool m_allowMovement;
         std::string m_motd;
         std::string m_dataPath;
+
+        static int32 m_visibility_notify_periodOnContinents;
+        static int32 m_visibility_notify_periodInInstances;
+        static int32 m_visibility_notify_periodInBGArenas;
 
         // for max speed access
         static float m_MaxVisibleDistanceOnContinents;
