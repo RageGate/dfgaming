@@ -321,6 +321,7 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                     // Meteor like spells (divided damage to targets)
                     case 24340: case 26558: case 28884:     // Meteor
                     case 36837: case 38903: case 41276:     // Meteor
+                     case 57467:                             // Meteor
                     case 26789:                             // Shard of the Fallen Star
                     case 31436:                             // Malevolent Cleave
                     case 35181:                             // Dive Bomb
@@ -339,6 +340,15 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
 
                         damage /= count;                    // divide to all targets
                         break;
+                    }
+                    // AoE spells, which damage is reduced with distance from the initial hit point 
+                    case 62598: case 62937:     // Detonate 
+                    case 65279:                 // Lightning Nova 
+                    case 62311: case 64596:     // Cosmic Smash 
+                    { 
+                        float distance = unitTarget->GetDistance2d(m_targets.m_destX, m_targets.m_destY); 
+                        damage *= exp(-distance/15.0f); 
+                        break; 
                     }
                     // percent from health with min
                     case 25599:                             // Thundercrash
@@ -493,8 +503,14 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                     {
                         // DoT not have applied spell bonuses in m_amount
                         int32 damagetick = m_caster->SpellDamageBonus(unitTarget, aura->GetSpellProto(), aura->GetModifier()->m_amount, DOT);
+
+                        // Save value of further damage
+                        m_currentBasePoints[1] = damagetick * 2 / 3;
                         damage += damagetick * 3;
-                        //Remove auras in DoT part
+
+                        // Glyph of Conflagrate
+                        if (!m_caster->HasAura(56235))
+                            unitTarget->RemoveAurasByCasterSpell(aura->GetId(), m_caster->GetGUID());
                         break;
                     }
                 }
@@ -2376,52 +2392,10 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                    unitTarget->GetMap()->CreatureRelocation((Creature*)unitTarget,x,y,z,orientation);
                    ((Creature*)unitTarget)->SendMonsterMove(x, y, z, SPLINETYPE_NORMAL, ((Creature*)unitTarget)->GetSplineFlags(), 1);
                 }
-                else unitTarget->NearTeleportTo(x,y,z,orientation,false);
+                else
+                    unitTarget->NearTeleportTo(x,y,z,orientation,false);
 
                 return;
-            }
-            // Raise Dead
-            else if (m_spellInfo->Id == 46584)
-            {   
-                if( unitTarget->isDead() && unitTarget->GetCreatureType()==CREATURE_TYPE_HUMANOID && unitTarget->getLevel() >= m_caster->getLevel()-3 )
-                {
-                    if( m_caster->GetTypeId()==TYPEID_PLAYER && ((Player*)m_caster)->HasSpell(52143) )
-                    {
-                        m_caster->CastSpell(m_caster, 52150, true, NULL);
-                        ((Player*)m_caster)->SendCooldownEvent(m_spellInfo,52150, this); 
-                        ((Player*)m_caster)->RemoveSpellCooldown(52150, true);
-                    }
-                    else
-                    {
-                        m_caster->CastSpell(m_caster, 46585, true, NULL);
-                        ((Player*)m_caster)->SendCooldownEvent(m_spellInfo,46585, this); 
-                        ((Player*)m_caster)->RemoveSpellCooldown(46585, true);
-                    }
-                }
-                else
-                {
-                    if(((Player*)m_caster)->HasItemCount(37201,1))
-                    {
-                           if( m_caster->GetTypeId()==TYPEID_PLAYER && ((Player*)m_caster)->HasSpell(52143) )
-                        {
-                            m_caster->CastSpell(m_caster, 52150, true, NULL);
-                            ((Player*)m_caster)->SendCooldownEvent(m_spellInfo,52150, this); 
-                            ((Player*)m_caster)->RemoveSpellCooldown(52150, true);
-                               
-                        }
-                        else
-                        {
-                            m_caster->CastSpell(m_caster, 46585, true, NULL);
-                            ((Player*)m_caster)->SendCooldownEvent(m_spellInfo,46585, this); 
-                            ((Player*)m_caster)->RemoveSpellCooldown(46585, true);
-                           
-                        }
-                        ((Player*)m_caster)->DestroyItemCount(37201,1,true);
-                    }
-                    else 
-                        m_caster->CastStop();
-                    return;
-                }
             }
             break;
         }
@@ -2606,7 +2580,9 @@ void Spell::EffectTriggerSpell(SpellEffectIndex effIndex)
                 if( // ignore positive and passive auras
                     !iter->second->IsPositive() && !iter->second->IsPassive() &&
                     // ignore physical auras
-                    (GetSpellSchoolMask(iter->second->GetSpellProto()) & SPELL_SCHOOL_MASK_NORMAL)==0 )
+                    (GetSpellSchoolMask(iter->second->GetSpellProto()) & SPELL_SCHOOL_MASK_NORMAL)==0 &&
+                    // ignore deserter
+                    iter->second->GetSpellProto()->Id != 26013 )
                 {
                     m_caster->RemoveAurasDueToSpell(iter->second->GetSpellProto()->Id);
                     iter = Auras.begin();
@@ -5006,6 +4982,26 @@ void Spell::EffectWeaponDmg(SpellEffectIndex eff_idx)
     int32 spell_bonus = 0;                                  // bonus specific for spell
     switch(m_spellInfo->SpellFamilyName)
     {
+        case SPELLFAMILY_DRUID:
+        {
+            // Rend and Tear ( on Maul / Shred )
+            if (m_spellInfo->SpellFamilyFlags & UI64LIT(0x0000000000008800))
+            {
+                if(unitTarget && unitTarget->HasAuraState(AURA_STATE_MECHANIC_BLEED))
+                {
+                    Unit::AuraList const& aura = m_caster->GetAurasByType(SPELL_AURA_DUMMY);
+                    for(Unit::AuraList::const_iterator itr = aura.begin(); itr != aura.end(); ++itr)
+                    {
+                        if ((*itr)->GetSpellProto()->SpellIconID == 2859 && (*itr)->GetEffIndex() == 0)
+                        {
+                            totalDamagePercentMod += (totalDamagePercentMod * (*itr)->GetModifier()->m_amount) / 100;
+                            break;
+                        }
+                    }
+                }
+            }
+            break;
+        }
         case SPELLFAMILY_WARRIOR:
         {
             // Devastate bonus and sunder armor refresh
@@ -5068,16 +5064,6 @@ void Spell::EffectWeaponDmg(SpellEffectIndex eff_idx)
                 Item* weapon = ((Player*)m_caster)->GetWeaponForAttack(m_attackType,true,true);
                 if (weapon && weapon->GetProto()->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER)
                     totalDamagePercentMod *= 1.5f;          // 150% to daggers
-            }
-            break;
-        }
-        case SPELLFAMILY_DRUID:
-        {
-            // Shred
-            if( m_spellInfo->SpellFamilyFlags2 & 0x40000 )
-            {
-                    spellBonusNeedWeaponDamagePercentMod = true;
-                    spell_bonus += m_spellInfo->EffectBasePoints[0];
             }
             break;
         }
@@ -5278,6 +5264,21 @@ void Spell::EffectWeaponDmg(SpellEffectIndex eff_idx)
         else if(uint32 ammo = ((Player*)m_caster)->GetUInt32Value(PLAYER_AMMO_ID))
             ((Player*)m_caster)->DestroyItemCount(ammo, 1, true);
     }
+
+    switch(m_spellInfo->Id)                     // for spells with divided damage to targets
+    {
+        case 66765:                             // Meteor Fists
+        case 67333:
+        {
+            uint32 count = 0;
+            for(tbb::concurrent_vector<TargetInfo>::iterator ihit= m_UniqueTargetInfo.begin();ihit != m_UniqueTargetInfo.end();++ihit)
+                ++count;
+
+            m_damage /= count;                  // divide to all targets
+            break;
+        }
+        break;
+    }
 }
 
 void Spell::EffectThreat(SpellEffectIndex /*eff_idx*/)
@@ -5303,7 +5304,7 @@ void Spell::EffectHealMaxHealth(SpellEffectIndex /*eff_idx*/)
     m_healing += heal;
 }
 
-void Spell::EffectInterruptCast(SpellEffectIndex /*eff_idx*/)
+void Spell::EffectInterruptCast(SpellEffectIndex eff_idx)
 {
     if(!unitTarget)
         return;
@@ -5320,7 +5321,7 @@ void Spell::EffectInterruptCast(SpellEffectIndex /*eff_idx*/)
             // check if we can interrupt spell
             if ((curSpellInfo->InterruptFlags & SPELL_INTERRUPT_FLAG_INTERRUPT) && curSpellInfo->PreventionType == SPELL_PREVENTION_TYPE_SILENCE )
             {
-                unitTarget->ProhibitSpellSchool(GetSpellSchoolMask(curSpellInfo), GetSpellDuration(m_spellInfo));
+                unitTarget->ProhibitSpellSchool(GetSpellSchoolMask(curSpellInfo), unitTarget->CalculateSpellDuration(m_spellInfo, eff_idx, unitTarget));
                 unitTarget->InterruptSpell(CurrentSpellTypes(i),false);
             }
         }
@@ -5408,6 +5409,38 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
         {
             switch(m_spellInfo->Id)
             {
+                case 6962:
+                {
+                    if(m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+
+                    Player* plr = ((Player*)m_caster);
+                    if(plr && plr->GetLastPetNumber())
+                    {
+                        PetType NewPetType = (plr->getClass()==CLASS_HUNTER) ? HUNTER_PET : SUMMON_PET;
+                        if (Pet* NewPet = new Pet(NewPetType))
+                        {
+                            if(NewPet->LoadPetFromDB(plr, 0, plr->GetLastPetNumber(), true))
+                            {
+                                NewPet->SetHealth(NewPet->GetMaxHealth());
+                                NewPet->SetPower(NewPet->getPowerType(),NewPet->GetMaxPower(NewPet->getPowerType()));
+
+                                switch (NewPet->GetEntry())
+                                {
+                                    case 11859:
+                                    case    89:
+                                        NewPet->SetEntry(416);
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
+                            else
+                                delete NewPet;
+                        }
+                    }
+                    return;
+                }
                 case 8856:                                  // Bending Shinbone
                 {
                     if (!itemTarget && m_caster->GetTypeId()!=TYPEID_PLAYER)
@@ -5748,34 +5781,31 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->RemoveSpellsCausingAura(SPELL_AURA_MOD_STUN);
                     return;
                 }
-               case 55328:                                 // Stoneclaw Totem I
-               case 55329:                                 // Stoneclaw Totem II
-               case 55330:                                 // Stoneclaw Totem III
-               case 55332:                                 // Stoneclaw Totem IV
-               case 55333:                                 // Stoneclaw Totem V
-               case 55335:                                 // Stoneclaw Totem VI
-               case 55278:                                 // Stoneclaw Totem VII
-               case 58589:                                 // Stoneclaw Totem VIII
-               case 58590:                                 // Stoneclaw Totem IX
-               case 58591:                                 // Stoneclaw Totem X
-               {
-                   if ( !unitTarget )  // Stoneclaw Totem owner
-                       return;
-                   // Absorb shield for totems
-                   for(int itr = 0; itr < 4; ++itr)
-                   {
-                       Unit* totem = unitTarget->GetTotem(TotemSlot(itr));
-                       if( totem )
-                           m_caster->CastCustomSpell( totem, 55277, &damage, NULL, NULL, true );
-                   }
-                   // Glyph of Stoneclaw Totem
-                   if( Aura* auraGlyph = unitTarget->GetAura( 63298, EFFECT_INDEX_0 ) )
-                   {
-                       int32 playerAbsorb = damage * auraGlyph->GetModifier()->m_amount;
-                       m_caster->CastCustomSpell( unitTarget, 55277, &playerAbsorb, NULL, NULL, true );
-                   }
-                   return;
-               }
+                case 55328:                                    // Stoneclaw Totem I
+                case 55329:                                    // Stoneclaw Totem II
+                case 55330:                                    // Stoneclaw Totem III
+                case 55332:                                    // Stoneclaw Totem IV
+                case 55333:                                    // Stoneclaw Totem V
+                case 55335:                                    // Stoneclaw Totem VI
+                case 55278:                                    // Stoneclaw Totem VII
+                case 58589:                                    // Stoneclaw Totem VIII
+                case 58590:                                    // Stoneclaw Totem IX
+                case 58591:                                    // Stoneclaw Totem X
+                {
+                    if (!unitTarget)    // Stoneclaw Totem owner
+                        return;
+                    // Absorb shield for totems
+                    for(int itr = 0; itr < MAX_TOTEM_SLOT; ++itr)
+                        if (Totem* totem = unitTarget->GetTotem(TotemSlot(itr)))
+                            m_caster->CastCustomSpell(totem, 55277, &damage, NULL, NULL, true);
+                    // Glyph of Stoneclaw Totem
+                    if(Aura* auraGlyph = unitTarget->GetAura(63298, EFFECT_INDEX_0))
+                    {
+                        int32 playerAbsorb = damage * auraGlyph->GetModifier()->m_amount;
+                        m_caster->CastCustomSpell(unitTarget, 55277, &playerAbsorb, NULL, NULL, true);
+                    }
+                    return;
+                }
                 case 55693:                                 // Remove Collapsing Cave Aura
                 {
                     if (!unitTarget)
@@ -6388,8 +6418,7 @@ void Spell::EffectStuck(SpellEffectIndex /*eff_idx*/)
     if(pTarget->isInFlight())
         return;
 
-    // homebind location is loaded always
-    pTarget->TeleportToHomebind(unitTarget==m_caster ? TELE_TO_SPELL : 0);
+    pTarget->RepopAtGraveyard();
 
     // Stuck spell trigger Hearthstone cooldown
     SpellEntry const *spellInfo = sSpellStore.LookupEntry(8690);
@@ -6693,7 +6722,16 @@ void Spell::EffectSummonObject(SpellEffectIndex eff_idx)
     }
     // Summon in random point all other units if location present
     else
-        m_caster->GetClosePoint(x, y, z, DEFAULT_WORLD_OBJECT_SIZE);
+    {
+        if(m_spellInfo->Id == 48018)
+        {
+            x = m_caster->GetPositionX();
+            y = m_caster->GetPositionY();
+            z = m_caster->GetPositionZ();
+        }
+        else
+            m_caster->GetClosePoint(x, y, z, DEFAULT_WORLD_OBJECT_SIZE);
+    }
 
     Map *map = m_caster->GetMap();
     if(!pGameObj->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_GAMEOBJECT), go_id, map,
@@ -7446,6 +7484,8 @@ void Spell::EffectSpiritHeal(SpellEffectIndex /*eff_idx*/)
 
     ((Player*)unitTarget)->ResurrectPlayer(1.0f);
     ((Player*)unitTarget)->SpawnCorpseBones();
+
+    ((Player*)unitTarget)->CastSpell(unitTarget, 6962, true);
 }
 
 // remove insignia spell effect

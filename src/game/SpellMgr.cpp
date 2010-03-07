@@ -493,6 +493,19 @@ bool IsPositiveEffect(uint32 spellId, SpellEffectIndex effIndex)
     if(spellproto->Id == 56266)
         return false;
 
+    switch(spellId)
+    {
+        case 47540:                                         // Penance start dummy aura - Rank 1
+        case 53005:                                         // Penance start dummy aura - Rank 2
+        case 53006:                                         // Penance start dummy aura - Rank 3
+        case 53007:                                         // Penance start dummy aura - Rank 4
+        case 47757:                                         // Penance heal effect trigger - Rank 1
+        case 52986:                                         // Penance heal effect trigger - Rank 2
+        case 52987:                                         // Penance heal effect trigger - Rank 3
+        case 52988:                                         // Penance heal effect trigger - Rank 4
+            return true;
+    }
+
     switch(spellproto->Effect[effIndex])
     {
         case SPELL_EFFECT_DUMMY:
@@ -1410,6 +1423,10 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                     if(spellInfo_1->SpellIconID == 2606 && spellInfo_2->SpellIconID == 2606)
                         return false;
 
+                    // Kindred Spirits (allow stack for auras)
+                    if (spellInfo_1->SpellIconID == 3559 && spellInfo_2->SpellIconID == 3559)
+                        return false;
+
                     // Brood Affliction: Bronze
                     if( (spellInfo_1->Id == 23170 && spellInfo_2->Id == 23171) ||
                         (spellInfo_2->Id == 23170 && spellInfo_1->Id == 23171) )
@@ -1657,7 +1674,6 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                 if ((spellInfo_1->SpellIconID == 566 && spellInfo_2->SpellIconID == 2820) ||
                     (spellInfo_2->SpellIconID == 566 && spellInfo_1->SpellIconID == 2820))
                     return false;
-
                 // Inner Fire and Consecration
                 if (spellInfo_1->SpellIconID == 51 && spellInfo_2->SpellIconID == 51 && spellInfo_2->SpellFamilyName == SPELLFAMILY_PALADIN)
                     return false;
