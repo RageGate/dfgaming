@@ -1895,6 +1895,9 @@ void Unit::CalcAbsorbResist(Unit *pVictim,SpellSchoolMask schoolMask, DamageEffe
         float tmpvalue2 = (float)pVictim->GetResistance(GetFirstSchoolInMask(schoolMask));
         // Ignore resistance by self SPELL_AURA_MOD_TARGET_RESISTANCE aura
         tmpvalue2 += (float)GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_TARGET_RESISTANCE, schoolMask);
+        // all pets receive 100% of owner's spell penetration
+        if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->isPet() && GetOwner())
+            tmpvalue2 += float(GetOwner()->GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_TARGET_RESISTANCE, schoolMask));
 
         tmpvalue2 *= (float)(0.15f / getLevel());
         if (tmpvalue2 < 0.0f)
@@ -2457,21 +2460,23 @@ void Unit::AttackerStateUpdate (Unit *pVictim, WeaponAttackType attType, bool ex
     else
         return;                                             // ignore ranged case
 
-    uint32 extraAttacks = m_extraAttacks;
-
     // melee attack spell casted at main hand attack only
     if (attType == BASE_ATTACK && m_currentSpells[CURRENT_MELEE_SPELL])
     {
         m_currentSpells[CURRENT_MELEE_SPELL]->cast();
 
-        // not recent extra attack only at any non extra attack (melee spell case)
-        if(!extra && extraAttacks)
+        // extra attack only at any non extra attack (melee spell case)
+        uint32 current_extraAttacks = m_extraAttacks;
+        if(!extra && current_extraAttacks)
         {
-            while(m_extraAttacks)
+            while(current_extraAttacks)
             {
                 AttackerStateUpdate(pVictim, BASE_ATTACK, true);
-                if(m_extraAttacks > 0)
+                if(current_extraAttacks > 0)
+                {
+                    --current_extraAttacks;
                     --m_extraAttacks;
+                }
             }
         }
         return;
@@ -2500,13 +2505,17 @@ void Unit::AttackerStateUpdate (Unit *pVictim, WeaponAttackType attType, bool ex
         ((Creature*)pVictim)->AI()->AttackedBy(this);
 
     // extra attack only at any non extra attack (normal case)
-    if(!extra && extraAttacks)
+    uint32 current_extraAttacks = m_extraAttacks;
+    if(!extra && current_extraAttacks)
     {
-        while(m_extraAttacks)
+        while(current_extraAttacks)
         {
             AttackerStateUpdate(pVictim, BASE_ATTACK, true);
-            if(m_extraAttacks > 0)
+            if(current_extraAttacks > 0)
+            {
+                --current_extraAttacks;
                 --m_extraAttacks;
+            }
         }
     }
 }
@@ -4058,13 +4067,16 @@ bool Unit::AddAura(Aura *Aur)
                 {
                     // DoT/HoT/etc
                     case SPELL_AURA_DUMMY:                  // allow stack
+                    case SPELL_AURA_PERIODIC_DUMMY:
+                    case SPELL_AURA_PERIODIC_TRIGGER_SPELL:
+                    case SPELL_AURA_PERIODIC_TRIGGER_SPELL_WITH_VALUE:
                     case SPELL_AURA_PERIODIC_DAMAGE:
                     case SPELL_AURA_PERIODIC_DAMAGE_PERCENT:
                     case SPELL_AURA_PERIODIC_LEECH:
                     case SPELL_AURA_PERIODIC_HEAL:
                     case SPELL_AURA_OBS_MOD_HEALTH:
                     case SPELL_AURA_PERIODIC_MANA_LEECH:
-                    case SPELL_AURA_OBS_MOD_MANA:
+                    case SPELL_AURA_OBS_MOD_ENERGY:
                     case SPELL_AURA_POWER_BURN_MANA:
                         break;
                     case SPELL_AURA_PERIODIC_ENERGIZE:      // all or self or clear non-stackable
@@ -4134,6 +4146,10 @@ bool Unit::AddAura(Aura *Aur)
     if (aurName < TOTAL_AURAS)
     {
         m_modAuras[aurName].push_back(Aur);
+    }
+    if (aurSpellInfo->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA && GetTypeId() == TYPEID_UNIT && ((Creature*)this)->isPet())
+    {
+        ((Pet*)this)->m_scalingauras.push_back(Aur);
     }
 
     Aur->ApplyModifier(true,true);
@@ -4671,6 +4687,10 @@ void Unit::RemoveAura(AuraMap::iterator &i, AuraRemoveMode mode)
     {
         m_modAuras[Aur->GetModifier()->m_auraname].remove(Aur);
     }
+    if (AurSpellInfo->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA && GetTypeId() == TYPEID_UNIT && ((Creature*)this)->isPet())
+    {
+        ((Pet*)this)->m_scalingauras.remove(Aur);
+    }
 
     // Set remove mode
     Aur->SetRemoveMode(mode);
@@ -4827,6 +4847,19 @@ bool Unit::HasAura(uint32 spellId) const
     return false;
 }
 
+Aura* Unit::GetLinkedDummyAura(uint32 spell_id) const
+{
+    for(AuraList::const_iterator itr = m_dummyAuraLink.begin(); itr != m_dummyAuraLink.end(); ++itr)
+    {
+        if((*itr)->GetId() == spell_id)
+            return (*itr);
+    }
+    return NULL;
+}
+void Unit::RemoveDummyAuraLink(Aura* m_Aura)
+{
+    m_dummyAuraLink.remove(m_Aura);
+}
 void Unit::AddDynObject(DynamicObject* dynObj)
 {
     m_dynObjGUIDs.push_back(dynObj->GetGUID());
@@ -5052,7 +5085,7 @@ void Unit::SendPeriodicAuraLog(SpellPeriodicAuraLogInfo *pInfo)
             data << uint32(pInfo->overDamage);              // overheal?
             data << uint8(pInfo->critical ? 1 : 0);         // new 3.1.2 critical flag
             break;
-        case SPELL_AURA_OBS_MOD_MANA:
+        case SPELL_AURA_OBS_MOD_ENERGY:
         case SPELL_AURA_PERIODIC_ENERGIZE:
             data << uint32(mod->m_miscvalue);               // power type
             data << uint32(pInfo->damage);                  // damage
@@ -6054,7 +6087,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAu
                     triggered_spell_id = 17941;
                     break;
                 }
-                //Soul Leech
+                //Soul Leech & Improved Soul Leech
                 case 30293:
                 case 30295:
                 case 30296:
@@ -6063,6 +6096,27 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAu
                     basepoints[0] = int32(damage*triggerAmount/100);
                     target = this;
                     triggered_spell_id = 30294;
+
+                    // check for Improved Soul Leech
+                    AuraList const& pDummyAuras = GetAurasByType(SPELL_AURA_DUMMY);
+                    for (AuraList::const_iterator itr = pDummyAuras.begin(); itr != pDummyAuras.end(); ++itr)
+                    {
+                        SpellEntry const* spellInfo = (*itr)->GetSpellProto();
+                        if (spellInfo->SpellFamilyName != SPELLFAMILY_WARLOCK || (*itr)->GetSpellProto()->SpellIconID != 3176)
+                            continue;
+                        if ((*itr)->GetEffIndex() == SpellEffectIndex(0))
+                        {
+                            // energize Proc pet (implicit target is pet)
+                            CastCustomSpell(this, 59118, &((*itr)->GetModifier()->m_amount), NULL, NULL, true, NULL, (*itr));
+                            // energize Proc master
+                            CastCustomSpell(this, 59117, &((*itr)->GetModifier()->m_amount), NULL, NULL, true, NULL, (*itr));
+                        }
+                        else if (roll_chance_i((*itr)->GetModifier()->m_amount))
+                        {
+                            // Replenishment proc
+                            CastSpell(this, 57669, true, NULL, (*itr));
+                        }
+                    }
                     break;
                 }
                 // Shadowflame (Voidheart Raiment set bonus)
@@ -6092,6 +6146,9 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAu
                 // Siphon Life
                 case 63108:
                 {
+                    // spell has SPELL_AURA_DUMMY and SPELL_AURA_ADD_MODIFIER (both are abled trigger...)
+                    if (triggeredByAura->GetModifier()->m_auraname != SPELL_AURA_DUMMY)
+                        break;
                     basepoints[0] = int32(damage * triggerAmount / 100);
                     triggered_spell_id = 63106;
                     break;
@@ -7568,6 +7625,31 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAu
             }
             break;
         }
+        case SPELLFAMILY_PET:
+        {
+            // improved cower
+            if (dummySpell->SpellIconID == 958 && procSpell->SpellIconID == 958)
+            {
+                triggered_spell_id = dummySpell->Id == 53180 ? 54200 : 54201;
+                target = this;
+                break;
+            }
+            // guard dog
+            if (dummySpell->SpellIconID == 201 && procSpell->SpellIconID == 201)
+            {
+                triggered_spell_id = 54445;
+                target = this;
+                break;
+            }
+            // silverback
+            if (dummySpell->SpellIconID == 1582 && procSpell->SpellIconID == 201)
+            {
+                triggered_spell_id = dummySpell->Id == 62764 ? 62800 : 62801;
+                target = this;
+                break;
+            }
+            break;
+        }
         default:
             break;
     }
@@ -7843,13 +7925,12 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, Aura* triggeredB
                 Unit::AuraList const& mDummyAura = GetAurasByType(SPELL_AURA_DUMMY);
                 for(Unit::AuraList::const_iterator i = mDummyAura.begin(); i != mDummyAura.end(); ++i)
                 {
-                    if ((*i)->GetSpellProto()->SpellFamilyName == SPELLFAMILY_WARLOCK && (*i)->GetSpellProto()->SpellIconID == 113)
-                    {
-                        // basepoints of trigger spell stored in dummyeffect of spellProto
-                        int32 basepoints = (GetMaxPower(POWER_MANA) * ((*i)->GetSpellProto()->EffectBasePoints[2]+1))/100.0f;
-                        CastCustomSpell(this, 18371, &basepoints, NULL, NULL, true, castItem, triggeredByAura);
-                        break;
-                    }
+                    if ((*i)->GetSpellProto()->SpellFamilyName != SPELLFAMILY_WARLOCK || (*i)->GetSpellProto()->SpellIconID != 113 )
+                        continue;
+                    // basepoints of trigger spell stored in dummyeffect of spellProto
+                    int32 basepoints = (GetMaxPower(POWER_MANA) * ((*i)->GetSpellProto()->EffectBasePoints[2]+1))/100.0f;
+                    CastCustomSpell(this, 18371, &basepoints, NULL, NULL, true, castItem, triggeredByAura);
+                    return false;
                 }
                 // Not remove charge (aura removed on death in any cases)
                 // Need for correct work Drain Soul SPELL_AURA_CHANNEL_DEATH_ITEM aura
@@ -8855,6 +8936,26 @@ bool Unit::IsNeutralToAll() const
     return my_faction->IsNeutralToAll();
 }
 
+bool Unit::isControlledByPlayer() const
+{
+    // this method will return true, if this unit is directly controlled by a player,
+    // that means player has a pet cast bar
+    Unit* owner = GetCharmerOrOwner();
+
+    if (!owner || owner->GetTypeId() != TYPEID_PLAYER)
+        return false;
+
+    // player-charmed units always have pet action bar (hope this is correct)
+    if (isCharmed())
+        return true;
+
+    if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->isPet() &&
+        ((Pet*)this)->isControlled())
+        return true;
+
+    return false;
+}
+
 bool Unit::Attack(Unit *victim, bool meleeAttack)
 {
     if(!victim || victim == this)
@@ -9200,7 +9301,14 @@ void Unit::SetPet(Pet* pet)
     SetPetGUID(pet ? pet->GetGUID() : 0);
 
     if(pet && GetTypeId() == TYPEID_PLAYER)
+    {
         ((Player*)this)->SendPetGUIDs();
+
+        // set infinite cooldown for summon spell
+        SpellEntry const *spellInfo = sSpellStore.LookupEntry(pet->GetUInt32Value(UNIT_CREATED_BY_SPELL));
+        if (spellInfo && spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
+            ((Player*)this)->AddSpellAndCategoryCooldowns(spellInfo, 0, NULL,true);
+    }
 
     // FIXME: hack, speed must be set only at follow
     if(pet && GetTypeId()==TYPEID_PLAYER)
@@ -9216,6 +9324,13 @@ void Unit::SetCharm(Unit* pet)
 void Unit::AddGuardian( Pet* pet )
 {
     m_guardianPets.insert(pet->GetGUID());
+
+    if(GetTypeId() == TYPEID_PLAYER)
+    {
+        SpellEntry const *spellInfo = sSpellStore.LookupEntry(pet->GetUInt32Value(UNIT_CREATED_BY_SPELL));
+        if (spellInfo && spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
+            ((Player*)this)->AddSpellAndCategoryCooldowns(spellInfo, 0, NULL,true);
+    }
 }
 
 void Unit::RemoveGuardian( Pet* pet )
@@ -9413,9 +9528,15 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
     float bonusApCoeff = 1.0f; 
 
     // ..done
-    // Creature damage
-    if( GetTypeId() == TYPEID_UNIT && !((Creature*)this)->isPet() )
-        DoneTotalMod *= ((Creature*)this)->GetSpellDamageMod(((Creature*)this)->GetCreatureInfo()->rank);
+
+    // creature and pet bonus mods
+    if (GetTypeId() == TYPEID_UNIT)
+    {
+        if (!((Creature*)this)->isPet())
+            DoneTotalMod *= ((Creature*)this)->GetSpellDamageMod(((Creature*)this)->GetCreatureInfo()->rank);
+        else
+            DoneTotalMod *= ((Pet*)this)->GetHappinessDamageMod();
+    }
 
     if (!(spellProto->AttributesEx6 & SPELL_ATTR_EX6_NO_DMG_PERCENT_MODS))
     {
@@ -9695,7 +9816,17 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
     AuraList const& mDummyAuras = pVictim->GetAurasByType(SPELL_AURA_DUMMY); 
     for(AuraList::const_iterator i = mDummyAuras.begin(); i != mDummyAuras.end(); ++i) 
     { 
-        switch((*i)->GetSpellProto()->SpellIconID) 
+         SpellEntry const* spellInfo = (*i)->GetSpellProto();
+
+        // Blessing of Sanctuary (TODO: probably dmg reduction not constant)
+        if (spellInfo->SpellFamilyName == SPELLFAMILY_PALADIN && (spellInfo->SpellFamilyFlags & UI64LIT(0x0000000010000000)))
+        {
+            if (!(spellProto->SchoolMask & (*i)->GetModifier()->m_miscvalue))
+                continue;
+            TakenTotalMod *= (100.0f + (*i)->GetModifier()->m_amount)/100.0f;
+            continue;
+        }
+        switch(spellInfo->SpellIconID) 
         { 
             //Cheat Death 
             case 2109: 
@@ -9711,15 +9842,10 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
                     TakenTotalMod *= (mod + 100.0f) / 100.0f; 
                 } 
                 break; 
-            case 19:                // Blessing of Sanctuary 
-            case 1804:              // Greater Blessing of Sanctuary 
-                if ((*i)->GetSpellProto()->SpellFamilyName == SPELLFAMILY_PALADIN) 
-                    TakenTotalMod *= ((*i)->GetModifier()->m_amount + 100.0f) / 100.0f; 
-                break;
             // Ebon Plague 
-            case 1933: 
+            case 1933:
             { 
-                if((*i)->GetSpellProto()->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT) 
+                if(spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT) 
                 { 
                     if((*i)->GetModifier()->m_miscvalue & spellProto->SchoolMask) 
                         TakenTotalMod *= ((*i)->GetModifier()->m_amount + 100.0f) / 100.0f; 
@@ -9914,6 +10040,19 @@ int32 Unit::SpellBaseDamageBonusForVictim(SpellSchoolMask schoolMask, Unit *pVic
     }
 
     return TakenAdvertisedBenefit > 0 ? TakenAdvertisedBenefit : 0;
+}
+
+int32 Unit::GetMaxSpellBaseDamageBonus(SpellSchoolMask schoolMask)
+{
+    int32 bonus = 0;
+    for (int i = SPELL_SCHOOL_HOLY; i < MAX_SPELL_SCHOOL; i++)
+        if (schoolMask & SpellSchoolMask(1 << i))
+        {
+            int32 current = SpellBaseDamageBonus(SpellSchoolMask(1 << i));
+            if (current > bonus)
+                bonus = current;
+        }
+    return bonus > 0 ? bonus : 0;
 }
 
 bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolMask schoolMask, WeaponAttackType attackType)
@@ -10201,7 +10340,7 @@ int32 Unit::SpellHealingBonus(Unit *pVictim, SpellEntry const *spellProto, int32
         TakenTotalMod *= (100.0f + maxval) / 100.0f;
 
     // No heal amount for this class spells
-    if (spellProto->DmgClass == SPELL_DAMAGE_CLASS_NONE)
+    if (spellProto->DmgClass == SPELL_DAMAGE_CLASS_NONE && spellProto->Id != 52042)     // healing stream totem hack
     {
         healamount = int32(healamount * TakenTotalMod);
         return healamount < 0 ? 0 : healamount;
@@ -10581,7 +10720,8 @@ uint32 Unit::MeleeDamageBonus(Unit *pVictim, uint32 pdamage,WeaponAttackType att
         AuraList const& mModDamageDone = GetAurasByType(SPELL_AURA_MOD_DAMAGE_DONE);
         for(AuraList::const_iterator i = mModDamageDone.begin(); i != mModDamageDone.end(); ++i)
         {
-            if ((*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the intrinsic spell school
+            if ((*i)->GetSpellProto()->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA ||           // completely schoolmask-independend: pet scaling auras, see note
+                (*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the intrinsic spell school
                 (*i)->GetModifier()->m_miscvalue & GetMeleeDamageSchoolMask() &&                    // AND schoolmask has to fit with weapon damage school (essential for non-physical spells)
                 ((*i)->GetSpellProto()->EquippedItemClass == -1 ||                                  // general, weapon independent
                 pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto())))               // OR used weapon fits aura requirements
@@ -10589,8 +10729,14 @@ uint32 Unit::MeleeDamageBonus(Unit *pVictim, uint32 pdamage,WeaponAttackType att
                 DoneFlat += (*i)->GetModifier()->m_amount;
             }
         }
+        /* Additional note to pet scaling auras:
+           Those auras have SPELL_SCHOOL_MASK_MAGIC, but anyway should also
+           affect physical damage from non-weapon-damage-based spells (claw, swipe etc.).
+           Alternatively we could use pet::m_bonusdamage (that is currently still used for pet's
+           without dynamic scaling auras), but this would make the scaling aura idea inconsistent in some way :-/
+        */
 
-        // Pets just add their bonus damage to their melee damage
+        // Pets (without scaling auras) just add their bonus damage to their melee damage
         if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->isPet())
             DoneFlat += ((Pet*)this)->GetBonusDamage();
     }
@@ -10638,6 +10784,15 @@ uint32 Unit::MeleeDamageBonus(Unit *pVictim, uint32 pdamage,WeaponAttackType att
 
         if (attType == OFF_ATTACK)
             DonePercent *= GetModifierValue(UNIT_MOD_DAMAGE_OFFHAND, TOTAL_PCT);                    // no school check required
+
+        // creature and pet bonus mods
+        if (GetTypeId() == TYPEID_UNIT)
+        {
+            if (!((Creature*)this)->isPet())
+                DonePercent *= ((Creature*)this)->GetSpellDamageMod(((Creature*)this)->GetCreatureInfo()->rank);
+            else
+                DonePercent *= ((Pet*)this)->GetHappinessDamageMod();
+        }
     }
 
     // ..done pct (by creature type mask)
@@ -10776,7 +10931,17 @@ uint32 Unit::MeleeDamageBonus(Unit *pVictim, uint32 pdamage,WeaponAttackType att
     AuraList const& mDummyAuras = pVictim->GetAurasByType(SPELL_AURA_DUMMY);
     for(AuraList::const_iterator i = mDummyAuras.begin(); i != mDummyAuras.end(); ++i)
     {
-        switch((*i)->GetSpellProto()->SpellIconID)
+        SpellEntry const* spellInfo = (*i)->GetSpellProto();
+
+        // Blessing of Sanctuary (TODO: probably dmg reduction not constant)
+        if (spellInfo->SpellFamilyName == SPELLFAMILY_PALADIN && (spellInfo->SpellFamilyFlags & UI64LIT(0x0000000010000000)))
+        {
+            if (!(schoolMask & (*i)->GetModifier()->m_miscvalue))
+                continue;
+            TakenPercent *= (100.0f + (*i)->GetModifier()->m_amount)/100.0f;
+            continue;
+        }
+        switch(spellInfo->SpellIconID)
         {
             //Cheat Death
             case 2109:
@@ -12137,6 +12302,10 @@ int32 Unit::CalculateSpellDamage(SpellEntry const* spellProto, SpellEffectIndex 
         }
         sLog.outDebug("CalculateSpellDamage: no  saved roll for 12494 (Frostbite)");
     }
+    if(spellProto->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA && GetTypeId() == TYPEID_UNIT &&
+        ((Creature*)this)->isPet())
+        value += ((Pet*)this)->CalcScalingAuraBonus(spellProto, effect_index);
+
     return value;
 }
 
@@ -13253,7 +13422,7 @@ void Unit::ProcDamageAndSpellFor( bool isVictim, Unit * pTarget, uint32 procFlag
             }
             case SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN:
             case SPELL_AURA_MANA_SHIELD:
-            case SPELL_AURA_OBS_MOD_MANA:
+            case SPELL_AURA_OBS_MOD_ENERGY:
             case SPELL_AURA_ADD_PCT_MODIFIER:
             case SPELL_AURA_DUMMY:
             {

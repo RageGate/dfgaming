@@ -341,6 +341,7 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
 
     m_regenTimer = 0;
     m_weaponChangeTimer = 0;
+    m_petScalingUpdateTimer = 0;
 
     m_zoneUpdateId = 0;
     m_zoneUpdateTimer = 0;
@@ -1373,10 +1374,20 @@ void Player::Update( uint32 p_time )
     // group update
     SendUpdateToOutOfRangeGroupMembers();
 
-    Pet* pet = GetPet();
-    if(pet && !pet->IsWithinDistInMap(this, GetMap()->GetVisibilityDistance()) && (GetCharmGUID() && (pet->GetGUID() != GetCharmGUID())))
+    if (Pet* pet = GetPet())
     {
-        RemovePet(pet, PET_SAVE_NOT_IN_SLOT, true);
+        if (!pet->IsWithinDistInMap(this, GetMap()->GetVisibilityDistance()) && (GetCharmGUID() && (pet->GetGUID() != GetCharmGUID())))
+            RemovePet(pet, PET_SAVE_NOT_IN_SLOT, true);
+        else if (m_petScalingUpdateTimer)
+        {
+            if (m_petScalingUpdateTimer <= p_time)
+            {
+                pet->UpdateScalingAuras();
+                m_petScalingUpdateTimer = 0;
+            }
+            else
+                m_petScalingUpdateTimer -= p_time;
+        }
     }
 
     //we should execute delayed teleports only for alive(!) players
@@ -17304,27 +17315,39 @@ void Player::RemovePet(Pet* pet, PetSaveMode mode, bool returnreagent)
     if (pet && m_temporaryUnsummonedPetNumber != pet->GetCharmInfo()->GetPetNumber() && mode == PET_SAVE_AS_CURRENT)
         mode = PET_SAVE_NOT_IN_SLOT;
 
-    if(returnreagent && pet && mode != PET_SAVE_AS_CURRENT && !InBattleGround())
+    if(mode != PET_SAVE_AS_CURRENT)
     {
         //returning of reagents only for players, so best done here
-        uint32 spellId = pet ? pet->GetUInt32Value(UNIT_CREATED_BY_SPELL) : m_oldpetspell;
-        SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellId);
+        uint32 spellId = pet ? pet->GetUInt32Value(UNIT_CREATED_BY_SPELL) : m_oldpetspell;      // this is nonsense, pet will always be != NULL here
 
-        if(spellInfo)
+        if(SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellId))
         {
-            for(uint32 i = 0; i < 7; ++i)
+            // returning of reagents
+            if (returnreagent && !InBattleGround())
             {
-                if(spellInfo->Reagent[i] > 0)
+                for(uint32 i = 0; i < 7; ++i)
                 {
-                    ItemPosCountVec dest;                   //for succubus, voidwalker, felhunter and felguard credit soulshard when despawn reason other than death (out of range, logout)
-                    uint8 msg = CanStoreNewItem( NULL_BAG, NULL_SLOT, dest, spellInfo->Reagent[i], spellInfo->ReagentCount[i] );
-                    if( msg == EQUIP_ERR_OK )
+                    if(spellInfo->Reagent[i] > 0)
                     {
-                        Item* item = StoreNewItem( dest, spellInfo->Reagent[i], true);
-                        if(IsInWorld())
-                            SendNewItem(item,spellInfo->ReagentCount[i],true,false);
+                        ItemPosCountVec dest;                   //for succubus, voidwalker, felhunter and felguard credit soulshard when despawn reason other than death (out of range, logout)
+                        uint8 msg = CanStoreNewItem( NULL_BAG, NULL_SLOT, dest, spellInfo->Reagent[i], spellInfo->ReagentCount[i] );
+                        if( msg == EQUIP_ERR_OK )
+                        {
+                            Item* item = StoreNewItem( dest, spellInfo->Reagent[i], true);
+                            if(IsInWorld())
+                                SendNewItem(item,spellInfo->ReagentCount[i],true,false);
+                        }
                     }
                 }
+            }
+            // cooldown, only if pet is not death already (corpse)
+            if (spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE && pet->getDeathState() != CORPSE)
+            {
+                SendCooldownEvent(spellInfo);
+                // Raise Dead hack
+                if (spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT && spellInfo->SpellFamilyFlags & 0x1000)
+                    if (spellInfo = sSpellStore.LookupEntry(46584))
+                        SendCooldownEvent(spellInfo);
             }
         }
     }
@@ -17626,6 +17649,17 @@ void Player::RemovePetActionBar()
     WorldPacket data(SMSG_PET_SPELLS, 8);
     data << uint64(0);
     SendDirectMessage(&data);
+}
+
+void Player::UpdatePetScalingAuras()
+{
+    Pet* pet = GetPet();
+    if (!pet)
+        return;
+
+    // pet scaling auras will be updated with delay, to minimize cpu cycles
+    if (!m_petScalingUpdateTimer)
+        m_petScalingUpdateTimer = 1000;
 }
 
 bool Player::IsAffectedBySpellmod(SpellEntry const *spellInfo, SpellModifier *mod, Spell const* spell)
@@ -18621,15 +18655,18 @@ void Player::AddSpellCooldown(uint32 spellid, uint32 itemid, time_t end_time)
     m_spellCooldowns[spellid] = sc;
 }
 
-void Player::SendCooldownEvent(SpellEntry const *spellInfo, uint32 itemId, Spell* spell)
+void Player::SendCooldownEvent(SpellEntry const *spellInfo, uint32 itemId, Spell* spell, Unit* cooldownTarget)
 {
+    if (!cooldownTarget)
+        cooldownTarget = this;
+
     // start cooldowns at server side, if any
-    AddSpellAndCategoryCooldowns(spellInfo, itemId, spell);
+    cooldownTarget->AddSpellAndCategoryCooldowns(spellInfo,itemId,spell);
 
     // Send activate cooldown timer (possible 0) at client side
     WorldPacket data(SMSG_COOLDOWN_EVENT, (4+8));
     data << uint32(spellInfo->Id);
-    data << uint64(GetGUID());
+    data << uint64(cooldownTarget->GetGUID());
     SendDirectMessage(&data);
 }
 

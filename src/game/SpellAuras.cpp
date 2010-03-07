@@ -71,7 +71,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
     &Aura::HandleInvisibility,                              // 18 SPELL_AURA_MOD_INVISIBILITY
     &Aura::HandleInvisibilityDetect,                        // 19 SPELL_AURA_MOD_INVISIBILITY_DETECTION
     &Aura::HandleAuraModTotalHealthPercentRegen,            // 20 SPELL_AURA_OBS_MOD_HEALTH
-    &Aura::HandleAuraModTotalManaPercentRegen,              // 21 SPELL_AURA_OBS_MOD_MANA
+    &Aura::HandleAuraModTotalEnergyPercentRegen,			// 21 SPELL_AURA_OBS_MOD_ENERGY
     &Aura::HandleAuraModResistance,                         // 22 SPELL_AURA_MOD_RESISTANCE
     &Aura::HandlePeriodicTriggerSpell,                      // 23 SPELL_AURA_PERIODIC_TRIGGER_SPELL
     &Aura::HandlePeriodicEnergize,                          // 24 SPELL_AURA_PERIODIC_ENERGIZE
@@ -566,35 +566,10 @@ PersistentAreaAura::~PersistentAreaAura()
 {
 }
 
-SingleEnemyTargetAura::SingleEnemyTargetAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 *currentBasePoints, Unit *target,
-Unit *caster, Item* castItem) : Aura(spellproto, eff, currentBasePoints, target, caster, castItem)
-{
-    if (caster)
-        m_casters_target_guid = caster->GetTypeId()==TYPEID_PLAYER ? ((Player*)caster)->GetSelection() : caster->GetTargetGUID();
-    else
-        m_casters_target_guid = 0;
-}
-
-SingleEnemyTargetAura::~SingleEnemyTargetAura()
-{
-}
-
-Unit* SingleEnemyTargetAura::GetTriggerTarget() const
-{
-    return ObjectAccessor::GetUnit(*m_target, m_casters_target_guid);
-}
-
 Aura* CreateAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 *currentBasePoints, Unit *target, Unit *caster, Item* castItem)
 {
     if (IsAreaAuraEffect(spellproto->Effect[eff]))
         return new AreaAura(spellproto, eff, currentBasePoints, target, caster, castItem);
-
-    uint32 triggeredSpellId = spellproto->EffectTriggerSpell[eff];
-
-    if(SpellEntry const* triggeredSpellInfo = sSpellStore.LookupEntry(triggeredSpellId))
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
-            if (triggeredSpellInfo->EffectImplicitTargetA[i] == TARGET_SINGLE_ENEMY)
-                return new SingleEnemyTargetAura(spellproto, eff, currentBasePoints, target, caster, castItem);
 
     return new Aura(spellproto, eff, currentBasePoints, target, caster, castItem);
 }
@@ -616,6 +591,22 @@ void Aura::SetModifier(AuraType t, int32 a, uint32 pt, int32 miscValue)
     m_modifier.m_amount = a;
     m_modifier.m_miscvalue = miscValue;
     m_modifier.periodictime = pt;
+}
+
+void Aura::UpdateModifierAmount(int32 amount)
+{
+    // use this method, to modify modifier.amount when aura is already applied
+    AuraType aura = m_modifier.m_auraname;
+
+    SetInUse(true);
+    if(aura < TOTAL_AURAS)
+    {
+        // maybe we can find a better way here?
+        (*this.*AuraHandler [aura])(false, true);
+        m_modifier.m_amount = amount;
+        (*this.*AuraHandler [aura])(true, true);
+    }
+    SetInUse(false);
 }
 
 void Aura::Update(uint32 diff)
@@ -1263,11 +1254,20 @@ bool Aura::_RemoveAura()
         }
 
         // reset cooldown state for spells
-        if(caster && caster->GetTypeId() == TYPEID_PLAYER)
+        if (GetSpellProto()->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE && caster)
         {
-            if ( GetSpellProto()->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE )
+            // always send for players
+            if (caster->GetTypeId() == TYPEID_PLAYER)
+            {
                 // note: item based cooldowns and cooldown spell mods with charges ignored (unknown existed cases)
                 ((Player*)caster)->SendCooldownEvent(GetSpellProto());
+            }
+            // send to controller, if unit is player-controlled
+            if (caster->isControlledByPlayer())
+            {
+                Player* controller = (Player*)(caster->GetCharmerOrOwner());
+                controller->SendCooldownEvent(GetSpellProto(), 0, NULL, caster);
+            }
         }
     }
 
@@ -1641,7 +1641,7 @@ void Aura::HandleAddTargetTrigger(bool apply, bool /*Real*/)
 void Aura::TriggerSpell()
 {
     const uint64& casterGUID = GetCasterGUID();
-    Unit* target = GetTriggerTarget();
+    Unit* target = GetTarget();                     // correct target will be set in Spell::SetTargetMap
 
     if(!casterGUID || !target)
         return;
@@ -2400,7 +2400,7 @@ void Aura::TriggerSpell()
 void Aura::TriggerSpellWithValue()
 {
     const uint64& casterGUID = GetCasterGUID();
-    Unit* target = GetTriggerTarget();
+    Unit* target = GetTarget();                 // correct target will be set in Spell::SetTargetMap
 
     if(!casterGUID || !target)
         return;
@@ -2421,6 +2421,32 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
     // spells required only Real aura add/remove
     if (!Real)
         return;
+
+    // link dummyauras to caster for target selection from periodic triggered spells
+    if(!m_permanent)
+        if(Unit* caster = GetCaster())
+        {
+            SpellEntry const* m_spell = GetSpellProto();
+
+            for(uint8 i =0; i<3; i++)
+            {
+                if( m_spell->Effect[i] == SPELL_EFFECT_APPLY_AURA &&
+                    (m_spell->EffectApplyAuraName[i] == SPELL_AURA_PERIODIC_TRIGGER_SPELL
+                    || m_spell->EffectApplyAuraName[i] == SPELL_AURA_PERIODIC_TRIGGER_SPELL_WITH_VALUE) )
+                {
+                    if(apply)
+                    {
+                        caster->AddDummyAuraLink(this);
+                        if( IsAreaAura() )
+                            sLog.outDebug("Spell %i applying a periodic spell trigger aura has aoe target link dummy aura. Not supported!",GetId());
+                    }
+                    else
+                        caster->RemoveDummyAuraLink(this);
+                }
+                else if(m_spell->Effect[i] == SPELL_EFFECT_APPLY_AURA && m_spell->EffectApplyAuraName[i] == SPELL_AURA_DUMMY && GetEffIndex() != i)
+                    sLog.outDebug("Spell %i applying a periodic spell trigger aura has 2 dummy auras. May cause problems with target selection!");
+            }
+        }
 
     // AT APPLY
     if (apply)
@@ -5609,7 +5635,7 @@ void Aura::HandleAuraModTotalHealthPercentRegen(bool apply, bool /*Real*/)
     m_isPeriodic = apply;
 }
 
-void Aura::HandleAuraModTotalManaPercentRegen(bool apply, bool /*Real*/)
+void Aura::HandleAuraModTotalEnergyPercentRegen(bool apply, bool /*Real*/)
 {
     if(m_modifier.periodictime == 0)
         m_modifier.periodictime = 1000;
@@ -6517,6 +6543,15 @@ void Aura::HandleSpellSpecificBoosts(bool apply, bool last_stack)
             {
                 cast_at_remove = true;
                 spellId1 = 60242;                           // Darkmoon Card: Illusion
+            }
+            else if(GetId() == 45661)                       // Encapsulate
+            {
+                // we need to cast with target GUID because of target problems with trigger spell
+                if (apply)
+                    m_target->CastSpell(m_target, 45665, true, NULL, this, m_target->GetGUID());
+                else
+                    m_target->RemoveAurasByCasterSpell(45665, m_target->GetGUID());
+                return;
             }
             else
                 return;
@@ -7828,17 +7863,12 @@ void Aura::PeriodicTick()
             }
             break;
         }
+        case SPELL_AURA_OBS_MOD_ENERGY:
         case SPELL_AURA_PERIODIC_ENERGIZE:
         {
             // don't energize target if not alive, possible death persistent effects
             if (!m_target->isAlive())
                 return;
-
-            // ignore non positive values (can be result apply spellmods to aura damage
-            uint32 pdamage = m_modifier.m_amount > 0 ? m_modifier.m_amount : 0;
-
-            sLog.outDetail("PeriodicTick: %u (TypeId: %u) energize %u (TypeId: %u) for %u dmg inflicted by %u",
-                GUID_LOPART(GetCasterGUID()), GuidHigh2TypeId(GUID_HIPART(GetCasterGUID())), m_target->GetGUIDLow(), m_target->GetTypeId(), pdamage, GetId());
 
             if(m_modifier.m_miscvalue < 0 || m_modifier.m_miscvalue >= MAX_POWERS)
                 break;
@@ -7848,37 +7878,22 @@ void Aura::PeriodicTick()
             if(m_target->GetMaxPower(power) == 0)
                 break;
 
-            SpellPeriodicAuraLogInfo pInfo(this, pdamage, 0, 0, 0, 0.0f);
-            m_target->SendPeriodicAuraLog(&pInfo);
-
-            int32 gain = m_target->ModifyPower(power,pdamage);
-
-            if(Unit* pCaster = GetCaster())
-                m_target->getHostileRefManager().threatAssist(pCaster, float(gain) * 0.5f, GetSpellProto());
-            break;
-        }
-        case SPELL_AURA_OBS_MOD_MANA:
-        {
-            // don't energize target if not alive, possible death persistent effects
-            if (!m_target->isAlive())
-                return;
-
             // ignore non positive values (can be result apply spellmods to aura damage
             uint32 amount = m_modifier.m_amount > 0 ? m_modifier.m_amount : 0;
 
-            uint32 pdamage = uint32(m_target->GetMaxPower(POWER_MANA) * amount / 100);
+            uint32 pdamage;
+            if( m_modifier.m_auraname == SPELL_AURA_OBS_MOD_ENERGY )
+                pdamage = uint32(m_target->GetMaxPower(power) * amount/100);
+            else
+                pdamage = amount;
 
             sLog.outDetail("PeriodicTick: %u (TypeId: %u) energize %u (TypeId: %u) for %u mana inflicted by %u",
                 GUID_LOPART(GetCasterGUID()), GuidHigh2TypeId(GUID_HIPART(GetCasterGUID())), m_target->GetGUIDLow(), m_target->GetTypeId(), pdamage, GetId());
 
-            if(m_target->GetMaxPower(POWER_MANA) == 0)
-                break;
-
             SpellPeriodicAuraLogInfo pInfo(this, pdamage, 0, 0, 0, 0.0f);
             m_target->SendPeriodicAuraLog(&pInfo);
 
-            int32 gain = m_target->ModifyPower(POWER_MANA, pdamage);
-
+            int32 gain = m_target->ModifyPower(power,pdamage);
             if(Unit* pCaster = GetCaster())
                 m_target->getHostileRefManager().threatAssist(pCaster, float(gain) * 0.5f, GetSpellProto());
             break;

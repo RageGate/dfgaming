@@ -116,7 +116,7 @@ class MANGOS_DLL_SPEC Aura
         void HandleInvisibility(bool Apply, bool Real);
         void HandleInvisibilityDetect(bool Apply, bool Real);
         void HandleAuraModTotalHealthPercentRegen(bool Apply, bool Real);
-        void HandleAuraModTotalManaPercentRegen(bool Apply, bool Real);
+        void HandleAuraModTotalEnergyPercentRegen(bool Apply, bool Real);
         void HandleAuraModResistance(bool Apply, bool Real);
         void HandleAuraModRoot(bool Apply, bool Real);
         void HandleAuraModSilence(bool Apply, bool Real);
@@ -228,6 +228,7 @@ class MANGOS_DLL_SPEC Aura
         virtual ~Aura();
 
         void SetModifier(AuraType t, int32 a, uint32 pt, int32 miscValue);
+        void UpdateModifierAmount(int32 amount);
         Modifier*       GetModifier()       { return &m_modifier; }
         Modifier const* GetModifier() const { return &m_modifier; }
         int32 GetMiscValue() const { return m_spellProto->EffectMiscValue[m_effIndex]; }
@@ -341,8 +342,6 @@ class MANGOS_DLL_SPEC Aura
 
         void SetRemoveMode(AuraRemoveMode mode) { m_removeMode = mode; }
 
-        virtual Unit* GetTriggerTarget() const { return m_target; }
-
         // add/remove SPELL_AURA_MOD_SHAPESHIFT (36) linked auras
         void HandleShapeshiftBoosts(bool apply);
         void HandleSpellSpecificBoosts(bool apply, bool last_stack);
@@ -435,19 +434,6 @@ class MANGOS_DLL_SPEC PersistentAreaAura : public Aura
         ~PersistentAreaAura();
     protected:
         void Update(uint32 diff);
-};
-
-class MANGOS_DLL_SPEC SingleEnemyTargetAura : public Aura
-{
-    friend Aura* CreateAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 *currentBasePoints, Unit *target, Unit *caster, Item* castItem);
-
-    public:
-        ~SingleEnemyTargetAura();
-        Unit* GetTriggerTarget() const;
-
-    protected:
-        SingleEnemyTargetAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 *currentBasePoints, Unit *target, Unit *caster  = NULL, Item* castItem = NULL);
-        uint64 m_casters_target_guid;
 };
 
 Aura* CreateAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 *currentBasePoints, Unit *target, Unit *caster = NULL, Item* castItem = NULL);

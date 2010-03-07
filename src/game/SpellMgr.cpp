@@ -226,7 +226,7 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
                             break;
                         // Drink
                         case SPELL_AURA_MOD_POWER_REGEN:
-                        case SPELL_AURA_OBS_MOD_MANA:
+                        case SPELL_AURA_OBS_MOD_ENERGY:
                             drink = true;
                             break;
                         default:
@@ -441,7 +441,7 @@ bool IsPositiveTarget(uint32 targetA, uint32 targetB)
         case TARGET_IN_FRONT_OF_CASTER:
         case TARGET_ALL_ENEMY_IN_AREA_CHANNELED:
         case TARGET_CURRENT_ENEMY_COORDINATES:
-        case TARGET_SINGLE_ENEMY:
+        case TARGET_PERIODIC_TRIGGER_AURA:
         case TARGET_IN_FRONT_OF_CASTER_2:
             return false;
         case TARGET_CASTER_COORDINATES:
@@ -478,7 +478,7 @@ bool IsExplicitNegativeTarget(uint32 targetA)
     {
         case TARGET_CHAIN_DAMAGE:
         case TARGET_CURRENT_ENEMY_COORDINATES:
-        case TARGET_SINGLE_ENEMY:
+        case TARGET_PERIODIC_TRIGGER_AURA:
             return true;
         default:
             break;
@@ -1399,6 +1399,11 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
             {
                 case SPELLFAMILY_GENERIC:                   // same family case
                 {
+                    // Encapsulate
+                    if ((spellInfo_1->Id == 45665 && spellInfo_2->Id == 45661) ||
+                        (spellInfo_2->Id == 45665 && spellInfo_1->Id == 45661))
+                        return false;
+
                     // Thunderfury
                     if ((spellInfo_1->Id == 21992 && spellInfo_2->Id == 27648) ||
                         (spellInfo_2->Id == 21992 && spellInfo_1->Id == 27648))

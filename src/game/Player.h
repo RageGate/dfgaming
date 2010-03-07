@@ -1549,6 +1549,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         void CharmSpellInitialize();
         void PossessSpellInitialize();
         void RemovePetActionBar();
+        void UpdatePetScalingAuras();
 
         bool HasSpell(uint32 spell) const;
         bool HasActiveSpell(uint32 spell) const;            // show in spellbook
@@ -1624,9 +1625,9 @@ class MANGOS_DLL_SPEC Player : public Unit
             time_t t = time(NULL);
             return itr != m_spellCooldowns.end() && itr->second.end > t ? itr->second.end - t : 0;
         }
-        void AddSpellAndCategoryCooldowns(SpellEntry const* spellInfo, uint32 itemId, Spell* spell = NULL, bool infinityCooldown = false );
+        void AddSpellAndCategoryCooldowns(SpellEntry const* spellInfo, uint32 itemId, Spell* spell = NULL, bool infinityCooldown = false);
         void AddSpellCooldown(uint32 spell_id, uint32 itemid, time_t end_time);
-        void SendCooldownEvent(SpellEntry const *spellInfo, uint32 itemId = 0, Spell* spell = NULL);
+        void SendCooldownEvent(SpellEntry const *spellInfo, uint32 itemId = 0, Spell* spell = NULL, Unit* cooldownTarget = NULL);
         void ProhibitSpellSchool(SpellSchoolMask idSchoolMask, uint32 unTimeMs );
         void RemoveSpellCooldown(uint32 spell_id, bool update = false);
         void RemoveSpellCategoryCooldown(uint32 cat, bool update = false);
@@ -2580,6 +2581,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         // Temporary removed pet cache
         uint32 m_temporaryUnsummonedPetNumber;
         uint32 m_oldpetspell;
+
+        uint32 m_petScalingUpdateTimer;
 
         AchievementMgr m_achievementMgr;
         ReputationMgr  m_reputationMgr;

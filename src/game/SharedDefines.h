@@ -375,7 +375,7 @@ const uint32 ItemQualityColors[MAX_ITEM_QUALITY] = {
 #define SPELL_ATTR_EX4_UNK22                      0x00400000            // 22
 #define SPELL_ATTR_EX4_UNK23                      0x00800000            // 23
 #define SPELL_ATTR_EX4_UNK24                      0x01000000            // 24
-#define SPELL_ATTR_EX4_UNK25                      0x02000000            // 25 pet scaling auras
+#define SPELL_ATTR_EX4_PET_SCALING_AURA           0x02000000            // 25 pet scaling auras
 #define SPELL_ATTR_EX4_CAST_ONLY_IN_OUTLAND       0x04000000            // 26 Can only be used in Outland.
 #define SPELL_ATTR_EX4_UNK27                      0x08000000            // 27
 #define SPELL_ATTR_EX4_UNK28                      0x10000000            // 28
@@ -1087,7 +1087,7 @@ enum Targets
     TARGET_RANDOM_NEARBY_LOC           = 72,                // used in teleport onto nearby locations
     TARGET_RANDOM_CIRCUMFERENCE_POINT  = 73,
     TARGET_DYNAMIC_OBJECT_COORDINATES  = 76,
-    TARGET_SINGLE_ENEMY                = 77,
+    TARGET_PERIODIC_TRIGGER_AURA       = 77,                // used for Spells triggered by SPELL_AURA_PERIODIC_TRIGGER_SPELL
     TARGET_POINT_AT_NORTH              = 78,                // 78-85 possible _COORDINATES at radius with pi/4 step around target in unknown order, N?
     TARGET_POINT_AT_SOUTH              = 79,                // S?
     TARGET_POINT_AT_EAST               = 80,                // 80/81 must be symmetric from line caster->target, E (base at 82/83, 84/85 order) ?

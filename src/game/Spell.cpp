@@ -479,6 +479,9 @@ WorldObject* Spell::FindCorpseUsing()
     return result;
 }
 
+// explicitly instantiate for use in SpellEffects.cpp
+template WorldObject* Spell::FindCorpseUsing<MaNGOS::RaiseDeadObjectCheck>();
+
 void Spell::FillTargetMap()
 {
     // TODO: ADD the correct target FILLS!!!!!!
@@ -1450,10 +1453,12 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
     switch(targetMode)
     {
         case TARGET_RANDOM_NEARBY_LOC:
-            radius *= sqrtf(rand_norm_f()); // Get a random point in circle. Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
-                                         // no 'break' expected since we use code in case TARGET_RANDOM_CIRCUMFERENCE_POINT!!!
+            // Get a random point IN circle around the CASTER(!). Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
+            radius *= sqrtf(rand_norm_f());
+            // no 'break' expected since we use code in case TARGET_RANDOM_CIRCUMFERENCE_POINT!!!
         case TARGET_RANDOM_CIRCUMFERENCE_POINT:
         {
+            // Get a random point AT the CIRCUMREFERENCE(!).
             float angle = 2.0f * M_PI_F * rand_norm_f();
             float dest_x, dest_y, dest_z;
             m_caster->GetClosePoint(dest_x, dest_y, dest_z, 0.0f, radius, angle);
@@ -1464,20 +1469,22 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
         }
         case TARGET_RANDOM_NEARBY_DEST:
         {
-            radius *= sqrtf(rand_norm_f()); // Get a random point in circle. Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
-            float angle = 2.0f * M_PI_F * rand_norm_f();
-            float dest_x = m_targets.m_destX + cos(angle) * radius;
-            float dest_y = m_targets.m_destY + sin(angle) * radius;
-            float dest_z = m_caster->GetPositionZ();
-            m_caster->UpdateGroundPositionZ(dest_x, dest_y, dest_z);
-            m_targets.setDestination(dest_x, dest_y, dest_z);
-
-            if (radius > 0.0f)
+            // Get a random point IN the CIRCEL around current M_TARGETS COORDINATES(!).
+            if (radius > 0)
             {
-                // caster included here?
-                FillAreaTargets(targetUnitMap, dest_x, dest_y, radius, PUSH_DEST_CENTER, SPELL_TARGETS_AOE_DAMAGE);
+                // Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
+                radius *= sqrtf(rand_norm_f());
+                float angle = 2.0f * M_PI_F * rand_norm_f();
+                float dest_x = m_targets.m_destX + cos(angle) * radius;
+                float dest_y = m_targets.m_destY + sin(angle) * radius;
+                float dest_z = m_caster->GetPositionZ();
+                m_caster->UpdateGroundPositionZ(dest_x, dest_y, dest_z);
+                m_targets.setDestination(dest_x, dest_y, dest_z);
             }
-            else
+
+            // This targetMode is often used as 'last' implicitTarget for positive spells, that just require coordinates
+            // and no unitTarget (e.g. summon effects). As MaNGOS always needs a unitTarget we add just the caster here.
+            if (IsPositiveSpell(m_spellInfo->Id))
                 targetUnitMap.push_back(m_caster);
 
             break;
@@ -1965,9 +1972,15 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
             if(m_spellInfo->Effect[effIndex] != SPELL_EFFECT_DUEL)
                 targetUnitMap.push_back(m_caster);
             break;
-        case TARGET_SINGLE_ENEMY:
+        case TARGET_PERIODIC_TRIGGER_AURA:
         {
-            if(Unit* pUnitTarget = m_caster->SelectMagnetTarget(m_targets.getUnitTarget(), m_spellInfo))
+            Unit* pTarget;
+            // search for dummy aura link, that contains the target
+            Aura* pAura = NULL;
+            if(m_triggeredByAuraSpell)
+                pAura = m_caster->GetLinkedDummyAura(m_triggeredByAuraSpell->Id);
+            pTarget = pAura ? pAura->GetTarget() : m_targets.getUnitTarget();
+            if(Unit* pUnitTarget = m_caster->SelectMagnetTarget(pTarget, m_spellInfo))
             {
                 m_targets.setUnitTarget(pUnitTarget);
                 targetUnitMap.push_back(pUnitTarget);
@@ -2543,6 +2556,9 @@ void Spell::prepare(SpellCastTargets const* targets, Aura* triggeredByAura)
     // set timer base at cast time
     ReSetTimer();
 
+    // send global cooldown
+    SendGlobalCooldown();
+
     // stealth must be removed at cast starting (at show channel bar)
     // skip triggered spell (item equip spell casting and other not explicit character casts/item uses)
     if ( !m_IsTriggeredSpell && isSpellBreakStealth(m_spellInfo) )
@@ -2576,6 +2592,7 @@ void Spell::cancel()
     switch (m_spellState)
     {
         case SPELL_STATE_PREPARING:
+            ResetGlobalCooldown();
         case SPELL_STATE_DELAYED:
         {
             SendInterrupted(0);
@@ -3004,24 +3021,67 @@ void Spell::_handle_finish_phase()
 
 void Spell::SendSpellCooldown()
 {
-    if(m_caster->GetTypeId() != TYPEID_PLAYER)
-        return;
-
-    Player* _player = (Player*)m_caster;
-
-    // mana/health/etc potions, disabled by client (until combat out as declarate)
-    if (m_CastItem && m_CastItem->IsPotion())
+    switch (m_caster->GetTypeId())
     {
-        // need in some way provided data for Spell::finish SendCooldownEvent
-        _player->SetLastPotionId(m_CastItem->GetEntry());
-        return;
+        case TYPEID_UNIT:
+        {
+            // store cooldown only for controlled creatures
+            if (!m_caster->isControlledByPlayer())
+                return;
+        }break;
+        case TYPEID_PLAYER:
+        {
+            Player* _player = (Player*)m_caster;
+
+            // mana/health/etc potions, disabled by client (until combat out as declarate)
+            if (m_CastItem && m_CastItem->IsPotion())
+            {
+                // need in some way provided data for Spell::finish SendCooldownEvent
+                _player->SetLastPotionId(m_CastItem->GetEntry());
+                return;
+            }
+        }break;
+        default:
+            return;;
     }
 
     // (1) have infinity cooldown but set at aura apply, (2) passive cooldown at triggering
     if(m_spellInfo->Attributes & (SPELL_ATTR_DISABLED_WHILE_ACTIVE | SPELL_ATTR_PASSIVE))
         return;
+    m_caster->AddSpellAndCategoryCooldowns(m_spellInfo, m_CastItem ? m_CastItem->GetEntry() : 0, this);
+}
 
-    _player->AddSpellAndCategoryCooldowns(m_spellInfo, m_CastItem ? m_CastItem->GetEntry() : 0, this);
+void Spell::SendGlobalCooldown()
+{
+    if (!m_spellInfo->StartRecoveryTime)
+        return;
+
+    // server side handling only for charmed creatures and pets
+    if (m_caster->GetTypeId() != TYPEID_UNIT)
+        return;
+
+    if (!m_caster->isControlledByPlayer())
+        return;
+
+    ((Creature*)m_caster)->SetGlobalCooldown(m_spellInfo->StartRecoveryTime);
+}
+
+void Spell::ResetGlobalCooldown()
+{
+    // spells without gcd can't reset it
+    if (!m_spellInfo->StartRecoveryTime)
+        return;
+
+    // server side handling only for charmed creatures and pets
+    if (m_caster->GetTypeId() != TYPEID_UNIT)
+        return;
+
+     if (!m_caster->isControlledByPlayer())
+        return;
+
+     ((Creature*)m_caster)->SetGlobalCooldown(0);
+     // need to send packet for controlled creatures (to the controller), this will clear gcd
+     ((Player*)m_caster->GetCharmerOrOwner())->SendClearCooldown(m_spellInfo->Id, m_caster);
 }
 
 void Spell::update(uint32 difftime)
@@ -3183,6 +3243,10 @@ void Spell::finish(bool ok)
             }
         }
     }
+    // HACK: remove Arcane Blast buffs at any non-Arcane Blast arcane damage spell
+    // more elegant way: set the spellmod of 36032 as last affected and no charges (but we don't have access from spell :-/)
+    if ((m_spellInfo->SpellFamilyName == SPELLFAMILY_MAGE) && (m_spellInfo->SpellFamilyFlags & UI64LIT(0x0000800000201000)))
+        m_caster->RemoveAurasDueToSpell(36032);         // Arcane Blast buff
 
     // Heal caster for all health leech from all targets
     if (m_healthLeech)
@@ -3319,6 +3383,11 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
                     data << uint32(0);
                     break;
             }
+            break;
+        case SPELL_FAILED_REAGENTS:
+            // normally client checks reagents, just some script effects here
+            if(spellInfo->Id == 46584)                      // Raise Dead
+                data << uint32(37201);                      // Corpse Dust
             break;
         case SPELL_FAILED_TOTEMS:
             if(spellInfo->Totem[0])
@@ -4783,9 +4852,13 @@ SpellCastResult Spell::CheckCast(bool strict)
             {
                 // Spell can be triggered, we need to check original caster prior to caster
                 Unit* caster = GetAffectiveCaster();
-                if (!caster || caster->GetTypeId() != TYPEID_PLAYER ||
-                    !m_targets.getUnitTarget() ||
-                    m_targets.getUnitTarget()->GetTypeId() == TYPEID_PLAYER)
+                if (!caster)
+                    return SPELL_FAILED_BAD_TARGETS;
+                // target provided by dummy aura
+                Aura* dummyLink = caster->GetLinkedDummyAura(m_triggeredByAuraSpell->Id);
+                if (caster->GetTypeId() != TYPEID_PLAYER ||
+                    !dummyLink || !dummyLink->GetTarget() ||
+                    dummyLink->GetTarget()->GetTypeId() == TYPEID_PLAYER)
                     return SPELL_FAILED_BAD_TARGETS;
 
                 Player* plrCaster = (Player*)caster;
@@ -4796,7 +4869,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     return SPELL_FAILED_DONT_REPORT;
                 }
 
-                Creature* target = (Creature*)m_targets.getUnitTarget();
+                Creature* target = (Creature*)dummyLink->GetTarget();
 
                 if(target->isPet() || target->isCharmed())
                 {
@@ -5524,8 +5597,8 @@ SpellCastResult Spell::CheckRange(bool strict)
 
 int32 Spell::CalculatePowerCost()
 {
-    // item cast not used power
-    if (m_CastItem)
+    // item cast and triggered not use power
+    if (m_CastItem || m_IsTriggeredSpell)
         return 0;
 
     // Spell drain all exist power on cast (Only paladin lay of Hands)
@@ -5592,8 +5665,8 @@ int32 Spell::CalculatePowerCost()
 
 SpellCastResult Spell::CheckPower()
 {
-    // item cast not used power
-    if(m_CastItem)
+    // item cast, and triggered not use power
+    if(m_CastItem || m_IsTriggeredSpell)
         return SPELL_CAST_OK;
 
     // Do precise power regen on spell cast

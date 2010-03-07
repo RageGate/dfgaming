@@ -55,6 +55,7 @@
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "Vehicle.h"
+#include "GridNotifiers.h"
 
 pEffect SpellEffects[TOTAL_SPELL_EFFECTS]=
 {
@@ -392,12 +393,6 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                 }
                 break;
             }
-            case SPELLFAMILY_MAGE:
-                // remove Arcane Blast buffs at any non-Arcane Blast arcane damage spell.
-                // NOTE: it removed at hit instead cast because currently spell done-damage calculated at hit instead cast
-                if ((m_spellInfo->SchoolMask & SPELL_SCHOOL_MASK_ARCANE) && !(m_spellInfo->SpellFamilyFlags & UI64LIT(0x20000000)))
-                    m_caster->RemoveAurasDueToSpell(36032); // Arcane Blast buff
-                break;
             case SPELLFAMILY_WARRIOR:
             {
                 // Bloodthirst
@@ -4359,10 +4354,10 @@ void Spell::DoSummonGuardian(SpellEffectIndex eff_idx, uint32 forceFaction)
             spawnCreature->SetDuration(duration);
 
         spawnCreature->SetOwnerGUID(m_caster->GetGUID());
-        spawnCreature->setPowerType(POWER_MANA);
+        spawnCreature->setPowerType(spawnCreature->GetCreatureInfo()->family == CREATURE_FAMILY_GHOUL ? POWER_ENERGY : POWER_MANA);
         spawnCreature->SetUInt32Value(UNIT_NPC_FLAGS, spawnCreature->GetCreatureInfo()->npcflag);
         spawnCreature->setFaction(forceFaction ? forceFaction : m_caster->getFaction());
-        spawnCreature->SetUInt32Value(UNIT_FIELD_FLAGS, 0);
+        spawnCreature->SetUInt32Value(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE);
         spawnCreature->SetUInt32Value(UNIT_FIELD_BYTES_1, 0);
         spawnCreature->SetUInt32Value(UNIT_FIELD_PET_NAME_TIMESTAMP, 0);
         spawnCreature->SetCreatorGUID(m_caster->GetGUID());
@@ -5289,6 +5284,23 @@ void Spell::EffectThreat(SpellEffectIndex /*eff_idx*/)
     if(!unitTarget->CanHaveThreatList())
         return;
 
+    // pet's growl bonus threat
+    if( m_spellInfo->SpellFamilyName == SPELLFAMILY_HUNTER && m_spellInfo->SpellIconID == 201)
+    {
+        // search for "guard dog"
+        Unit::AuraList const& mDummyAuras = m_caster->GetAurasByType(SPELL_AURA_DUMMY);
+        for(Unit::AuraList::const_iterator i = mDummyAuras.begin(); i != mDummyAuras.end(); ++i)
+        {
+            SpellEntry const *m_spellProto = (*i)->GetSpellProto();
+            if( m_spellProto && m_spellProto->SpellFamilyName == SPELLFAMILY_PET &&
+                m_spellProto->SpellIconID == 201)
+            {
+                damage+= (*i)->GetModifier()->m_amount*damage/100;
+                break;
+            }
+        }
+    }
+
     unitTarget->AddThreat(m_caster, float(damage), false, GetSpellSchoolMask(m_spellInfo), m_spellInfo);
 }
 
@@ -5781,25 +5793,30 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->RemoveSpellsCausingAura(SPELL_AURA_MOD_STUN);
                     return;
                 }
-                case 55328:                                    // Stoneclaw Totem I
-                case 55329:                                    // Stoneclaw Totem II
-                case 55330:                                    // Stoneclaw Totem III
-                case 55332:                                    // Stoneclaw Totem IV
-                case 55333:                                    // Stoneclaw Totem V
-                case 55335:                                    // Stoneclaw Totem VI
-                case 55278:                                    // Stoneclaw Totem VII
-                case 58589:                                    // Stoneclaw Totem VIII
-                case 58590:                                    // Stoneclaw Totem IX
-                case 58591:                                    // Stoneclaw Totem X
+                case 55328:                                 // Stoneclaw Totem I
+                case 55329:                                 // Stoneclaw Totem II
+                case 55330:                                 // Stoneclaw Totem III
+                case 55332:                                 // Stoneclaw Totem IV
+                case 55333:                                 // Stoneclaw Totem V
+                case 55335:                                 // Stoneclaw Totem VI
+                case 55278:                                 // Stoneclaw Totem VII
+                case 58589:                                 // Stoneclaw Totem VIII
+                case 58590:                                 // Stoneclaw Totem IX
+                case 58591:                                 // Stoneclaw Totem X
                 {
-                    if (!unitTarget)    // Stoneclaw Totem owner
+                    if ( !unitTarget )
                         return;
+
                     // Absorb shield for totems
-                    for(int itr = 0; itr < MAX_TOTEM_SLOT; ++itr)
-                        if (Totem* totem = unitTarget->GetTotem(TotemSlot(itr)))
+                    for (uint8 i = 0; i < MAX_TOTEM; i++)
+                    {
+                        Unit* totem = ObjectAccessor::GetUnit( *unitTarget,  unitTarget->m_TotemSlot[i]);
+                        if (totem)
                             m_caster->CastCustomSpell(totem, 55277, &damage, NULL, NULL, true);
-                    // Glyph of Stoneclaw Totem
-                    if(Aura* auraGlyph = unitTarget->GetAura(63298, EFFECT_INDEX_0))
+                    }
+
+                    // Glyph of Stoneclaw Totem, absorb shield shield for master
+                    if (Aura* auraGlyph = unitTarget->GetDummyAura(63298))
                     {
                         int32 playerAbsorb = damage * auraGlyph->GetModifier()->m_amount;
                         m_caster->CastCustomSpell(unitTarget, 55277, &playerAbsorb, NULL, NULL, true);
@@ -6247,6 +6264,46 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
         {
             switch(m_spellInfo->Id)
             {
+                case 46584:                                 // Raise Dead
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    Player* p_caster = (Player*)m_caster;
+
+                    // do nothing if ghoul summon already exsists (in fact not possible, but...)
+                    if (p_caster->FindGuardianWithEntry(m_currentBasePoints[0]+1) || p_caster->GetPet())
+                    {
+                        p_caster->RemoveSpellCooldown(m_spellInfo->Id, true);
+                        SendCastResult(SPELL_FAILED_ALREADY_HAVE_SUMMON);
+                        finish(false);
+                        return;
+                    }
+
+                    // check if "Glyph of Raise Dead" ,corpse- or "Corpse Dust" is available
+                    bool canCast = p_caster->CanNoReagentCast(m_spellInfo) || FindCorpseUsing<MaNGOS::RaiseDeadObjectCheck>();
+                    if (!canCast && p_caster->HasItemCount(37201,1))
+                    {
+                        p_caster->DestroyItemCount(37201, 1, true);
+                        canCast = true;
+                    }
+
+                    // remove spellcooldown if can't cast and send result
+                    if (!canCast)
+                    {
+                        p_caster->RemoveSpellCooldown(m_spellInfo->Id, true);
+                        SendCastResult(SPELL_FAILED_REAGENTS);
+                        finish(false);
+                        return;
+                    }
+
+                    // check for "Master of Ghouls", id's stored in basepoints
+                    if (p_caster->HasAura(52143))
+                        p_caster->CastSpell(m_caster,m_currentBasePoints[2]+1,true);
+                    else
+                        p_caster->CastSpell(m_caster,m_currentBasePoints[1]+1,true);
+
+                    break;
+                }
                 case 50842:                                 // Pestilence
                 {
                     if (!unitTarget)

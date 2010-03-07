@@ -60,11 +60,11 @@ TotemAI::UpdateAI(const uint32 /*diff*/)
         return;
 
     // Search spell
-    SpellEntry const *spellInfo = sSpellStore.LookupEntry(getTotem().GetSpell());
+    SpellEntry const *spellInfo = sSpellStore.LookupEntry(getTotem().m_spells[0]);
     if (!spellInfo)
         return;
 
-    // Get spell rangy
+    // Get spell range
     SpellRangeEntry const* srange = sSpellRangeStore.LookupEntry(spellInfo->rangeIndex);
     float max_range = GetSpellMaxRange(srange);
 
@@ -102,7 +102,7 @@ TotemAI::UpdateAI(const uint32 /*diff*/)
 
         // attack
         m_creature->SetInFront(victim);                      // client change orientation by self
-        m_creature->CastSpell(victim, getTotem().GetSpell(), false);
+        m_creature->CastSpell(victim, getTotem().m_spells[0], false);
     }
     else
         i_victimGuid = 0;
