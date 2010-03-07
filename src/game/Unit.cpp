@@ -9309,11 +9309,6 @@ void Unit::SetPet(Pet* pet)
         if (spellInfo && spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
             ((Player*)this)->AddSpellAndCategoryCooldowns(spellInfo, 0, NULL,true);
     }
-
-    // FIXME: hack, speed must be set only at follow
-    if(pet && GetTypeId()==TYPEID_PLAYER)
-        for(int i = 0; i < MAX_MOVE_TYPE; ++i)
-            pet->SetSpeedRate(UnitMoveType(i), m_speed_rate[i], true);
 }
 
 void Unit::SetCharm(Unit* pet)
