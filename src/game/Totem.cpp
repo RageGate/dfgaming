@@ -23,6 +23,7 @@
 #include "Player.h"
 #include "ObjectMgr.h"
 #include "SpellMgr.h"
+#include "CreatureAI.h"
 
 Totem::Totem() : Creature(CREATURE_SUBTYPE_TOTEM)
 {
@@ -67,6 +68,9 @@ void Totem::Summon(Unit* owner)
 
     AIM_Initialize();
 
+    if (owner->GetTypeId() == TYPEID_UNIT && ((Creature*)owner)->AI())
+        ((Creature*)owner)->AI()->JustSummoned((Creature*)this);
+
     // there are some totems, which exist just for their visual appeareance
     if (!m_spells[0])
         return;
@@ -93,16 +97,7 @@ void Totem::UnSummon()
 
     if (Unit *owner = GetOwner())
     {
-        // clear owner's totem slot
-        for(int i = 0; i < MAX_TOTEM; ++i)
-        {
-            if(owner->m_TotemSlot[i] == GetGUID())
-            {
-                owner->m_TotemSlot[i] = 0;
-                break;
-            }
-        }
-
+        owner->_RemoveTotem(this);
         for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
             owner->RemoveAurasDueToSpell(m_spells[i]);
 
@@ -123,6 +118,9 @@ void Totem::UnSummon()
                 }
             }
         }
+
+        if (owner->GetTypeId() == TYPEID_UNIT && ((Creature*)owner)->AI())
+            ((Creature*)owner)->AI()->SummonedCreatureDespawn((Creature*)this);
     }
 
     AddObjectToRemoveList();
