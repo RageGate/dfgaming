@@ -917,19 +917,6 @@ void Pet::UpdateMaxHealth()
         default:    multiplicator = 10.0f; break;
     }
 
-    float multiplicator;
-
-    // nesocips warlock pet stats calculation
-    switch(GetEntry())
-    {
-        case 416:   multiplicator = 8.4f;  break; // imp
-        case 1860:                                // voidwalker
-        case 17252: multiplicator = 11.0f; break; // felguard
-        case 1863:  multiplicator = 9.1f;  break; // succubus
-        case 417:   multiplicator = 9.5f;  break; // felhunter
-        default:    multiplicator = 10.0f; break;
-    }
-
     float value   = GetModifierValue(unitMod, BASE_VALUE) + GetCreateHealth();
     value  *= GetModifierValue(unitMod, BASE_PCT);
     value  += GetModifierValue(unitMod, TOTAL_VALUE) + stamina * multiplicator;
