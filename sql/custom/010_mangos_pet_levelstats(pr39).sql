@@ -1,3 +1,4 @@
+-- Spirit Wolf
 DELETE FROM pet_levelstats WHERE creature_entry=29264;
 INSERT INTO `pet_levelstats` (`creature_entry`, `level`, `hp`, `mana`, `armor`, `str`, `agi`, `sta`, `inte`, `spi`) VALUES
 (29264, 1, 40, 48, 20, 12, 14, 1, 1, 25),

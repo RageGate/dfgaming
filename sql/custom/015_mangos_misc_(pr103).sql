@@ -1,3 +1,4 @@
+-- mirror image
 DELETE FROM `spell_script_target` WHERE `entry` IN (58836);
 INSERT INTO `spell_script_target` VALUES (58836, 1, 31216);
 

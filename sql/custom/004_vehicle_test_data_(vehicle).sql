@@ -459,7 +459,7 @@ INSERT INTO creature_template_addon (`entry`, `mount`, `bytes1`, `bytes2`, `emot
 
 /*Traveler's Tundra Mammoth */
 REPLACE INTO npc_spellclick_spells VALUES (32633, 52196, 0, 0, 0, 0);
-REPLACE INTO creature_template_addon VALUES (32633, 0, 0, 0, 0, 0, 312, NULL, NULL); 
+REPLACE INTO creature_template_addon VALUES (32633, 0, 0, 0, 0, 0, 312, NULL, NULL);
 REPLACE INTO vehicle_data VALUES (312, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 /* Grand Ice Mammoth */
@@ -468,18 +468,18 @@ REPLACE INTO creature_template_addon VALUES (31857, 0, 0, 0, 0, 0, 312, NULL, NU
 
 /* Salvaged Chopper */
 REPLACE INTO npc_spellclick_spells VALUES (33062, 52196, 0, 0, 0, 0);
-REPLACE INTO creature_template_addon VALUES (33062, 0, 0, 0, 0, 0, 335, NULL, NULL); 
-REPLACE INTO vehicle_data VALUES (335, 12, 62974, 62286, 62299, 64660, 0, 0, 0, 0, 0, 0, 0); 
+REPLACE INTO creature_template_addon VALUES (33062, 0, 0, 0, 0, 0, 335, NULL, NULL);
+REPLACE INTO vehicle_data VALUES (335, 12, 62974, 62286, 62299, 64660, 0, 0, 0, 0, 0, 0, 0);
 REPLACE INTO vehicle_seat_data VALUES (3005, 1);
- 
+
 /* Salvaged Demolisher */
 REPLACE INTO npc_spellclick_spells VALUES (33109, 52196, 0, 0, 0, 0);
-REPLACE INTO creature_template_addon VALUES (33109, 0, 0, 0, 0, 0, 338, NULL, NULL); 
+REPLACE INTO creature_template_addon VALUES (33109, 0, 0, 0, 0, 0, 338, NULL, NULL);
 REPLACE INTO vehicle_data VALUES (338, 12, 62306, 62490, 62308, 62324, 0, 0, 0, 0, 0, 0, 0);
 REPLACE INTO vehicle_seat_data VALUES (3011, 1);
- 
+
 /* Salvaged Siege Engine */
-REPLACE INTO npc_spellclick_spells VALUES (33060, 52196, 0, 0, 0, 0); 
-REPLACE INTO creature_template_addon VALUES (33060, 0, 0, 0, 0, 0, 336, NULL, NULL); 
+REPLACE INTO npc_spellclick_spells VALUES (33060, 52196, 0, 0, 0, 0);
+REPLACE INTO creature_template_addon VALUES (33060, 0, 0, 0, 0, 0, 336, NULL, NULL);
 REPLACE INTO vehicle_data VALUES (336, 12, 62345, 62522, 62346, 0, 0, 0, 0, 0, 0, 0, 0);
 REPLACE INTO vehicle_seat_data VALUES (3006, 1);

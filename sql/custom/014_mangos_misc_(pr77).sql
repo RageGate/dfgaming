@@ -1,3 +1,4 @@
+-- some seals
 delete FROM spell_proc_event WHERE entry IN (21084, 31801);
 insert into spell_proc_event (entry,SchoolMask) values (21084,1);
 insert into spell_proc_event (entry,SchoolMask) values (31801,1);

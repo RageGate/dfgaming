@@ -1,3 +1,4 @@
+-- Sudden Doom
 DELETE FROM spell_chain WHERE spell_id IN (49018, 49529, 49530);
 INSERT INTO spell_chain VALUES
 (49018, 0, 49018, 1, 0),

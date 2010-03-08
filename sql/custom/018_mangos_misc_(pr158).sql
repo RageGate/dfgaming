@@ -41,7 +41,7 @@ DELETE FROM playercreateinfo_spell WHERE spell=674 AND class=4;
 INSERT INTO playercreateinfo_spell VALUES (8,4,674,'Dual Wield'),(5,4,674,'Dual Wield'),(10,4,674,'Dual Wield'),(7,4,674,'Dual Wield'),(2,4,674,'Dual Wield'),(1,4,674,'Dual Wield'),(4,4,674,'Dual Wield'),(3,4,674,'Dual Wield');
 
 /* Fixes commited by m33ts4k0z */
-/* Several item prototypes startup error fixes -- 3.3.0 */ 
+/* Several item prototypes startup error fixes -- 3.3.0 */
 
 UPDATE item_template SET displayid=63370 WHERE Entry=1604;
 UPDATE item_template SET displayid=7414 WHERE Entry=17020;
