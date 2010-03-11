@@ -5370,6 +5370,15 @@ void Aura::HandleAuraModIncreaseHealth(bool apply, bool Real)
             }
             return;
         }
+        case 30421:                                         // Nether Portal - Perseverence
+        {
+            if (apply)
+                m_modifier.m_amount += 30000;
+            float pct = float(m_target->GetHealth())/m_target->GetMaxHealth();
+            m_target->HandleStatModifier(UNIT_MOD_HEALTH, TOTAL_VALUE, float(m_modifier.m_amount), apply);
+            m_target->SetHealth(uint32(pct*m_target->GetMaxHealth()));
+            return;
+        }
     }
 
     // generic case
