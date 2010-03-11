@@ -6102,23 +6102,58 @@ void Aura::HandleSpellSpecificBoosts(bool apply)
     {
         case SPELLFAMILY_GENERIC:
         {
-            // Illusionary Barrier
-            if(GetId() == 57350 && !apply && m_target->getPowerType() == POWER_MANA)
+            switch (GetId())
             {
-                cast_at_remove = true;
-                spellId1 = 60242;                           // Darkmoon Card: Illusion
+                // Illusionary Barrier
+                case 57350:
+                {
+                    if(!apply && m_target->getPowerType() == POWER_MANA)
+                    {
+                        cast_at_remove = true;
+                        spellId1 = 60242;                       // Darkmoon Card: Illusion
+                        break;
+                    }
+                }
+                // Encapsulate
+                case 45661:
+                {
+                    // we need to cast with target GUID because of target problems with trigger spell
+                    if (apply)
+                        m_target->CastSpell(m_target, 45665, true, NULL, this, m_target->GetGUID());
+                    else
+                        m_target->RemoveAurasByCasterSpell(45665, m_target->GetGUID());
+                    return;
+                }
+                // Nether Portal - Perseverance
+                case 30421:
+                {
+                    if (apply)
+                        return;
+                    cast_at_remove = true;
+                    spellId1 = 38637;                           // Nether Exhaustion
+                    break;
+                }
+                // Nether Portal - Serenity
+                case 30422:
+                {
+                    if (apply)
+                        return;
+                    cast_at_remove = true;                      // Nether Exhaustion
+                    spellId1 = 38638;
+                    break;
+                }
+                // Nether Portal  - Dominance
+                case 30423:
+                {
+                    if (apply)
+                        return;
+                    cast_at_remove = true;
+                    spellId1 = 38639;                           // Nether Exhaustion
+                    break;
+                }
+                default:
+                    return;
             }
-            else if(GetId() == 45661)                       // Encapsulate
-            {
-                // we need to cast with target GUID because of target problems with trigger spell
-                if (apply)
-                    m_target->CastSpell(m_target, 45665, true, NULL, this, m_target->GetGUID());
-                else
-                    m_target->RemoveAurasByCasterSpell(45665, m_target->GetGUID());
-                return;
-            }
-            else
-                return;
             break;
         }
         case SPELLFAMILY_MAGE:
