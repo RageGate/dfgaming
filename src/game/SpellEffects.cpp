@@ -5675,9 +5675,9 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                         return;
 
                     // Absorb shield for totems
-                    for (uint8 i = 0; i < MAX_TOTEM; i++)
+                    for (uint8 i = 0; i < MAX_TOTEM_SLOT; i++)
                     {
-                        Unit* totem = ObjectAccessor::GetUnit( *unitTarget,  unitTarget->m_TotemSlot[i]);
+                        Unit* totem = unitTarget->GetTotem(TotemSlot(i));
                         if (totem)
                             m_caster->CastCustomSpell(totem, 55277, &damage, NULL, NULL, true);
                     }
