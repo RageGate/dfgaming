@@ -2061,9 +2061,8 @@ void Aura::TriggerSpell()
                             case 53304: trigger_spell_id = 64420; break;
                         }
 
-                        // If aura is active - no need to continue
-                        if (target->HasAura(trigger_spell_id))
-                            return;
+                        // recast every 6 seconds
+                        m_modifier.m_amount = 6;
 
                         break;
                     default:
