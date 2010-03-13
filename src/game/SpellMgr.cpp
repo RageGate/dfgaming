@@ -1542,6 +1542,9 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                 // Metamorphosis, diff effects
                 if (spellInfo_1->SpellIconID == 3314 && spellInfo_2->SpellIconID == 3314)
                     return false;
+                // Immolation Aura (Metamorphosis), Hellfire
+                if (spellInfo_1->SpellIconID == 937 && spellInfo_2->SpellIconID == 937)
+                    return false;
             }
             // Detect Invisibility and Mana Shield (multi-family check)
             if( spellInfo_1->Id == 132 && spellInfo_2->SpellIconID == 209 && spellInfo_2->SpellVisual[0] == 968 )
