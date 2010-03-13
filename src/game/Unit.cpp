@@ -3845,6 +3845,12 @@ bool Unit::AddAura(Aura *Aur)
                 // m_auraname can be modified to SPELL_AURA_NONE for area auras, use original
                 AuraType aurNameReal = AuraType(aurSpellInfo->EffectApplyAuraName[Aur->GetEffIndex()]);
 
+                // Demonic Vapor Hack!!
+                if (aur2->GetSpellProto()->Id == 45402)
+                {
+                  RemoveAura(i2,AURA_REMOVE_BY_STACK);
+                  stop = true;
+                }
                 switch(aurNameReal)
                 {
                     // DoT/HoT/etc
