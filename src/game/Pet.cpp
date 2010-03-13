@@ -1931,6 +1931,18 @@ void Pet::CastPetAura(PetAura const* aura)
         int32 basePoints = int32(aura->GetDamage() * (GetStat(STAT_STAMINA) + GetStat(STAT_INTELLECT)) / 100);
         CastCustomSpell(this, auraId, &basePoints, NULL, NULL, true);
     }
+    else if (auraId == 68361)                                 // Animal Handler
+    {
+        Unit* owner = GetOwner();
+        if (owner && owner->HasAura(34453,EFFECT_INDEX_1))
+        {
+            int32 basepoints = 5;
+            CastCustomSpell(this, auraId, &basepoints, NULL, NULL, true);
+        }
+        else
+            CastSpell(this, auraId, true);
+
+    }
     else
         CastSpell(this, auraId, true);
 }
