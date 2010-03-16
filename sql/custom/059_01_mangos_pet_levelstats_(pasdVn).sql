@@ -5,8 +5,8 @@ UPDATE `pet_levelstats`
 	SET mindmg = level - (level/4),	maxdmg = level + (level/4);
 
 /* Hunter Pet Stats*/
-DELETE FROM `pet_levelstats` WHERE 
-	`creature_entry` = 1 AND 
+DELETE FROM `pet_levelstats` WHERE
+	`creature_entry` = 1 AND
 	(`level` BETWEEN '5' AND '20' OR
 	 `level` IN ('23','24', '25', '27', '46', '47', '48', '49', '51') OR
 	 `level`BETWEEN '70' AND '76');
