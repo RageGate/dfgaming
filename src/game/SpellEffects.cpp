@@ -4202,6 +4202,9 @@ void Spell::DoSummonWild(SpellEffectIndex eff_idx, uint32 forceFaction)
 
             if(forceFaction)
                 summon->setFaction(forceFaction);
+            // Temp. Hack: Snake Trap
+            else if (m_spellInfo->Id == 57879)
+                summon->setFaction(m_caster->getFaction());
         }
     }
 }
