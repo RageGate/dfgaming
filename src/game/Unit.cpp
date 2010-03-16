@@ -4063,6 +4063,12 @@ bool Unit::AddAura(Aura *Aur)
                 // m_auraname can be modified to SPELL_AURA_NONE for area auras, use original
                 AuraType aurNameReal = AuraType(aurSpellInfo->EffectApplyAuraName[Aur->GetEffIndex()]);
 
+                // Demonic Vapor Hack!!
+                if (aur2->GetSpellProto()->Id == 45402)
+                {
+                  RemoveAura(i2,AURA_REMOVE_BY_STACK);
+                  stop = true;
+                }
                 switch(aurNameReal)
                 {
                     // DoT/HoT/etc
@@ -5724,6 +5730,19 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAu
 
                     // Glyph of Shadowfiend (need cast as self cast for owner, no hidden cooldown)
                     owner->CastSpell(owner,58227,true,castItem,triggeredByAura);
+                    return true;
+                }
+                // kill command (pet aura proc)
+                case 58914:
+                {
+                    // try to exclude procs from hot's (spirit bonde)
+                    if (IsPositiveSpell(procSpell->Id))
+                        return false;
+                    Unit* owner = GetOwner();
+                    if( !owner || owner->GetTypeId() != TYPEID_PLAYER )
+                        return true;
+                    // reduce the owner's aura stack (spellmods)
+                    owner->RemoveSingleSpellAurasFromStack(34027);
                     return true;
                 }
                 // Glyph of Life Tap
@@ -8439,8 +8458,10 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, Aura* triggeredB
         // Lock and Load
         case 56453:
         {
-            // Proc only from trap activation (from periodic proc another aura of this spell)
-            if (!(procFlags & PROC_FLAG_ON_TRAP_ACTIVATION) || !roll_chance_i(triggerAmount))
+            // Proc only from trap activation (from periodic proc another aura of this spell). We need to recheck family flags,
+            // because some spells have both flags (ON_TRAP_ACTIVATION and ON_PERIODIC), but should only proc ON_PERIODIC!!
+            if (!(procFlags & PROC_FLAG_ON_TRAP_ACTIVATION) ||
+                !(procSpell->SpellFamilyFlags & 0x00000008 || procSpell->SpellFamilyFlags2 & 0x40000) || !roll_chance_i(triggerAmount))
                 return false;
             break;
         }

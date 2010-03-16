@@ -40,6 +40,11 @@ AggressorAI::AggressorAI(Creature *c) : CreatureAI(c), i_victimGuid(0), i_state(
 {
 }
 
+void AggressorAI::JustReachedHome()
+{
+    m_creature->LoadCreaturesAddon();
+}
+
 void
 AggressorAI::MoveInLineOfSight(Unit *u)
 {

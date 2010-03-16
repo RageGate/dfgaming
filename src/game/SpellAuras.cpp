@@ -45,6 +45,7 @@
 #include "GridNotifiersImpl.h"
 #include "Vehicle.h"
 #include "CellImpl.h"
+#include "TemporarySummon.h"
 
 #define NULL_AURA_SLOT 0xFF
 
@@ -1386,6 +1387,12 @@ bool Aura::modStackAmount(int32 num)
         return true; // need remove aura
     }
 
+    // reset charges when modding stack (there are spells using both)
+    m_procCharges = m_spellProto->procCharges;
+    Player* modOwner = GetCaster() ? GetCaster()->GetSpellModOwner() : NULL;
+    if(modOwner)
+        modOwner->ApplySpellMod(GetId(), SPELLMOD_CHARGES, m_procCharges);
+
     // Update stack amount
     SetStackAmount(stackAmount);
     return false;
@@ -2180,9 +2187,8 @@ void Aura::TriggerSpell()
                             case 53304: trigger_spell_id = 64420; break;
                         }
 
-                        // If aura is active - no need to continue
-                        if (target->HasAura(trigger_spell_id))
-                            return;
+                        // recast every 6 seconds
+                        m_modifier.m_amount = 6;
 
                         break;
                     default:
@@ -2502,6 +2508,10 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                             // not use ammo and not allow use
                             ((Player*)m_target)->RemoveAmmo();
                         return;
+                    case 59907:                             // Lightwell charges
+                        if (m_target->GetTypeId() == TYPEID_UNIT)
+                            ((Creature*)m_target)->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_SPELLCLICK);
+                        return;
                     case 62061:                             // Festive Holiday Mount
                         if (m_target->HasAuraType(SPELL_AURA_MOUNTED))
                             // Reindeer Transformation
@@ -2553,6 +2563,42 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                             break;
                         }
                     }
+                    return;
+                }
+                break;
+            }
+            case SPELLFAMILY_HUNTER:
+            {
+                if (m_spellProto->Id == 34026)              // kill command, cast spell
+                {
+                    Unit* p_caster = GetCaster();
+                    if(!p_caster || p_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+
+                    // check pet
+                    if( !p_caster->GetPet() )
+                    {
+                        Spell::SendCastResult((Player*)p_caster, m_spellProto, 0, SPELL_FAILED_NO_PET);
+                        ((Player*)p_caster)->RemoveSpellCooldown(m_spellProto->Id, true);
+                        SetAuraDuration(0);
+                        return;
+                    }
+                    // caster spellmods (+ pet's dummy aura)
+                    p_caster->CastSpell(p_caster,34027,true,NULL,this);
+
+                    // set 3 stacks for all auras
+                    if (Aura* owner_aura = p_caster->GetAura(34027,EFFECT_INDEX_0))
+                        owner_aura->SetStackAmount(3);
+                    if (Aura* owner_aura = p_caster->GetAura(34027,EFFECT_INDEX_1))
+                        owner_aura->SetStackAmount(3);
+                    if (Aura* pet_aura = p_caster->GetPet()->GetDummyAura(58914))
+                        pet_aura->SetStackAmount(3);
+
+                    // check for Focused Fire
+                    if (p_caster->GetDummyAura(35029))
+                        p_caster->CastSpell(p_caster, 60110,true);
+                    else if (p_caster->GetDummyAura(35030))
+                        p_caster->CastSpell(p_caster, 60113, true);
                     return;
                 }
                 break;
@@ -2686,6 +2732,22 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 m_target->CastSpell(m_target, 58601, true);
                 // Parachute
                 m_target->CastSpell(m_target, 45472, true);
+                return;
+            }
+            case 58914:                                     // kill command, pet aura
+            {
+                // remove owner auras
+                Unit* caster = GetCaster();
+                if(!caster)
+                    return;
+                // the spellmod aura (owner)
+                caster->RemoveAurasDueToSpell(34027);
+                return;
+            }
+            case 59907:                                     // Lightwell charges - despawn creature if no charges remain
+            {
+                if (m_target->GetTypeId() == TYPEID_UNIT && ((Creature*)m_target)->isTemporarySummon())
+                    ((TemporarySummon*)m_target)->UnSummon();
                 return;
             }
         }
@@ -5748,6 +5810,15 @@ void Aura::HandleAuraModIncreaseHealth(bool apply, bool Real)
             }
             return;
         }
+        case 30421:                                         // Nether Portal - Perseverence
+        {
+            if (apply)
+                m_modifier.m_amount += 30000;
+            float pct = float(m_target->GetHealth())/m_target->GetMaxHealth();
+            m_target->HandleStatModifier(UNIT_MOD_HEALTH, TOTAL_VALUE, float(m_modifier.m_amount), apply);
+            m_target->SetHealth(uint32(pct*m_target->GetMaxHealth()));
+            return;
+        }
     }
 
     // generic case
@@ -6538,23 +6609,58 @@ void Aura::HandleSpellSpecificBoosts(bool apply, bool last_stack)
     {
         case SPELLFAMILY_GENERIC:
         {
-            // Illusionary Barrier
-            if(GetId() == 57350 && !apply && m_target->getPowerType() == POWER_MANA)
+            switch (GetId())
             {
-                cast_at_remove = true;
-                spellId1 = 60242;                           // Darkmoon Card: Illusion
+                // Illusionary Barrier
+                case 57350:
+                {
+                    if(!apply && m_target->getPowerType() == POWER_MANA)
+                    {
+                        cast_at_remove = true;
+                        spellId1 = 60242;                       // Darkmoon Card: Illusion
+                        break;
+                    }
+                }
+                // Encapsulate
+                case 45661:
+                {
+                    // we need to cast with target GUID because of target problems with trigger spell
+                    if (apply)
+                        m_target->CastSpell(m_target, 45665, true, NULL, this, m_target->GetGUID());
+                    else
+                        m_target->RemoveAurasByCasterSpell(45665, m_target->GetGUID());
+                    return;
+                }
+                // Nether Portal - Perseverance
+                case 30421:
+                {
+                    if (apply)
+                        return;
+                    cast_at_remove = true;
+                    spellId1 = 38637;                           // Nether Exhaustion
+                    break;
+                }
+                // Nether Portal - Serenity
+                case 30422:
+                {
+                    if (apply)
+                        return;
+                    cast_at_remove = true;                      // Nether Exhaustion
+                    spellId1 = 38638;
+                    break;
+                }
+                // Nether Portal  - Dominance
+                case 30423:
+                {
+                    if (apply)
+                        return;
+                    cast_at_remove = true;
+                    spellId1 = 38639;                           // Nether Exhaustion
+                    break;
+                }
+                default:
+                    return;
             }
-            else if(GetId() == 45661)                       // Encapsulate
-            {
-                // we need to cast with target GUID because of target problems with trigger spell
-                if (apply)
-                    m_target->CastSpell(m_target, 45665, true, NULL, this, m_target->GetGUID());
-                else
-                    m_target->RemoveAurasByCasterSpell(45665, m_target->GetGUID());
-                return;
-            }
-            else
-                return;
             break;
         }
         case SPELLFAMILY_MAGE:
@@ -6791,16 +6897,36 @@ void Aura::HandleSpellSpecificBoosts(bool apply, bool last_stack)
             break;
         case SPELLFAMILY_HUNTER:
         {
-            // The Beast Within and Bestial Wrath - immunity
-            if (GetId() == 19574 || GetId() == 34471)
+            switch (GetId())
             {
-                spellId1 = 24395;
-                spellId2 = 24396;
-                spellId3 = 24397;
-                spellId4 = 26592;
+                case 19574:                                 // Bestial Wrath - immunity
+                case 34471:                                 // The Beast Within - immunity
+                {
+                    spellId1 = 24395;
+                    spellId2 = 24396;
+                    spellId3 = 24397;
+                    spellId4 = 26592;
+                    break;
+                }
+                case 34027:                                 // Kill Command, owner aura (spellmods)
+                {
+                    if (apply)
+                        return;
+                    spellId1 = 34026;                       // Kill Command, owner casting aura
+                    spellId2 = 60110;                       // Kill Command, Focused Fire addition
+                    spellId3 = 60113;
+                    Unit* pet = m_target->GetPet();
+                    if(!pet)
+                        break;
+                    pet->RemoveAurasDueToSpell(58914);
+                    break;
+                }
+                default:
+                    break;
             }
+
             // Aspect of the Dragonhawk dodge
-            else if (GetSpellProto()->SpellFamilyFlags2 & 0x00001000)
+            if (GetSpellProto()->SpellFamilyFlags2 & 0x00001000)
             {
                 spellId1 = 61848;
 
@@ -6808,8 +6934,6 @@ void Aura::HandleSpellSpecificBoosts(bool apply, bool last_stack)
                 if (apply && m_target->GetTypeId()==TYPEID_PLAYER)
                     ((Player*)m_target)->RemoveSpellCooldown(61848);
             }
-            else
-                return;
             break;
         }
         case SPELLFAMILY_PALADIN:

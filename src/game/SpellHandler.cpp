@@ -561,7 +561,8 @@ void WorldSession::HandleSpellClick( WorldPacket & recv_data )
     if(cainfo)
         vehicleId = cainfo->vehicle_id;
 
-    if (_player->isInCombat() && !unit->isVehicle() && !vehicleId)                              // client prevent click and set different icon at combat state
+    if (_player->isInCombat() && !unit->isVehicle() && !vehicleId &&            // client prevent click and set different icon at combat state
+        unit->GetCreatureInfo()->DisplayID_A[0] != 27769)                       // Lightwell Hack                        
         return; 
     
     if(!_player->IsWithinDistInMap(unit, 10))

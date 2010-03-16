@@ -1164,7 +1164,7 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const * spellP
         return false;
 
     // Always trigger for this
-    if (EventProcFlag & (PROC_FLAG_KILLED | PROC_FLAG_KILL | PROC_FLAG_ON_TRAP_ACTIVATION))
+    if (EventProcFlag & (PROC_FLAG_KILLED | PROC_FLAG_KILL))
         return true;
 
     if (spellProcEvent)     // Exist event data
@@ -1404,6 +1404,11 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                         (spellInfo_2->Id == 45665 && spellInfo_1->Id == 45661))
                         return false;
 
+                     // Demonic Vapor Periodic - Demonic Vapor Beam Visual
+                     if ((spellInfo_1->Id == 45411 && spellInfo_2->Id == 45389) ||
+                        (spellInfo_2->Id == 45411 && spellInfo_1->Id == 45389))
+                        return false;
+
                     // Thunderfury
                     if ((spellInfo_1->Id == 21992 && spellInfo_2->Id == 27648) ||
                         (spellInfo_2->Id == 21992 && spellInfo_1->Id == 27648))
@@ -1622,6 +1627,10 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                 // Shadowflame and Curse of Agony
                 if ( ( (spellInfo_1->SpellFamilyFlags2 & 0x00000002) && spellInfo_2->SpellIconID == 544 ) ||
                     ( (spellInfo_2->SpellFamilyFlags2 & 0x00000002) && spellInfo_1->SpellIconID == 544 ) )
+                    return false;
+
+                    // Immolation Aura (Metamorphosis), Hellfire
+                if (spellInfo_1->SpellIconID == 937 && spellInfo_2->SpellIconID == 937)
                     return false;
             }
             // Detect Invisibility and Mana Shield (multi-family check)
