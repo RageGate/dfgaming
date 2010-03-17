@@ -173,7 +173,6 @@ enum ShapeshiftForm
     FORM_AMBIENT            = 0x06,
     FORM_GHOUL              = 0x07,
     FORM_DIREBEAR           = 0x08,
-    FORM_SHADOWDANCE        = 0x0D,
     FORM_STEVES_GHOUL       = 0x09,
     FORM_THARONJA_SKELETON  = 0x0A,
     FORM_TEST_OF_STRENGTH   = 0x0B,
@@ -301,7 +300,6 @@ class Pet;
 class Path;
 class PetAura;
 class Totem;
-class Vehicle;
 
 struct SpellImmune
 {
@@ -435,7 +433,6 @@ enum UnitState
     UNIT_STAT_FOLLOW_MOVE     = 0x00008000,
     UNIT_STAT_FLEEING         = 0x00010000,                     // FleeMovementGenerator/TimedFleeingMovementGenerator active/onstack
     UNIT_STAT_FLEEING_MOVE    = 0x00020000,
-    UNIT_STAT_ON_VEHICLE      = 0x00040000,
 
     // masks (only for check)
 
@@ -548,8 +545,8 @@ enum UnitFlags
     UNIT_FLAG_PREPARATION           = 0x00000020,           // don't take reagents for spells with SPELL_ATTR_EX5_NO_REAGENT_WHILE_PREP
     UNIT_FLAG_UNK_6                 = 0x00000040,
     UNIT_FLAG_NOT_ATTACKABLE_1      = 0x00000080,           // ?? (UNIT_FLAG_PVP_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1) is NON_PVP_ATTACKABLE
-    UNIT_FLAG_OOC_NOT_ATTACKABLE    = 0x00000100,           // 2.0.8 - (OOC Out Of Combat) Can not be attacked when not in combat. Removed if unit for some reason enter combat.
-    UNIT_FLAG_UNK_9                 = 0x00000200,           // 3.0.3 - makes you unable to attack everything
+    UNIT_FLAG_OOC_NOT_ATTACKABLE    = 0x00000100,           // 2.0.8 - (OOC Out Of Combat) Can not be attacked when not in combat. Removed if unit for some reason enter combat (flag probably removed for the attacked and it's party/group only)
+    UNIT_FLAG_PASSIVE               = 0x00000200,           // 3.0.3 - makes you unable to attack everything. Almost identical to our "civilian"-term. Will ignore it's surroundings and not engage in combat unless "called upon" or engaged by another unit.
     UNIT_FLAG_LOOTING               = 0x00000400,           // loot animation
     UNIT_FLAG_PET_IN_COMBAT         = 0x00000800,           // in combat?, 2.0.8
     UNIT_FLAG_PVP                   = 0x00001000,           // changed in 3.0.3
@@ -748,15 +745,13 @@ struct Position
 class MovementInfo
 {
     public:
-        MovementInfo() : moveFlags(MOVEFLAG_NONE), moveFlags2(MOVEFLAG2_NONE), time(0), t_guid(0),
+        MovementInfo() : moveFlags(MOVEFLAG_NONE), moveFlags2(MOVEFLAG2_NONE), time(0),
             t_time(0), t_seat(-1), t_time2(0), s_pitch(0.0f), fallTime(0), j_velocity(0.0f), j_sinAngle(0.0f),
             j_cosAngle(0.0f), j_xyspeed(0.0f), u_unk1(0.0f) {}
 
-        MovementInfo(WorldPacket &data);
-
         // Read/Write methods
         void Read(ByteBuffer &data);
-        void Write(ByteBuffer &data);
+        void Write(ByteBuffer &data) const;
 
         // Movement flags manipulations
         void AddMovementFlag(MovementFlags f) { moveFlags |= f; }
@@ -778,7 +773,7 @@ class MovementInfo
             t_time = time;
             t_seat = seat;
         }
-        uint64 GetTransportGuid() const { return t_guid; }
+        uint64 GetTransportGuid() const { return t_guid.GetRawValue(); }
         Position const *GetTransportPos() const { return &t_pos; }
         int8 GetTransportSeat() const { return t_seat; }
         uint32 GetTransportTime() const { return t_time; }
@@ -793,7 +788,7 @@ class MovementInfo
         uint32   time;
         Position pos;
         // transport
-        uint64   t_guid;
+        ObjectGuid t_guid;
         Position t_pos;
         uint32   t_time;
         int8     t_seat;
@@ -807,6 +802,18 @@ class MovementInfo
         // spline
         float    u_unk1;
 };
+
+inline ByteBuffer& operator<< (ByteBuffer& buf, MovementInfo const& mi)
+{
+    mi.Write(buf);
+    return buf;
+}
+
+inline ByteBuffer& operator>> (ByteBuffer& buf, MovementInfo& mi)
+{
+    mi.Read(buf);
+    return buf;
+}
 
 enum DiminishingLevels
 {
@@ -1066,24 +1073,6 @@ typedef std::set<uint64> GuardianPetList;
 
 struct SpellProcEventEntry;                                 // used only privately
 
-// vehicle system
-struct SeatData
-{
-    SeatData() : OffsetX(0.0f), OffsetY(0.0f),  OffsetZ(0.0f), Orientation(0.0f),
-                c_time(0), dbc_seat(0), seat(0), s_flags(0), v_flags(0) {}
-
-    float OffsetX;
-    float OffsetY;
-    float OffsetZ;
-    float Orientation;
-    uint32 c_time;
-    uint32 dbc_seat;
-    uint8 seat;
-    //custom, used as speedup
-    uint32 s_flags;
-    uint32 v_flags;
-};
-
 class MANGOS_DLL_SPEC Unit : public WorldObject
 {
     public:
@@ -1153,15 +1142,13 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool hasNegativeAuraWithInterruptFlag(uint32 flag);
         void SendMeleeAttackStop(Unit* victim);
         void SendMeleeAttackStart(Unit* pVictim);
-        void SendInitialVisiblePacketsFor(Player *player);
-        //void SendAurasFor(Player *player);
 
         void addUnitState(uint32 f) { m_state |= f; }
         bool hasUnitState(uint32 f) const { return (m_state & f); }
         void clearUnitState(uint32 f) { m_state &= ~f; }
         bool CanFreeMove() const
         {
-            return !hasUnitState(UNIT_STAT_NO_FREE_MOVE | UNIT_STAT_ON_VEHICLE) && GetOwnerGUID()==0;
+            return !hasUnitState(UNIT_STAT_NO_FREE_MOVE) && GetOwnerGUID()==0;
         }
 
         uint32 getLevel() const { return GetUInt32Value(UNIT_FIELD_LEVEL); }
@@ -1281,9 +1268,9 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         uint32 GetSpellDamageReduction(uint32 damage) const { return GetCombatRatingDamageReduction(CR_CRIT_TAKEN_MELEE, 1.0f, 100.0f, damage); }
 
         float  MeleeSpellMissChance(Unit *pVictim, WeaponAttackType attType, int32 skillDiff, SpellEntry const *spell);
-        SpellMissInfo MeleeSpellHitResult(Unit *pVictim, SpellEntry const *spell);
+        SpellMissInfo MeleeSpellHitResult(Unit *pVictim, SpellEntry const *spell, bool canMiss = true);
         SpellMissInfo MagicSpellHitResult(Unit *pVictim, SpellEntry const *spell);
-        SpellMissInfo SpellHitResult(Unit *pVictim, SpellEntry const *spell, bool canReflect = false);
+        SpellMissInfo SpellHitResult(Unit *pVictim, SpellEntry const *spell, bool canReflect = false, bool canMiss = true);
 
         float GetUnitDodgeChance()    const;
         float GetUnitParryChance()    const;
@@ -1342,10 +1329,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         }
         bool HasAura(uint32 spellId) const;
 
-        const uint64& GetAuraUpdateMask() const { return m_auraUpdateMask; }
-        void SetAuraUpdateMask(uint8 slot) { m_auraUpdateMask |= (uint64(1) << slot); }
-        void ResetAuraUpdateMask() { m_auraUpdateMask = 0; }
-
         bool virtual HasSpell(uint32 /*spellID*/) const { return false; }
 
         bool HasStealthAura()      const { return HasAuraType(SPELL_AURA_MOD_STEALTH); }
@@ -1355,7 +1338,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool IsPolymorphed() const;
 
         bool isFrozen() const;
-        bool isIgnoreUnitState(SpellEntry const *spell);
 
         void RemoveSpellbyDamageTaken(AuraType auraType, uint32 damage);
 
@@ -1444,7 +1426,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         Unit* GetCharm() const;
         void Uncharm();
         Unit* GetCharmerOrOwner() const { return GetCharmerGUID() ? GetCharmer() : GetOwner(); }
-        Unit* GetCharmOrPet() const { return GetCharmGUID() ? GetCharm() : (Unit*)GetPet(); }
         Unit* GetCharmerOrOwnerOrSelf()
         {
             if(Unit* u = GetCharmerOrOwner())
@@ -1738,7 +1719,13 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         uint32 SpellCriticalDamageBonus(SpellEntry const *spellProto, uint32 damage, Unit *pVictim);
         uint32 SpellCriticalHealingBonus(SpellEntry const *spellProto, uint32 damage, Unit *pVictim);
 
-        void SetLastManaUse() { m_lastManaUseTimer = 5000; }
+        void SetLastManaUse()
+        {
+            if (GetTypeId() == TYPEID_PLAYER && !IsUnderLastManaUseEffect())
+                RemoveFlag(UNIT_FIELD_FLAGS_2, UNIT_FLAG2_REGENERATE_POWER);
+
+            m_lastManaUseTimer = 5000;
+        }
         bool IsUnderLastManaUseEffect() const { return m_lastManaUseTimer; }
 
         uint32 GetRegenTimer() const { return m_regenTimer; }
@@ -1760,7 +1747,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void CalcAbsorbResist(Unit *pVictim, SpellSchoolMask schoolMask, DamageEffectType damagetype, const uint32 damage, uint32 *absorb, uint32 *resist, bool canReflect = false);
 
         void  UpdateWalkMode(Unit* source, bool self = true);
-        void  UpdateSpeed(UnitMoveType mtype, bool forced);
+        void  UpdateSpeed(UnitMoveType mtype, bool forced, float ratio = 1.0f);
         float GetSpeed( UnitMoveType mtype ) const;
         float GetSpeedRate( UnitMoveType mtype ) const { return m_speed_rate[mtype]; }
         void SetSpeedRate(UnitMoveType mtype, float rate, bool forced = false);
@@ -1769,7 +1756,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool isHover() const { return HasAuraType(SPELL_AURA_HOVER); }
 
         void KnockBackFrom(Unit* target, float horizontalSpeed, float verticalSpeed);
-        void KnockBackPlayerWithAngle(float angle, float horizontalSpeed, float verticalSpeed);
 
         void _RemoveAllAuraMods();
         void _ApplyAllAuraMods();
@@ -1823,15 +1809,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         // Movement info
         MovementInfo m_movementInfo;
-        uint32 GetModelForForm(ShapeshiftForm form);
-         // vehicle system
-         void EnterVehicle(Vehicle *vehicle, int8 seat_id, bool force = false);
-         void ExitVehicle();
-         uint64 GetVehicleGUID() { return m_vehicleGUID; }
-         void SetVehicleGUID(uint64 guid) { m_vehicleGUID = guid; }
-         // using extra variables to avoid problems with transports
-         SeatData m_SeatData;
-         void BuildVehicleInfo(Unit *target = NULL);
 
     protected:
         explicit Unit ();
@@ -1881,9 +1858,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         uint32 m_reactiveTimer[MAX_REACTIVE];
         uint32 m_regenTimer;
         uint32 m_lastManaUseTimer;
-        float m_lastAuraProcRoll;
-        uint64  m_auraUpdateMask;
-        uint64 m_vehicleGUID;
 
         uint64 m_InteractionObject;
 

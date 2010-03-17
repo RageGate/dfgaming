@@ -25,7 +25,7 @@
 #include "Log.h"
 #include "MapManager.h"
 #include "ObjectMgr.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 #include "SpellMgr.h"
 #include "UpdateMask.h"
 #include "World.h"
@@ -44,6 +44,8 @@
 #include "Util.h"
 #include "WaypointManager.h"
 #include "GossipDef.h"
+
+#include <limits>
 
 INSTANTIATE_SINGLETON_1(ObjectMgr);
 
@@ -128,23 +130,30 @@ bool SpellClickInfo::IsFitToRequirements(Player const* player) const
     return true;
 }
 
-ObjectMgr::ObjectMgr()
+template<typename T>
+T IdGenerator<T>::Generate()
 {
-    m_hiCharGuid        = 1;
-    m_hiCreatureGuid    = 1;
-	m_hiVehicleGuid     = 1;
-    m_hiItemGuid        = 1;
-    m_hiGoGuid          = 1;
-    m_hiCorpseGuid      = 1;
-    m_hiPetNumber       = 1;
-    m_ItemTextId        = 1;
-    m_mailid            = 1;
-    m_equipmentSetGuid  = 1;
-    m_guildId           = 1;
-    m_arenaTeamId       = 1;
-    m_auctionid         = 1;
-    m_groupId           = 1;
+    if (m_nextGuid >= std::numeric_limits<T>::max()-1)
+    {
+        sLog.outError("%s guid overflow!! Can't continue, shutting down server. ",m_name);
+        World::StopNow(ERROR_EXIT_CODE);
+    }
+    return m_nextGuid++;
+}
 
+template uint32 IdGenerator<uint32>::Generate();
+template uint64 IdGenerator<uint64>::Generate();
+
+ObjectMgr::ObjectMgr() :
+    m_ArenaTeamIds("Arena team ids"),
+    m_AuctionIds("Auction ids"),
+    m_EquipmentSetIds("Equipment set ids"),
+    m_GuildIds("Guild ids"),
+    m_ItemTextIds("Item text ids"),
+    m_MailIds("Mail ids"),
+    m_PetNumbers("Pet numbers"),
+    m_GroupIds("Group ids")
+{
     // Only zero condition left, others will be added while loading DB tables
     mConditions.resize(1);
 }
@@ -820,93 +829,6 @@ void ObjectMgr::ConvertCreatureAddonAuras(CreatureDataAddon* addon, char const* 
     endAura.effect_idx = EFFECT_INDEX_0;
 }
 
-void ObjectMgr::ConvertCreatureAddonPassengers(CreatureDataAddon* addon, char const* table, char const* guidEntryStr)
-{
-    // Now add the passengers, format "creature_entry/guid seatindex creature_entry/guid seatindex..."
-    char *p,*s;
-    std::vector<int> val;
-    s=p=(char*)reinterpret_cast<char const*>(addon->passengers);
-    if(p)
-    {
-        while (p[0]!=0)
-        {
-            ++p;
-            if (p[0]==' ')
-            {
-                val.push_back(atoi(s));
-                s=++p;
-            }
-        }
-        if (p!=s)
-            val.push_back(atoi(s));
-
-        // free char* loaded memory
-        delete[] (char*)reinterpret_cast<char const*>(addon->passengers);
-
-        // wrong list
-        if (val.size()%2)
-        {
-            addon->auras = NULL;
-            sLog.outErrorDb("Creature (%s: %u) has wrong `passengers` data in `%s`.",guidEntryStr,addon->guidOrEntry,table);
-            return;
-        }
-    }
-
-    // empty list
-    if(val.empty())
-    {
-        addon->passengers = NULL;
-        return;
-    }
-
-    // replace by new structures array
-    const_cast<CreatureDataAddonPassengers*&>(addon->passengers) = new CreatureDataAddonPassengers[val.size()/2+1];
-
-    int i=0;
-    for(int j=0;j<val.size()/2;++j)
-    {
-        CreatureDataAddonPassengers& cPas = const_cast<CreatureDataAddonPassengers&>(addon->passengers[i]);
-        if(guidEntryStr == "Entry")
-            cPas.entry = (uint32)val[2*j+0];
-        else
-            cPas.guid = (uint32)val[2*j+0];
-        cPas.seat_idx = (int8)val[2*j+1];
-        if ( cPas.seat_idx > 7 )
-        {
-            sLog.outErrorDb("Creature (%s: %u) has wrong seat %u for creature %u in `passengers` field in `%s`.",guidEntryStr,addon->guidOrEntry,cPas.seat_idx,cPas.entry,table);
-            continue;
-        }
-        if(cPas.entry == 0 && cPas.guid == 0)
-        {
-            sLog.outErrorDb("Creature (%s: %u) has NULL creature entry/guid in `passengers` field in `%s`.",guidEntryStr,addon->guidOrEntry,table);
-            continue;
-        }
-        if(cPas.entry > 0)
-        {
-            if(!sCreatureStorage.LookupEntry<CreatureInfo>(cPas.entry))
-            {
-                sLog.outErrorDb("Creature (%s: %u) has wrong creature entry/guid %u `passengers` field in `%s`.",guidEntryStr,addon->guidOrEntry,cPas.entry,table);
-                continue;
-            }
-        }
-        else
-        {
-            if(mCreatureDataMap.find(cPas.guid)==mCreatureDataMap.end())
-            {
-                sLog.outErrorDb("Creature (%s: %u) has wrong creature entry/guid %u `passengers` field in `%s`.",guidEntryStr,addon->guidOrEntry,cPas.guid,table);
-                continue;
-            }
-        }
-        ++i;
-    }
-
-    // fill terminator element (after last added)
-    CreatureDataAddonPassengers& endPassenger = const_cast<CreatureDataAddonPassengers&>(addon->passengers[i]);
-    endPassenger.entry = 0;
-    endPassenger.guid = 0;
-    endPassenger.seat_idx = -1;
-}
-
 void ObjectMgr::LoadCreatureAddons(SQLStorage& creatureaddons, char const* entryName, char const* comment)
 {
     creatureaddons.Load();
@@ -940,7 +862,6 @@ void ObjectMgr::LoadCreatureAddons(SQLStorage& creatureaddons, char const* entry
         }
 
         ConvertCreatureAddonAuras(const_cast<CreatureDataAddon*>(addon), creatureaddons.GetTableName(), entryName);
-        ConvertCreatureAddonPassengers(const_cast<CreatureDataAddon*>(addon), creatureaddons.GetTableName(), entryName);
     }
 }
 
@@ -3148,10 +3069,9 @@ void ObjectMgr::LoadGuilds()
             delete newGuild;
             continue;
         }
-        //Tassadar(16.1.2010): I think that better is to load it when some guild member need this, not now
-        //newGuild->LoadGuildEventLogFromDB();
-        //newGuild->LoadGuildBankEventLogFromDB();
-        //newGuild->LoadGuildBankFromDB();
+        newGuild->LoadGuildEventLogFromDB();
+        newGuild->LoadGuildBankEventLogFromDB();
+        newGuild->LoadGuildBankFromDB();
         AddGuild(newGuild);
     } while( result->NextRow() );
 
@@ -3430,18 +3350,18 @@ void ObjectMgr::LoadQuests()
         "RewRepValueId1, RewRepValueId2, RewRepValueId3, RewRepValueId4, RewRepValueId5,"
     //   103           104           105           106           107
         "RewRepValue1, RewRepValue2, RewRepValue3, RewRepValue4, RewRepValue5,"
-    //   108               109                 110             111            112               113
-        "RewHonorAddition, RewHonorMultiplier, RewArenaPoints, RewOrReqMoney, RewMoneyMaxLevel, RewSpell,"
-    //   114           115                116               117         118     119
-        "RewSpellCast, RewMailTemplateId, RewMailDelaySecs, PointMapId, PointX, PointY,"
-    //   120       121            122            123            124            125                 126                 127
-        "PointOpt, DetailsEmote1, DetailsEmote2, DetailsEmote3, DetailsEmote4, DetailsEmoteDelay1, DetailsEmoteDelay2, DetailsEmoteDelay3,"
-    //   128                 129              130            131                132                133
-        "DetailsEmoteDelay4, IncompleteEmote, CompleteEmote, OfferRewardEmote1, OfferRewardEmote2, OfferRewardEmote3,"
-    //   134                135                     136                     137
-        "OfferRewardEmote4, OfferRewardEmoteDelay1, OfferRewardEmoteDelay2, OfferRewardEmoteDelay3,"
-    //   138                     139          140
-        "OfferRewardEmoteDelay4, StartScript, CompleteScript"
+    //   108               109                 110            111               112       113
+        "RewHonorAddition, RewHonorMultiplier, RewOrReqMoney, RewMoneyMaxLevel, RewSpell, RewSpellCast,"
+    //   114                115               116         117     118     119
+        "RewMailTemplateId, RewMailDelaySecs, PointMapId, PointX, PointY, PointOpt,"
+    //   120            121            122            123            124                 125                 126                 127
+        "DetailsEmote1, DetailsEmote2, DetailsEmote3, DetailsEmote4, DetailsEmoteDelay1, DetailsEmoteDelay2, DetailsEmoteDelay3, DetailsEmoteDelay4,"
+    //   128              129            130                131                132                133
+        "IncompleteEmote, CompleteEmote, OfferRewardEmote1, OfferRewardEmote2, OfferRewardEmote3, OfferRewardEmote4,"
+    //   134                     135                     136                     137
+        "OfferRewardEmoteDelay1, OfferRewardEmoteDelay2, OfferRewardEmoteDelay3, OfferRewardEmoteDelay4,"
+    //   138          139
+        "StartScript, CompleteScript"
         " FROM quest_template");
     if(result == NULL)
     {
@@ -4450,6 +4370,27 @@ void ObjectMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
                         tablename,tmp.datalong2,tmp.id);
                     continue;
                 }
+                break;
+            }
+            case SCRIPT_COMMAND_CREATE_ITEM:
+            {
+                if (!GetItemPrototype(tmp.datalong))
+                {
+                    sLog.outErrorDb("Table `%s` has nonexistent item (entry: %u) in SCRIPT_COMMAND_CREATE_ITEM for script id %u",
+                        tablename, tmp.datalong, tmp.id);
+                    continue;
+                }
+                if (!tmp.datalong2)
+                {
+                    sLog.outErrorDb("Table `%s` SCRIPT_COMMAND_CREATE_ITEM but amount is %u for script id %u",
+                        tablename, tmp.datalong2, tmp.id);
+                    continue;
+                }
+                break;
+            }
+            case SCRIPT_COMMAND_DESPAWN_SELF:
+            {
+                // for later, we might consider despawn by database guid, and define in datalong2 as option to despawn self.
                 break;
             }
         }
@@ -5750,7 +5691,7 @@ void ObjectMgr::PackGroupIds()
         bar.step();
     }
 
-    m_groupId = groupId;
+    m_GroupIds.Set(groupId);
 
     sLog.outString( ">> Group Ids remapped, next group id is %u", groupId );
     sLog.outString();
@@ -5761,162 +5702,92 @@ void ObjectMgr::SetHighestGuids()
     QueryResult *result = CharacterDatabase.Query( "SELECT MAX(guid) FROM characters" );
     if( result )
     {
-        m_hiCharGuid = (*result)[0].GetUInt32()+1;
+        m_CharGuids.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = WorldDatabase.Query( "SELECT MAX(guid) FROM creature" );
     if( result )
     {
-        m_hiCreatureGuid = (*result)[0].GetUInt32()+1;
+        m_CreatureGuids.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query( "SELECT MAX(guid) FROM item_instance" );
     if( result )
     {
-        m_hiItemGuid = (*result)[0].GetUInt32()+1;
+        m_ItemGuids.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     // Cleanup other tables from not existed guids (>=m_hiItemGuid)
-    CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE item >= '%u'", m_hiItemGuid);
-    CharacterDatabase.PExecute("DELETE FROM mail_items WHERE item_guid >= '%u'", m_hiItemGuid);
-    CharacterDatabase.PExecute("DELETE FROM auctionhouse WHERE itemguid >= '%u'", m_hiItemGuid);
-    CharacterDatabase.PExecute("DELETE FROM guild_bank_item WHERE item_guid >= '%u'", m_hiItemGuid);
+    CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE item >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
+    CharacterDatabase.PExecute("DELETE FROM mail_items WHERE item_guid >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
+    CharacterDatabase.PExecute("DELETE FROM auctionhouse WHERE itemguid >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
+    CharacterDatabase.PExecute("DELETE FROM guild_bank_item WHERE item_guid >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
 
     result = WorldDatabase.Query("SELECT MAX(guid) FROM gameobject" );
     if( result )
     {
-        m_hiGoGuid = (*result)[0].GetUInt32()+1;
+        m_GameobjectGuids.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query("SELECT MAX(id) FROM auctionhouse" );
     if( result )
     {
-        m_auctionid = (*result)[0].GetUInt32()+1;
+        m_AuctionIds.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query( "SELECT MAX(id) FROM mail" );
     if( result )
     {
-        m_mailid = (*result)[0].GetUInt32()+1;
+        m_MailIds.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query( "SELECT MAX(id) FROM item_text" );
     if( result )
     {
-        m_ItemTextId = (*result)[0].GetUInt32()+1;
+        m_ItemTextIds.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query( "SELECT MAX(guid) FROM corpse" );
     if( result )
     {
-        m_hiCorpseGuid = (*result)[0].GetUInt32()+1;
+        m_CorpseGuids.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query("SELECT MAX(arenateamid) FROM arena_team");
     if (result)
     {
-        m_arenaTeamId = (*result)[0].GetUInt32()+1;
+        m_ArenaTeamIds.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query("SELECT MAX(setguid) FROM character_equipmentsets");
     if (result)
     {
-        m_equipmentSetGuid = (*result)[0].GetUInt64()+1;
+        m_EquipmentSetIds.Set((*result)[0].GetUInt64()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query( "SELECT MAX(guildid) FROM guild" );
     if (result)
     {
-        m_guildId = (*result)[0].GetUInt32()+1;
+        m_GuildIds.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
 
     result = CharacterDatabase.Query( "SELECT MAX(groupId) FROM groups" );
     if (result)
     {
-        m_groupId = (*result)[0].GetUInt32()+1;
+        m_GroupIds.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
-}
-
-uint32 ObjectMgr::GenerateArenaTeamId()
-{
-    if(m_arenaTeamId>=0xFFFFFFFE)
-    {
-        sLog.outError("Arena team ids overflow!! Can't continue, shutting down server. ");
-        World::StopNow(ERROR_EXIT_CODE);
-    }
-    return m_arenaTeamId++;
-}
-
-uint32 ObjectMgr::GenerateAuctionID()
-{
-    if(m_auctionid>=0xFFFFFFFE)
-    {
-        sLog.outError("Auctions ids overflow!! Can't continue, shutting down server. ");
-        World::StopNow(ERROR_EXIT_CODE);
-    }
-    return m_auctionid++;
-}
-
-uint64 ObjectMgr::GenerateEquipmentSetGuid()
-{
-    if(m_equipmentSetGuid>=0xFFFFFFFFFFFFFFFEll)
-    {
-        sLog.outError("EquipmentSet guid overflow!! Can't continue, shutting down server. ");
-        World::StopNow(ERROR_EXIT_CODE);
-    }
-    return m_equipmentSetGuid++;
-}
-
-uint32 ObjectMgr::GenerateGuildId()
-{
-    if(m_guildId>=0xFFFFFFFE)
-    {
-        sLog.outError("Guild ids overflow!! Can't continue, shutting down server. ");
-        World::StopNow(ERROR_EXIT_CODE);
-    }
-    return m_guildId++;
-}
-
-uint32 ObjectMgr::GenerateGroupId()
-{
-    if(m_groupId>=0xFFFFFFFE)
-    {
-        sLog.outError("Group ids overflow!! Can't continue, shutting down server. ");
-        World::StopNow(ERROR_EXIT_CODE);
-    }
-    return m_groupId++;
-}
-
-uint32 ObjectMgr::GenerateMailID()
-{
-    if(m_mailid>=0xFFFFFFFE)
-    {
-        sLog.outError("Mail ids overflow!! Can't continue, shutting down server. ");
-        World::StopNow(ERROR_EXIT_CODE);
-    }
-    return m_mailid++;
-}
-
-uint32 ObjectMgr::GenerateItemTextID()
-{
-    if(m_ItemTextId>=0xFFFFFFFE)
-    {
-        sLog.outError("Item text ids overflow!! Can't continue, shutting down server. ");
-        World::StopNow(ERROR_EXIT_CODE);
-    }
-    return m_ItemTextId++;
 }
 
 uint32 ObjectMgr::CreateItemText(std::string text)
@@ -5938,47 +5809,15 @@ uint32 ObjectMgr::GenerateLowGuid(HighGuid guidhigh)
     switch(guidhigh)
     {
         case HIGHGUID_ITEM:
-            if(m_hiItemGuid>=0xFFFFFFFE)
-            {
-                sLog.outError("Item guid overflow!! Can't continue, shutting down server. ");
-                World::StopNow(ERROR_EXIT_CODE);
-            }
-            return m_hiItemGuid++;
+            return m_ItemGuids.Generate();
         case HIGHGUID_UNIT:
-            if(m_hiCreatureGuid>=0x00FFFFFE)
-            {
-                sLog.outError("Creature guid overflow!! Can't continue, shutting down server. ");
-                World::StopNow(ERROR_EXIT_CODE);
-            }
-            return m_hiCreatureGuid++;
-        case HIGHGUID_VEHICLE:
-            if(m_hiVehicleGuid>=0x00FFFFFF)
-            {
-                sLog.outError("Vehicle guid overflow!! Can't continue, shutting down server. ");
-                World::StopNow(ERROR_EXIT_CODE);
-            }
-            return m_hiVehicleGuid++;
+            return m_CreatureGuids.Generate();
         case HIGHGUID_PLAYER:
-            if(m_hiCharGuid>=0xFFFFFFFE)
-            {
-                sLog.outError("Players guid overflow!! Can't continue, shutting down server. ");
-                World::StopNow(ERROR_EXIT_CODE);
-            }
-            return m_hiCharGuid++;
+            return m_CharGuids.Generate();
         case HIGHGUID_GAMEOBJECT:
-            if(m_hiGoGuid>=0x00FFFFFE)
-            {
-                sLog.outError("Gameobject guid overflow!! Can't continue, shutting down server. ");
-                World::StopNow(ERROR_EXIT_CODE);
-            }
-            return m_hiGoGuid++;
+            return m_GameobjectGuids.Generate();
         case HIGHGUID_CORPSE:
-            if(m_hiCorpseGuid>=0xFFFFFFFE)
-            {
-                sLog.outError("Corpse guid overflow!! Can't continue, shutting down server. ");
-                World::StopNow(ERROR_EXIT_CODE);
-            }
-            return m_hiCorpseGuid++;
+            return m_CorpseGuids.Generate();
         default:
             ASSERT(0);
     }
@@ -6390,7 +6229,7 @@ void ObjectMgr::LoadPetNumber()
     if(result)
     {
         Field *fields = result->Fetch();
-        m_hiPetNumber = fields[0].GetUInt32()+1;
+        m_PetNumbers.Set(fields[0].GetUInt32()+1);
         delete result;
     }
 
@@ -6398,7 +6237,7 @@ void ObjectMgr::LoadPetNumber()
     bar.step();
 
     sLog.outString();
-    sLog.outString( ">> Loaded the max pet number: %d", m_hiPetNumber-1);
+    sLog.outString( ">> Loaded the max pet number: %d", m_PetNumbers.GetNextAfterMaxUsed()-1);
 }
 
 std::string ObjectMgr::GeneratePetName(uint32 entry)
@@ -6416,11 +6255,6 @@ std::string ObjectMgr::GeneratePetName(uint32 entry)
     }
 
     return *(list0.begin()+urand(0, list0.size()-1)) + *(list1.begin()+urand(0, list1.size()-1));
-}
-
-uint32 ObjectMgr::GeneratePetNumber()
-{
-    return ++m_hiPetNumber;
 }
 
 void ObjectMgr::LoadCorpses()
@@ -6641,7 +6475,7 @@ void ObjectMgr::LoadQuestPOI()
 
         if(points)
         {
-            do 
+            do
             {
                 Field *pointFields = points->Fetch();
                 int32 x = pointFields[0].GetInt32();
@@ -7617,6 +7451,8 @@ bool PlayerCondition::Meets(Player const * player) const
             }
             return false;
         }
+        case CONDITION_NOITEM:
+            return !player->HasItemCount(value1, value2);
         default:
             return false;
     }
@@ -7648,11 +7484,18 @@ bool PlayerCondition::IsValid(ConditionType condition, uint32 value1, uint32 val
             break;
         }
         case CONDITION_ITEM:
+        case CONDITION_NOITEM:
         {
             ItemPrototype const *proto = ObjectMgr::GetItemPrototype(value1);
             if(!proto)
             {
                 sLog.outErrorDb("Item condition requires to have non existing item (%u), skipped", value1);
+                return false;
+            }
+
+            if(value2 < 1)
+            {
+                sLog.outErrorDb("Item condition useless with count < 1, skipped");
                 return false;
             }
             break;
@@ -8729,126 +8572,6 @@ ObjectMgr::ScriptNameMap & GetScriptNames()
 CreatureInfo const* GetCreatureTemplateStore(uint32 entry)
 {
     return sCreatureStorage.LookupEntry<CreatureInfo>(entry);
-}
-
-void ObjectMgr::LoadVehicleData()
-{
-    mVehicleData.clear();
-
-    QueryResult *result = WorldDatabase.Query("SELECT entry, flags, Spell1, Spell2, Spell3, Spell4, Spell5, Spell6, Spell7, Spell8, Spell9, Spell10, req_aura FROM vehicle_data");
-    if(!result)
-    {
-        barGoLink bar( 1 );
-        bar.step();
-
-        sLog.outString();
-        sLog.outString( ">> Loaded 0 vehicle data" );
-        sLog.outErrorDb("`vehicle_data` table is empty!");
-        return;
-    }
-
-    uint32 count = 0;
-
-    barGoLink bar( result->GetRowCount() );
-    do
-    {
-        bar.step();
-
-        Field* fields = result->Fetch();
-
-        VehicleDataStructure VDS;
-        // NOTE : we can use spellid or creature id
-        uint32 v_entry      = fields[0].GetUInt32();
-        VDS.v_flags         = fields[1].GetUInt32();
-        for(uint8 j = 0; j < MAX_VEHICLE_SPELLS; j++)
-        {
-            VDS.v_spells[j] = fields[j+2].GetUInt32();
-        }
-        VDS.req_aura        = fields[12].GetUInt32();
-
-        VehicleEntry const *vehicleInfo = sVehicleStore.LookupEntry(v_entry);
-        if(!vehicleInfo)
-        {
-            sLog.outErrorDb("Vehicle id %u listed in `vehicle_data` does not exist",v_entry);
-            continue;
-        }
-        for(uint8 j = 0; j < MAX_VEHICLE_SPELLS; j++)
-        {
-            if(VDS.v_spells[j])
-            {
-                SpellEntry const* j_spell = sSpellStore.LookupEntry(VDS.v_spells[j]);
-                if(!j_spell)
-                {
-                    sLog.outErrorDb("Spell %u listed in `vehicle_data` does not exist, skipped",VDS.v_spells[j]);
-                    VDS.v_spells[j] = 0;
-                }
-            }
-        }
-        if(VDS.req_aura)
-        {
-            SpellEntry const* i_spell = sSpellStore.LookupEntry(VDS.req_aura);
-            if(!i_spell)
-            {
-                sLog.outErrorDb("Spell %u listed in `vehicle_data` does not exist, skipped",VDS.req_aura);
-                VDS.req_aura = 0;
-            }
-        }
-
-        mVehicleData[v_entry] = VDS;
-        ++count;
-    }
-    while (result->NextRow());
-
-    delete result;
-
-    sLog.outString();
-    sLog.outString( ">> Loaded %u vehicle data", count );
-}
-
-void ObjectMgr::LoadVehicleSeatData()
-{
-    mVehicleSeatData.clear();
-
-    QueryResult *result = WorldDatabase.Query("SELECT seat,flags FROM vehicle_seat_data");
-
-    if( !result )
-    {
-        barGoLink bar( 1 );
-
-        bar.step();
-
-        sLog.outString();
-        sLog.outString( ">> Loaded 0 vehicle seat data" );
-        sLog.outErrorDb("`vehicle_seat_data` table is empty!");
-        return;
-    }
-    uint32 count = 0;
-
-    barGoLink bar( result->GetRowCount() );
-    do
-    {
-        bar.step();
-
-        Field *fields = result->Fetch();
-        uint32 entry  = fields[0].GetUInt32();
-        uint32 flag   = fields[1].GetUInt32();
-
-        VehicleSeatEntry const *vsInfo = sVehicleSeatStore.LookupEntry(entry);
-        if(!vsInfo)
-        {
-            sLog.outErrorDb("Vehicle seat %u listed in `vehicle_seat_data` does not exist",entry);
-            continue;
-        }
-
-        mVehicleSeatData[entry] = flag;
-        ++count;
-    }
-    while (result->NextRow());
-
-    delete result;
-
-    sLog.outString();
-    sLog.outString( ">> Loaded %u vehicle seat data", count );
 }
 
 Quest const* GetQuestTemplateStore(uint32 entry)

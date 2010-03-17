@@ -30,6 +30,7 @@ struct ItemPrototype;
 struct AuctionEntry;
 struct DeclinedName;
 
+class ObjectGuid;
 class Creature;
 class Item;
 class Object;
@@ -255,7 +256,7 @@ class MANGOS_DLL_SPEC WorldSession
 
         void BuildPartyMemberStatsChangedPacket(Player *player, WorldPacket *data);
 
-        void DoLootRelease( uint64 lguid );
+        void DoLootRelease(ObjectGuid lguid);
 
         // Account mute time
         time_t m_muteTime;
@@ -388,11 +389,6 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleSetActiveMoverOpcode(WorldPacket &recv_data);
         void HandleMoveNotActiveMover(WorldPacket &recv_data);
         void HandleDismissControlledVehicle(WorldPacket &recv_data);
-        void HandleRequestVehicleExit(WorldPacket &recv_data);
-        void HandleRequestVehiclePrevSeat(WorldPacket &recv_data);
-        void HandleRequestVehicleNextSeat(WorldPacket &recv_data);
-        void HandleRequestVehicleSwitchSeat(WorldPacket &recv_data);
-        void HandleChangeSeatsOnControlledVehicle(WorldPacket &recv_data);
         void HandleMoveTimeSkippedOpcode(WorldPacket &recv_data);
 
         void HandleRequestRaidInfoOpcode( WorldPacket & recv_data );
@@ -646,10 +642,10 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleSetDungeonDifficultyOpcode(WorldPacket& recv_data);
         void HandleSetRaidDifficultyOpcode(WorldPacket& recv_data);
         void HandleMoveSetCanFlyAckOpcode(WorldPacket& recv_data);
-        void HandleLfgSetAutoJoinOpcode(WorldPacket& recv_data);
-        void HandleLfgClearAutoJoinOpcode(WorldPacket& recv_data);
-        void HandleLfmSetAutoFillOpcode(WorldPacket& recv_data);
-        void HandleLfmClearAutoFillOpcode(WorldPacket& recv_data);
+        void HandleLfgJoinOpcode(WorldPacket& recv_data);
+        void HandleLfgLeaveOpcode(WorldPacket& recv_data);
+        void HandleSearchLfgJoinOpcode(WorldPacket& recv_data);
+        void HandleSearchLfgLeaveOpcode(WorldPacket& recv_data);
         void HandleLfgClearOpcode(WorldPacket& recv_data);
         void HandleLfmClearOpcode(WorldPacket& recv_data);
         void HandleSetLfmOpcode(WorldPacket& recv_data);
@@ -725,7 +721,6 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleCalendarGetNumPending(WorldPacket& recv_data);
 
         void HandleSpellClick(WorldPacket& recv_data);
-        void HandleMirrrorImageDataRequest(WorldPacket & recv_data);
         void HandleAlterAppearance(WorldPacket& recv_data);
         void HandleRemoveGlyph(WorldPacket& recv_data);
         void HandleCharCustomize(WorldPacket& recv_data);

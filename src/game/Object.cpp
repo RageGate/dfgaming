@@ -27,7 +27,7 @@
 #include "Player.h"
 #include "Vehicle.h"
 #include "ObjectMgr.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 #include "UpdateData.h"
 #include "UpdateMask.h"
 #include "Util.h"
@@ -60,10 +60,10 @@ uint32 GuidHigh2TypeId(uint32 guid_hi)
         case HIGHGUID_MO_TRANSPORT: return TYPEID_GAMEOBJECT;
         case HIGHGUID_VEHICLE:      return TYPEID_UNIT;
     }
-    return NUM_CLIENT_OBJECT_TYPES;                         // unknown
+    return TYPEID_OBJECT;                                   // unknown
 }
 
-Object::Object( ) : m_PackGUID(sizeof(uint64)+1)
+Object::Object( )
 {
     m_objectTypeId      = TYPEID_OBJECT;
     m_objectType        = TYPEMASK_OBJECT;
@@ -74,8 +74,6 @@ Object::Object( ) : m_PackGUID(sizeof(uint64)+1)
 
     m_inWorld           = false;
     m_objectUpdated     = false;
-
-    m_PackGUID.appendPackGUID(0);
 }
 
 Object::~Object( )
@@ -121,8 +119,7 @@ void Object::_Create( uint32 guidlow, uint32 entry, HighGuid guidhigh )
     uint64 guid = MAKE_NEW_GUID(guidlow, entry, guidhigh);
     SetUInt64Value(OBJECT_FIELD_GUID, guid);
     SetUInt32Value(OBJECT_FIELD_TYPE, m_objectType);
-    m_PackGUID.wpos(0);
-    m_PackGUID.appendPackGUID(GetGUID());
+    m_PackGUID.Set(guid);
 }
 
 void Object::BuildMovementUpdateBlock(UpdateData * data, uint16 flags ) const
@@ -130,7 +127,7 @@ void Object::BuildMovementUpdateBlock(UpdateData * data, uint16 flags ) const
     ByteBuffer buf(500);
 
     buf << uint8(UPDATETYPE_MOVEMENT);
-    buf.append(GetPackGUID());
+    buf << GetPackGUID();
 
     BuildMovementUpdate(&buf, flags);
 
@@ -189,7 +186,7 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData *data, Player *target) c
 
     ByteBuffer buf(500);
     buf << uint8(updatetype);
-    buf.append(GetPackGUID());
+    buf << GetPackGUID();
     buf << uint8(m_objectTypeId);
 
     BuildMovementUpdate(&buf, updateFlags);
@@ -217,7 +214,7 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData *data, Player *target) c
     ByteBuffer buf(500);
 
     buf << uint8(UPDATETYPE_VALUES);
-    buf.append(GetPackGUID());
+    buf << GetPackGUID();
 
     UpdateMask updateMask;
     updateMask.SetCount(m_valuesCount);
@@ -287,9 +284,6 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
                         }
                     }
                 }
-                if(((Unit*)this)->GetVehicleGUID())
-                    moveFlags2 |= (MOVEFLAG_ONTRANSPORT | MOVEFLAG_FLYING);
-
             }
             break;
             case TYPEID_PLAYER:
@@ -304,10 +298,7 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
                 // remove unknown, unused etc flags for now
                 player->m_movementInfo.RemoveMovementFlag(MOVEFLAG_SPLINE_ENABLED);
 
-                if(((Unit*)this)->GetVehicleGUID())
-                    moveFlags2 |= (MOVEFLAG_ONTRANSPORT | MOVEFLAG_FLYING);
-
-                if(((Player*)this)->isInFlight())
+                if(player->isInFlight())
                 {
                     ASSERT(player->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLIGHT_MOTION_TYPE);
                     player->m_movementInfo.AddMovementFlag(MOVEFLAG_FORWARD);
@@ -495,7 +486,7 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
             case TYPEID_GAMEOBJECT:
             case TYPEID_DYNAMICOBJECT:
             case TYPEID_CORPSE:
-                *data << uint32(GetGUIDHigh());             // GetGUIDHigh()
+                *data << uint32(GetObjectGuid().GetHigh()); // GetGUIDHigh()
                 break;
             case TYPEID_UNIT:
                 *data << uint32(0x0000000B);                // unk, can be 0xB or 0xC
@@ -516,7 +507,7 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
     if(updateFlags & UPDATEFLAG_HAS_ATTACKING_TARGET)       // packed guid (current target guid)
     {
         if (((Unit*)this)->getVictim())
-            data->append(((Unit*)this)->getVictim()->GetPackGUID());
+            *data << ((Unit*)this)->getVictim()->GetPackGUID();
         else
             data->appendPackGUID(0);
     }
@@ -1096,8 +1087,6 @@ WorldObject::WorldObject()
     : m_currMap(NULL), m_mapId(0), m_InstanceId(0), m_phaseMask(PHASEMASK_NORMAL),
     m_positionX(0.0f), m_positionY(0.0f), m_positionZ(0.0f), m_orientation(0.0f)
 {
-    m_notifyflags = 0;
-    m_executed_notifies = 0;
 }
 
 void WorldObject::CleanupsBeforeDelete()
@@ -1686,62 +1675,6 @@ Creature* WorldObject::SummonCreature(uint32 id, float x, float y, float z, floa
     return pCreature;
 }
 
-Vehicle* WorldObject::SummonVehicle(uint32 id, float x, float y, float z, float ang, uint32 vehicleId)
-{
-    Vehicle *v = new Vehicle;
-
-    Map *map = GetMap();
-    uint32 team = 0;
-    if (GetTypeId()==TYPEID_PLAYER)
-        team = ((Player*)this)->GetTeam();
-
-    if(!v->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_VEHICLE), map, GetPhaseMask(), id, vehicleId, team))
-    {
-        delete v;
-        return NULL;
-    }
-
-    if (x == 0.0f && y == 0.0f && z == 0.0f)
-        GetClosePoint(x, y, z, v->GetObjectSize());
-
-    v->Relocate(x, y, z, ang);
-
-    if(!v->IsPositionValid())
-    {
-        sLog.outError("ERROR: Vehicle (guidlow %d, entry %d) not created. Suggested coordinates isn't valid (X: %f Y: %f)",
-            v->GetGUIDLow(), v->GetEntry(), v->GetPositionX(), v->GetPositionY());
-        delete v;
-        return NULL;
-    }
-    map->Add((Creature*)v);
-    v->AIM_Initialize();
-
-    if(GetTypeId()==TYPEID_UNIT && ((Creature*)this)->AI())
-        ((Creature*)this)->AI()->JustSummoned((Creature*)v);
-
-    return v;
-}
-
-GameObject* WorldObject::SummonGameobject(uint32 id, float x, float y, float z, float ang, uint32 despwTime)
-{
-    GameObject* GameObj = new GameObject;
-
-    Map *map = GetMap();
-    if(!GameObj->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_GAMEOBJECT), id, map,
-        GetPhaseMask(), x, y, z, ang, 0.0f, 0.0f, 0.0f, 0.0f, 100, GO_STATE_READY))
-    {
-        delete GameObj;
-        return NULL;
-    }
-    GameObj->SetRespawnTime(despwTime);
-
-    map->Add(GameObj);
-
-    GameObj->SummonLinkedTrapIfAny();
-
-    return GameObj;
-}
-
 namespace MaNGOS
 {
     class NearUsedPosDo
@@ -1761,7 +1694,7 @@ namespace MaNGOS
 
                 float x,y,z;
 
-                if( !c->isAlive() || c->hasUnitState(UNIT_STAT_NOT_MOVE | UNIT_STAT_ON_VEHICLE) ||
+                if( !c->isAlive() || c->hasUnitState(UNIT_STAT_NOT_MOVE) ||
                     !c->GetMotionMaster()->GetDestination(x,y,z) )
                 {
                     x = c->GetPositionX();
@@ -1889,18 +1822,14 @@ void WorldObject::GetNearPoint(WorldObject const* searcher, float &x, float &y, 
     selector.InitializeAngle();
 
     // select in positions after current nodes (selection one by one)
-    uint32 i = 0;
     while(selector.NextAngle(angle))                        // angle for free pos
     {
-        ++i;
         GetNearPoint2D(x,y,distance2d,absAngle+angle);
         z = GetPositionZ();
         UpdateGroundPositionZ(x,y,z);                       // update to LOS height if available
 
         if(IsWithinLOS(x,y,z))
             return;
-        if (i == 16)
-            break;
     }
 
     // BAD NEWS: not free pos (or used or have LOS problems)
@@ -1981,7 +1910,10 @@ void WorldObject::PlayDirectSound( uint32 sound_id, Player* target /*= NULL*/ )
 
 void WorldObject::UpdateObjectVisibility()
 {
-    GetMap()->AddNotifier(this, false);
+    CellPair p = MaNGOS::ComputeCellPair(GetPositionX(), GetPositionY());
+    Cell cell(p);
+
+    GetMap()->UpdateObjectVisibility(this, cell, p);
 }
 
 void WorldObject::AddToClientUpdateList()

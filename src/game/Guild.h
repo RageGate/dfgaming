@@ -24,7 +24,6 @@
 
 #include "Common.h"
 #include "Item.h"
-#include "ObjectDefines.h"
 
 class Item;
 
@@ -344,7 +343,7 @@ class Guild
         void BroadcastWorker(Do& _do, Player* except = NULL)
         {
             for(MemberList::iterator itr = members.begin(); itr != members.end(); ++itr)
-                if(Player *player = ObjectAccessor::FindPlayer(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER)))
+                if(Player *player = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first)))
                     if(player != except)
                         _do(player);
         }
@@ -385,7 +384,6 @@ class Guild
         void   UpdateLogoutTime(uint64 guid);
         // Guild EventLog
         void   LoadGuildEventLogFromDB();
-        void   UnloadGuildEventLog();
         void   DisplayGuildEventLog(WorldSession *session);
         void   LogGuildEvent(uint8 EventType, uint32 PlayerGuid1, uint32 PlayerGuid2, uint8 NewRank);
 
@@ -408,11 +406,8 @@ class Guild
         uint32 GetBankRights(uint32 rankId, uint8 TabId) const;
         bool   IsMemberHaveRights(uint32 LowGuid, uint8 TabId,uint32 rights) const;
         bool   CanMemberViewTab(uint32 LowGuid, uint8 TabId) const;
-        // Load/unload
+        // Load
         void   LoadGuildBankFromDB();
-        void   UnloadGuildBank();
-        bool   IsGuildBankLoaded() const { return m_GuildBankLoaded; }
-        void   IncOnlineMemberCount() { ++m_OnlineMembers; }
         // Money deposit/withdraw
         void   SendMoneyInfo(WorldSession *session, uint32 LowGuid);
         bool   MemberMoneyWithdraw(uint32 amount, uint32 LowGuid);
@@ -430,7 +425,6 @@ class Guild
         bool   LoadBankRightsFromDB(QueryResult *guildBankTabRightsResult);
         // Guild Bank Event Logs
         void   LoadGuildBankEventLogFromDB();
-        void   UnloadGuildBankEventLog();
         void   DisplayGuildBankLogs(WorldSession *session, uint8 TabId);
         void   LogBankEvent(uint8 EventType, uint8 TabId, uint32 PlayerGuidLow, uint32 ItemOrMoney, uint8 ItemStackCount=0, uint8 DestTabId=0);
         bool   AddGBankItemToDB(uint32 GuildId, uint32 BankTab , uint32 BankTabSlot , uint32 GUIDLow, uint32 Entry );
@@ -471,9 +465,6 @@ class Guild
         uint32 m_GuildBankEventLogNextGuid_Money;
         uint32 m_GuildBankEventLogNextGuid_Item[GUILD_BANK_MAX_TABS];
 
-        bool m_GuildBankLoaded;
-        bool m_EventLogLoaded;
-        uint32 m_OnlineMembers;
         uint64 m_GuildBankMoney;
         uint8 m_PurchasedTabs;
 

@@ -92,8 +92,7 @@ enum GroupUpdateFlags
     GROUP_UPDATE_FLAG_PET_AURAS         = 0x00040000,       // uint64 mask, for each bit set uint32 spellid + uint8 unk, pet auras...
     GROUP_UPDATE_FLAG_VEHICLE_SEAT      = 0x00080000,       // uint32 vehicle_seat_id (index from VehicleSeat.dbc)
     GROUP_UPDATE_PET                    = 0x0007FC00,       // all pet flags
-    GROUP_UPDATE_VEHICLE                = 0x000FFC00,       // all vehicle flags
-    GROUP_UPDATE_FULL                   = 0x000FFFFF,       // all known flags
+    GROUP_UPDATE_FULL                   = 0x0007FFFF,       // all known flags
 };
 
 #define GROUP_UPDATE_FLAGS_COUNT          20
@@ -105,15 +104,15 @@ class InstanceSave;
 class Roll : public LootValidatorRef
 {
     public:
-        Roll(uint64 _guid, LootItem const& li)
-            : itemGUID(_guid), itemid(li.itemid), itemRandomPropId(li.randomPropertyId), itemRandomSuffix(li.randomSuffix), itemCount(li.count),
-            totalPlayersRolling(0), totalNeed(0), totalGreed(0), totalPass(0), itemSlot(0) {}
+        Roll(ObjectGuid _lootedTragetGuid, LootItem const& li)
+            : lootedTargetGUID(_lootedTragetGuid), itemid(li.itemid), itemRandomPropId(li.randomPropertyId), itemRandomSuffix(li.randomSuffix),
+            itemCount(li.count), totalPlayersRolling(0), totalNeed(0), totalGreed(0), totalPass(0), itemSlot(0) {}
         ~Roll() { }
         void setLoot(Loot *pLoot) { link(pLoot, this); }
         Loot *getLoot() { return getTarget(); }
         void targetObjectBuildLink();
 
-        uint64 itemGUID;
+        ObjectGuid lootedTargetGUID;
         uint32 itemid;
         int32  itemRandomPropId;
         uint32 itemRandomSuffix;
@@ -314,26 +313,13 @@ class MANGOS_DLL_SPEC Group
         /*********************************************************/
 
         void SendLootStartRoll(uint32 CountDown, const Roll &r);
-        void SendLootRoll(const uint64& SourceGuid, const uint64& TargetGuid, uint8 RollNumber, uint8 RollType, const Roll &r);
-        void SendLootRollWon(const uint64& SourceGuid, const uint64& TargetGuid, uint8 RollNumber, uint8 RollType, const Roll &r);
-        void SendLootAllPassed(uint32 NumberOfPlayers, const Roll &r);
-        void GroupLoot(const uint64& playerGUID, Loot *loot, Creature *creature);
-        void NeedBeforeGreed(const uint64& playerGUID, Loot *loot, Creature *creature);
-        void MasterLoot(const uint64& playerGUID, Loot *loot, Creature *creature);
-        Rolls::iterator GetRoll(uint64 Guid)
-        {
-            Rolls::iterator iter;
-            for (iter=RollId.begin(); iter != RollId.end(); ++iter)
-            {
-                if ((*iter)->itemGUID == Guid && (*iter)->isValid())
-                {
-                    return iter;
-                }
-            }
-            return RollId.end();
-        }
-        void CountTheRoll(Rolls::iterator roll, uint32 NumberOfPlayers);
-        void CountRollVote(const uint64& playerGUID, const uint64& Guid, uint32 NumberOfPlayers, uint8 Choise);
+        void SendLootRoll(ObjectGuid const& targetGuid, uint8 rollNumber, uint8 rollType, const Roll &r);
+        void SendLootRollWon(ObjectGuid const& targetGuid, uint8 rollNumber, uint8 rollType, const Roll &r);
+        void SendLootAllPassed(const Roll &r);
+        void GroupLoot(ObjectGuid const& playerGUID, Loot *loot, Creature *creature);
+        void NeedBeforeGreed(ObjectGuid const& playerGUID, Loot *loot, Creature *creature);
+        void MasterLoot(ObjectGuid const& playerGUID, Loot *loot, Creature *creature);
+        void CountRollVote(ObjectGuid const& playerGUID, ObjectGuid const& lootedTarget, uint32 itemSlot, uint8 choise);
         void EndRoll();
 
         void LinkMember(GroupReference *pRef) { m_memberMgr.insertFirst(pRef); }
@@ -342,7 +328,7 @@ class MANGOS_DLL_SPEC Group
         InstanceGroupBind* BindToInstance(InstanceSave *save, bool permanent, bool load = false);
         void UnbindInstance(uint32 mapid, uint8 difficulty, bool unload = false);
         InstanceGroupBind* GetBoundInstance(Player* player);
-        InstanceGroupBind* GetBoundInstance(Map* aMap);
+        InstanceGroupBind* GetBoundInstance(Map* aMap, Difficulty difficulty);
         BoundInstancesMap& GetBoundInstances(Difficulty difficulty) { return m_boundInstances[difficulty]; }
 
     protected:
@@ -403,6 +389,9 @@ class MANGOS_DLL_SPEC Group
             if (m_subGroupsCounts)
                 --m_subGroupsCounts[subgroup];
         }
+
+        void CountTheRoll(Rolls::iterator& roll);           // iterator update to next, in CountRollVote if true
+        bool CountRollVote(ObjectGuid const& playerGUID, Rolls::iterator& roll, uint8 choise);
 
         uint32              m_Id;                           // 0 for not created or BG groups
         MemberSlotList      m_memberSlots;

@@ -24,7 +24,7 @@
 #include "UpdateFields.h"
 #include "UpdateData.h"
 #include "GameSystem/GridReference.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 
 #include <set>
 #include <string>
@@ -39,32 +39,6 @@
 
 #define DEFAULT_WORLD_OBJECT_SIZE   0.388999998569489f      // player size, also currently used (correctly?) for any non Unit world objects
 #define MAX_STEALTH_DETECT_RANGE    45.0f
-
-enum TypeMask
-{
-    TYPEMASK_OBJECT         = 0x0001,
-    TYPEMASK_ITEM           = 0x0002,
-    TYPEMASK_CONTAINER      = 0x0006,                       // TYPEMASK_ITEM | 0x0004
-    TYPEMASK_UNIT           = 0x0008,
-    TYPEMASK_PLAYER         = 0x0010,
-    TYPEMASK_GAMEOBJECT     = 0x0020,
-    TYPEMASK_DYNAMICOBJECT  = 0x0040,
-    TYPEMASK_CORPSE         = 0x0080
-};
-
-enum TypeID
-{
-    TYPEID_OBJECT        = 0,
-    TYPEID_ITEM          = 1,
-    TYPEID_CONTAINER     = 2,
-    TYPEID_UNIT          = 3,
-    TYPEID_PLAYER        = 4,
-    TYPEID_GAMEOBJECT    = 5,
-    TYPEID_DYNAMICOBJECT = 6,
-    TYPEID_CORPSE        = 7
-};
-
-#define NUM_CLIENT_OBJECT_TYPES             8
 
 uint32 GuidHigh2TypeId(uint32 guid_hi);
 
@@ -86,15 +60,6 @@ enum PhaseMasks
     PHASEMASK_ANYWHERE = 0xFFFFFFFF
 };
 
-enum NotifyFlags
-{
-    NOTIFY_NONE                     = 0x00,
-    NOTIFY_AI_RELOCATION            = 0x01,
-    NOTIFY_VISIBILITY_CHANGED       = 0x02,
-    NOTIFY_PLAYER_VISIBILITY        = 0x04,
-    NOTIFY_ALL                      = 0xFF
-};
-
 class WorldPacket;
 class UpdateData;
 class WorldSession;
@@ -104,8 +69,6 @@ class Unit;
 class Map;
 class UpdateMask;
 class InstanceData;
-class Vehicle;
-class GameObject;
 
 typedef UNORDERED_MAP<Player*, UpdateData> UpdateDataMapType;
 
@@ -145,11 +108,11 @@ class MANGOS_DLL_SPEC Object
             m_inWorld = false;
         }
 
+        ObjectGuid const& GetObjectGuid() const { return *reinterpret_cast<ObjectGuid const*>(&GetUInt64Value(0)); }
+
         const uint64& GetGUID() const { return GetUInt64Value(0); }
         uint32 GetGUIDLow() const { return GUID_LOPART(GetUInt64Value(0)); }
-        uint32 GetGUIDMid() const { return GUID_ENPART(GetUInt64Value(0)); }
-        uint32 GetGUIDHigh() const { return GUID_HIPART(GetUInt64Value(0)); }
-        const ByteBuffer& GetPackGUID() const { return m_PackGUID; }
+        PackedGuid const& GetPackGUID() const { return m_PackGUID; }
         uint32 GetEntry() const { return GetUInt32Value(OBJECT_FIELD_ENTRY); }
         void SetEntry(uint32 entry) { SetUInt32Value(OBJECT_FIELD_ENTRY, entry); }
 
@@ -349,7 +312,7 @@ class MANGOS_DLL_SPEC Object
     private:
         bool m_inWorld;
 
-        ByteBuffer m_PackGUID;
+        PackedGuid m_PackGUID;
 
         // for output helpfull error messages from asserts
         bool PrintIndexError(uint32 index, bool set) const;
@@ -505,17 +468,6 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         void ResetMap() { m_currMap = NULL; }
 
         //this function should be removed in nearest time...
-        //new relocation and visibility system functions
-        void AddToNotify(uint16 f) { m_notifyflags |= f;}
-        void RemoveFromNotify(uint16 f) { m_notifyflags &= ~f;}
-        bool isNeedNotify(uint16 f) const { return m_notifyflags & f;}
-
-        bool NotifyExecuted(uint16 f) const { return m_executed_notifies & f;}
-        void SetNotified(uint16 f) { m_executed_notifies |= f;}
-        void ResetNotifies(uint16 f) { m_executed_notifies |= ~f;}
-        void ResetAllNotifies() { m_notifyflags = 0; m_executed_notifies = 0; }
-        void ResetAllNotifiesbyMask(uint16 f) { m_notifyflags &= ~f; m_executed_notifies &= ~f; }
-
         Map const* GetBaseMap() const;
 
         void AddToClientUpdateList();
@@ -523,9 +475,6 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         void BuildUpdateData(UpdateDataMapType &);
 
         Creature* SummonCreature(uint32 id, float x, float y, float z, float ang,TempSummonType spwtype,uint32 despwtime);
-        Vehicle* SummonVehicle(uint32 id, float x, float y, float z, float ang, uint32 vehicleId = NULL);
-        GameObject* SummonGameobject(uint32 id, float x, float y, float z, float ang, uint32 despwTime);
-
     protected:
         explicit WorldObject();
 
@@ -548,8 +497,5 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         float m_positionY;
         float m_positionZ;
         float m_orientation;
-
-        uint16 m_notifyflags;
-        uint16 m_executed_notifies;
 };
 #endif

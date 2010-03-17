@@ -63,6 +63,8 @@ MapDifficulty const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty);
 
 uint32 const* /*[3]*/ GetTalentTabPages(uint32 cls);
 
+bool IsPointInAreaTriggerZone(AreaTriggerEntry const* atEntry, uint32 mapid, float x, float y, float z, float delta = 0.0f);
+
 PvPDifficultyEntry const* GetBattlegroundBracketByLevel(uint32 mapid, uint32 level);
 PvPDifficultyEntry const* GetBattlegroundBracketById(uint32 mapid, BattleGroundBracketId id);
 
@@ -172,5 +174,4 @@ MANGOS_DLL_SPEC DBCStorage <ItemEntry>                  const* GetItemDisplaySto
 MANGOS_DLL_SPEC DBCStorage <CreatureDisplayInfoEntry>   const* GetCreatureDisplayStore();
 MANGOS_DLL_SPEC DBCStorage <EmotesEntry>                const* GetEmotesStore();
 MANGOS_DLL_SPEC DBCStorage <EmotesTextEntry>            const* GetEmotesTextStore();
-MANGOS_DLL_SPEC DBCStorage <AchievementEntry>           const* GetAchievementStore();
 #endif

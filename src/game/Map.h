@@ -37,6 +37,7 @@
 #include <bitset>
 #include <list>
 
+class Creature;
 class Unit;
 class WorldPacket;
 class InstanceData;
@@ -245,7 +246,6 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
         float GetVisibilityDistance() const { return m_VisibleDistance; }
         //function for setting up visibility distance for maps on per-type/per-Id basis
         virtual void InitVisibilityDistance();
-        virtual void InitializeNotifyTimers();
 
         void PlayerRelocation(Player *, float x, float y, float z, float angl);
         void CreatureRelocation(Creature *creature, float x, float y, float z, float orientation);
@@ -343,9 +343,7 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
         // NOTE: this duplicate of Instanceable(), but Instanceable() can be changed when BG also will be instanceable
         bool IsDungeon() const { return i_mapEntry && i_mapEntry->IsDungeon(); }
         bool IsRaid() const { return i_mapEntry && i_mapEntry->IsRaid(); }
-        bool IsRaidOrHeroicDungeon() const { return IsRaid() || GetDifficulty() == RAID_DIFFICULTY_25MAN_NORMAL || GetDifficulty() == DUNGEON_DIFFICULTY_HEROIC; }
-        bool IsHeroicRaid10Man() const { return IsRaid() || GetDifficulty() == RAID_DIFFICULTY_10MAN_HEROIC; }
-        bool IsHeroicRaid25Man() const { return IsRaid() || GetDifficulty() == RAID_DIFFICULTY_25MAN_HEROIC; }
+        bool IsRaidOrHeroicDungeon() const { return IsRaid() || GetDifficulty() > DUNGEON_DIFFICULTY_NORMAL; }
         bool IsBattleGround() const { return i_mapEntry && i_mapEntry->IsBattleGround(); }
         bool IsBattleArena() const { return i_mapEntry && i_mapEntry->IsBattleArena(); }
         bool IsBattleGroundOrArena() const { return i_mapEntry && i_mapEntry->IsBattleGroundOrArena(); }
@@ -365,15 +363,9 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
 
         virtual bool RemoveBones(uint64 guid, float x, float y);
 
-        template<class T>
-            void AddNotifier(T*, bool /*optimized*/);
-
         void UpdateObjectVisibility(WorldObject* obj, Cell cell, CellPair cellpair);
-        void UpdatePlayerVisibility(Player* player, WorldObject const* viewPoint, Cell cell, CellPair cellpair);
-        void UpdateObjectsVisibilityFor(Player* player, WorldObject const* viewPointCell, Cell cell, CellPair cellpair);
-
-        void PlayerRelocationNotify(Player* player, Cell cell, CellPair cellpair);
-        void CreatureRelocationNotify(Creature *creature, Cell newcell, CellPair newval);
+        void UpdatePlayerVisibility(Player* player, Cell cell, CellPair cellpair);
+        void UpdateObjectsVisibilityFor(Player* player, Cell cell, CellPair cellpair);
 
         void resetMarkedCells() { marked_cells.reset(); }
         bool isCellMarked(uint32 pCellId) { return marked_cells.test(pCellId); }
@@ -404,14 +396,14 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
 
         void RemoveFromActive(Creature* obj);
 
-        Creature* GetCreature(uint64 guid);
-        Vehicle* GetVehicle(uint64 guid);
-        Pet* GetPet(uint64 guid);
-        Unit* GetCreatureOrPet(uint64 guid);
-        GameObject* GetGameObject(uint64 guid);
-        DynamicObject* GetDynamicObject(uint64 guid);
-        Corpse* GetCorpse(uint64 guid);
-        WorldObject* GetWorldObject(uint64 guid);
+        Creature* GetCreature(ObjectGuid guid);
+        Vehicle* GetVehicle(ObjectGuid guid);
+        Pet* GetPet(ObjectGuid guid);
+        Creature* GetCreatureOrPetOrVehicle(ObjectGuid guid);
+        GameObject* GetGameObject(ObjectGuid guid);
+        DynamicObject* GetDynamicObject(ObjectGuid guid);
+        Corpse* GetCorpse(ObjectGuid guid);
+        WorldObject* GetWorldObject(ObjectGuid guid);
 
         TypeUnorderedMapContainer<AllMapStoredObjectTypes>& GetObjectsStore() { return m_objectsStore; }
 
@@ -433,10 +425,6 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
         void LoadMap(int gx,int gy, bool reload = false);
         GridMap *GetGrid(float x, float y);
 
-        //these functions used to process player/mob aggro reactions and
-        //visibility calculations. Highly optimized for massive calculations
-        void ProcessRelocationNotifies(uint32 diff);
-
         void SetTimer(uint32 t) { i_gridExpiry = t < MIN_GRID_DELAY ? MIN_GRID_DELAY : t; }
 
         void SendInitSelf( Player * player );
@@ -444,7 +432,7 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
         void SendInitTransports( Player * player );
         void SendRemoveTransports( Player * player );
 
-       // void PlayerRelocationNotify(Player* player, Cell cell, CellPair cellpair);
+        void PlayerRelocationNotify(Player* player, Cell cell, CellPair cellpair);
 
         bool CreatureCellRelocation(Creature *creature, Cell new_cell);
 
@@ -485,8 +473,6 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
         uint32 m_unloadTimer;
         float m_VisibleDistance;
 
-        int32 m_VisibilityNotifyPeriod;
-
         MapRefManager m_mapRefManager;
         MapRefManager::iterator m_mapRefIter;
 
@@ -509,12 +495,16 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
         std::multimap<time_t, ScriptAction> m_scriptSchedule;
 
         // Map local low guid counters
-        uint32 m_hiDynObjectGuid;
-        uint32 m_hiPetGuid;
+        ObjectGuidGenerator<HIGHGUID_DYNAMICOBJECT> m_DynObjectGuids;
+        ObjectGuidGenerator<HIGHGUID_PET> m_PetGuids;
+        ObjectGuidGenerator<HIGHGUID_VEHICLE> m_VehicleGuids;
 
         // Type specific code for add/remove to/from grid
         template<class T>
             void AddToGrid(T*, NGridType *, Cell const&);
+
+        template<class T>
+            void AddNotifier(T*, Cell const&, CellPair const&);
 
         template<class T>
             void RemoveFromGrid(T*, NGridType *, Cell const&);
@@ -573,7 +563,6 @@ class MANGOS_DLL_SPEC InstanceMap : public Map
         void SetResetSchedule(bool on);
 
         virtual void InitVisibilityDistance();
-        virtual void InitializeNotifyTimers();
     private:
         bool m_resetAfterUnload;
         bool m_unloadWhenEmpty;
@@ -587,6 +576,7 @@ class MANGOS_DLL_SPEC BattleGroundMap : public Map
         BattleGroundMap(uint32 id, time_t, uint32 InstanceId, Map* _parent, uint8 spawnMode);
         ~BattleGroundMap();
 
+        void Update(const uint32&);
         bool Add(Player *);
         void Remove(Player *, bool);
         bool CanEnter(Player* player);
@@ -594,7 +584,6 @@ class MANGOS_DLL_SPEC BattleGroundMap : public Map
         void UnloadAll(bool pForce);
 
         virtual void InitVisibilityDistance();
-        virtual void InitializeNotifyTimers();
         BattleGround* GetBG() { return m_bg; }
         void SetBG(BattleGround* bg) { m_bg = bg; }
     private:

@@ -285,7 +285,7 @@ void WorldSession::HandlePetNameQuery( WorldPacket & recv_data )
 
 void WorldSession::SendPetNameQuery( uint64 petguid, uint32 petnumber)
 {
-    Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, petguid);
+    Creature* pet = _player->GetMap()->GetCreatureOrPetOrVehicle(petguid);
     if(!pet || !pet->GetCharmInfo() || pet->GetCharmInfo()->GetPetNumber() != petnumber)
         return;
 
@@ -317,12 +317,7 @@ void WorldSession::HandlePetSetAction( WorldPacket & recv_data )
 
     recv_data >> petguid;
 
-    // FIXME: charmed case
-    //Pet* pet = ObjectAccessor::Instance().GetPet(petguid);
-    if(ObjectAccessor::FindPlayer(petguid))
-        return;
-
-    Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, petguid);
+    Creature* pet = _player->GetMap()->GetCreatureOrPetOrVehicle(petguid);
 
     if(!pet || (pet != _player->GetPet() && pet != _player->GetCharm()))
     {
@@ -510,8 +505,7 @@ void WorldSession::HandlePetAbandon( WorldPacket & recv_data )
         return;
 
     // pet/charmed
-    Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, guid);
-    if(pet)
+    if (Creature* pet = _player->GetMap()->GetCreatureOrPetOrVehicle(guid))
     {
         if(pet->isPet())
         {
@@ -565,32 +559,29 @@ void WorldSession::HandlePetSpellAutocastOpcode( WorldPacket& recvPacket )
     uint8  state;                                           //1 for on, 0 for off
     recvPacket >> guid >> spellid >> state;
 
-    if (!_player->GetPet() && !_player->GetCharm())
+    if(!_player->GetPet() && !_player->GetCharm())
         return;
 
-    if(ObjectAccessor::FindPlayer(guid))
-        return;
+    Creature* pet = _player->GetMap()->GetCreatureOrPetOrVehicle(guid);
 
-    Creature* pet=ObjectAccessor::GetCreatureOrPetOrVehicle(*_player,guid);
-
-    if (!pet || (pet != _player->GetPet() && pet != _player->GetCharm()))
+    if(!pet || (pet != _player->GetPet() && pet != _player->GetCharm()))
     {
         sLog.outError( "HandlePetSpellAutocastOpcode.Pet %u isn't pet of player %s .", uint32(GUID_LOPART(guid)),GetPlayer()->GetName() );
         return;
     }
 
     // do not add not learned spells/ passive spells
-    if (!pet->HasSpell(spellid) || IsPassiveSpell(spellid))
+    if(!pet->HasSpell(spellid) || IsPassiveSpell(spellid))
         return;
 
     CharmInfo *charmInfo = pet->GetCharmInfo();
-    if (!charmInfo)
+    if(!charmInfo)
     {
         sLog.outError("WorldSession::HandlePetSpellAutocastOpcod: object (GUID: %u TypeId: %u) is considered pet-like but doesn't have a charminfo!", pet->GetGUIDLow(), pet->GetTypeId());
         return;
     }
 
-    if (pet->isCharmed())
+    if(pet->isCharmed())
                                                             //state can be used as boolean
         pet->GetCharmInfo()->ToggleCreatureAutocast(spellid, state);
     else
@@ -615,10 +606,7 @@ void WorldSession::HandlePetCastSpellOpcode( WorldPacket& recvPacket )
     if (!_player->GetPet() && !_player->GetCharm())
         return;
 
-    if (GUID_HIPART(guid) == HIGHGUID_PLAYER)
-        return;
-
-    Creature* pet = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player,guid);
+    Creature* pet = _player->GetMap()->GetCreatureOrPetOrVehicle(guid);
 
     if (!pet || (pet != _player->GetPet() && pet!= _player->GetCharm()))
     {
@@ -641,8 +629,8 @@ void WorldSession::HandlePetCastSpellOpcode( WorldPacket& recvPacket )
         return;
 
     SpellCastTargets targets;
-    if (!targets.read(&recvPacket,pet,spellInfo))
-        return;
+
+    recvPacket >> targets.ReadForCaster(pet);
 
     pet->clearUnitState(UNIT_STAT_MOVING);
 

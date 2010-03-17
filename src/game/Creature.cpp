@@ -21,7 +21,7 @@
 #include "WorldPacket.h"
 #include "World.h"
 #include "ObjectMgr.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 #include "SpellMgr.h"
 #include "Creature.h"
 #include "QuestDef.h"
@@ -43,7 +43,6 @@
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
-#include "Vehicle.h"
 
 // apply implementation of the singletons
 #include "Policies/SingletonImp.h"
@@ -116,7 +115,7 @@ Creature::Creature(CreatureSubtype subtype) :
 Unit(), i_AI(NULL),
 lootForPickPocketed(false), lootForBody(false), m_groupLootTimer(0), m_groupLootId(0),
 m_lootMoney(0), m_lootRecipient(0),
-m_deathTimer(0), m_respawnTime(0), m_respawnDelay(25), m_corpseDelay(60), m_respawnradius(0.0f),
+m_deathTimer(0), m_respawnTime(0), m_respawnDelay(25), m_corpseDelay(60), m_respawnradius(5.0f),
 m_subtype(subtype), m_defaultMovementType(IDLE_MOTION_TYPE), m_DBTableGuid(0), m_equipmentId(0),
 m_AlreadyCallAssistance(false), m_AlreadySearchedAssistance(false),
 m_regenHealth(true), m_AI_locked(false), m_isDeadByDefault(false), m_needNotify(false),
@@ -151,7 +150,7 @@ Creature::~Creature()
 void Creature::AddToWorld()
 {
     ///- Register the creature for guid lookup
-    if(!IsInWorld() && GetGUIDHigh() == HIGHGUID_UNIT)
+    if(!IsInWorld() && GetObjectGuid().GetHigh() == HIGHGUID_UNIT)
         GetMap()->GetObjectsStore().insert<Creature>(GetGUID(), (Creature*)this);
 
     Unit::AddToWorld();
@@ -160,7 +159,7 @@ void Creature::AddToWorld()
 void Creature::RemoveFromWorld()
 {
     ///- Remove the creature from the accessor
-    if(IsInWorld() && GetGUIDHigh() == HIGHGUID_UNIT)
+    if(IsInWorld() && GetObjectGuid().GetHigh() == HIGHGUID_UNIT)
         GetMap()->GetObjectsStore().erase<Creature>(GetGUID(), (Creature*)NULL);
 
     Unit::RemoveFromWorld();
@@ -266,17 +265,15 @@ bool Creature::InitEntry(uint32 Entry, uint32 team, const CreatureData *data )
 
     SetFloatValue(UNIT_MOD_CAST_SPEED, 1.0f);
 
-    SetSpeedRate(MOVE_WALK, cinfo->speed );
-    SetSpeedRate(MOVE_RUN,  cinfo->speed );
-    SetSpeedRate(MOVE_SWIM, cinfo->speed );
-	SetSpeedRate(MOVE_FLIGHT, cinfo->speed );
+    SetSpeedRate(MOVE_WALK, cinfo->speed_walk);
+    SetSpeedRate(MOVE_RUN,  cinfo->speed_run);
+    SetSpeedRate(MOVE_SWIM, 1.0f);                          // using 1.0 rate
+    SetSpeedRate(MOVE_FLIGHT, 1.0f);                        // using 1.0 rate
 
     SetFloatValue(OBJECT_FIELD_SCALE_X, cinfo->scale);
 
     // checked at loading
     m_defaultMovementType = MovementGeneratorType(cinfo->MovementType);
-    if(!m_respawnradius && m_defaultMovementType == RANDOM_MOTION_TYPE)
-        m_defaultMovementType = IDLE_MOTION_TYPE;
 
     return true;
 }
@@ -1064,7 +1061,7 @@ bool Creature::CreateFromProto(uint32 guidlow, uint32 Entry, uint32 team, const 
     }
     m_originalEntry = Entry;
 
-   Object::_Create(guidlow, Entry, HIGHGUID_UNIT);
+    Object::_Create(guidlow, Entry, HIGHGUID_UNIT);
 
     if (!UpdateEntry(Entry, team, data, false))
         return false;
@@ -1290,8 +1287,6 @@ void Creature::setDeathState(DeathState s)
         }
 
         Unit::setDeathState(CORPSE);
-        if(isVehicle())
-            ((Vehicle*)this)->Die();
     }
     if (s == JUST_ALIVED)
     {
@@ -1394,32 +1389,6 @@ bool Creature::IsImmunedToSpellEffect(SpellEntry const* spellInfo, SpellEffectIn
         // Spell effect taunt check
         else if (spellInfo->Effect[index] == SPELL_EFFECT_ATTACK_ME)
             return true;
-    }
-
-    // Heal immunity
-    if (isVehicle() && !(((Vehicle*)this)->GetVehicleFlags() & VF_CAN_BE_HEALED))
-    {
-        switch(spellInfo->Effect[index])
-        {
-            case SPELL_EFFECT_APPLY_AURA:
-                switch(spellInfo->EffectApplyAuraName[index])
-                {
-                    case SPELL_AURA_PERIODIC_HEAL:
-                    case SPELL_AURA_OBS_MOD_HEALTH:
-                    case SPELL_AURA_PERIODIC_HEALTH_FUNNEL:
-                    case SPELL_AURA_MOD_REGEN:
-                        return true;
-                    default: break;
-                }
-                break;
-            case SPELL_EFFECT_HEAL:
-            case SPELL_EFFECT_HEAL_MAX_HEALTH:
-            // NOTE : this too?
-            case SPELL_EFFECT_HEAL_MECHANICAL:
-            case SPELL_EFFECT_HEAL_PCT:
-                return true;
-            default : break;
-        }
     }
 
     return Unit::IsImmunedToSpellEffect(spellInfo, index);
@@ -1890,29 +1859,6 @@ bool Creature::IsInEvadeMode() const
     return !i_motionMaster.empty() && i_motionMaster.GetCurrentMovementGeneratorType() == HOME_MOTION_TYPE;
 }
 
-float Creature::GetBaseSpeed() const
-{
-    if( isPet() )
-    {
-        switch( ((Pet*)this)->getPetType() )
-        {
-            case HUNTER_PET:
-            {
-                //fixed speed fur hunter (and summon!?) pets
-                return 1.10f;
-            }
-            case SUMMON_PET:
-            case GUARDIAN_PET:
-            case MINI_PET:
-            {
-                //speed of CreatureInfo for guardian- and minipets
-                break;
-            }
-        }
-    }
-    return m_creatureInfo->speed;
-}
-
 bool Creature::HasSpell(uint32 spellID) const
 {
     uint8 i;
@@ -1945,7 +1891,7 @@ void Creature::GetRespawnCoord( float &x, float &y, float &z, float* ori, float*
             if (ori)
                 *ori = data->orientation;
             if (dist)
-                *dist = data->spawndist;
+                *dist = GetRespawnRadius();
 
             return;
         }

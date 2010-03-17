@@ -544,9 +544,6 @@ bool ChatHandler::HandleReloadAllCommand(const char*)
     HandleReloadReservedNameCommand("");
     HandleReloadMangosStringCommand("");
     HandleReloadGameTeleCommand("");
-
-    HandleReloadVehicleDataCommand("");
-    HandleReloadVehicleSeatDataCommand("");
     return true;
 }
 
@@ -683,7 +680,6 @@ bool ChatHandler::HandleReloadConfigCommand(const char* /*args*/)
     sLog.outString( "Re-Loading config settings..." );
     sWorld.LoadConfigSettings(true);
     sMapMgr.InitializeVisibilityDistanceInfo();
-    sMapMgr.InitializeVisibilityNotifyTimers();
     SendGlobalSysMessage("World config settings reloaded.");
     return true;
 }
@@ -1366,22 +1362,6 @@ bool ChatHandler::HandleReloadMailLevelRewardCommand(const char* /*arg*/)
     return true;
 }
 
-bool ChatHandler::HandleReloadVehicleDataCommand(const char*)
-{
-    sLog.outString( "Re-Loading `vehicle_data` Table!" );
-    sObjectMgr.LoadVehicleData();
-    SendGlobalSysMessage("DB table `vehicle_data` reloaded.");
-    return true;
-}
-
-bool ChatHandler::HandleReloadVehicleSeatDataCommand(const char*)
-{
-    sLog.outString( "Re-Loading `vehicle_seat_data` Table!" );
-    sObjectMgr.LoadVehicleSeatData();
-    SendGlobalSysMessage("DB table `vehicle_seat_data` reloaded.");
-    return true;
-}
-
 bool ChatHandler::HandleReloadSpellDisabledCommand(const char* /*arg*/)
 {
     sLog.outString( "Re-Loading spell disabled table...");
@@ -1389,6 +1369,7 @@ bool ChatHandler::HandleReloadSpellDisabledCommand(const char* /*arg*/)
     sObjectMgr.LoadSpellDisabledEntrys();
 
     SendGlobalSysMessage("DB table `spell_disabled` reloaded.");
+
     return true;
 }
 
@@ -3909,7 +3890,7 @@ bool ChatHandler::HandleGetDistanceCommand(const char* args)
     {
         uint64 guid = extractGuidFromLink((char*)args);
         if(guid)
-            obj = (WorldObject*)ObjectAccessor::GetObjectByTypeMask(*m_session->GetPlayer(),guid,TYPEMASK_UNIT|TYPEMASK_GAMEOBJECT);
+            obj = (WorldObject*)m_session->GetPlayer()->GetObjectByTypeMask(guid, TYPEMASK_CREATURE_OR_GAMEOBJECT);
 
         if(!obj)
         {
@@ -5931,7 +5912,7 @@ bool ChatHandler::HandleGMFlyCommand(const char* args)
         SendSysMessage(LANG_USE_BOL);
         return false;
     }
-    data.append(target->GetPackGUID());
+    data << target->GetPackGUID();
     data << uint32(0);                                      // unknown
     target->SendMessageToSet(&data, true);
     PSendSysMessage(LANG_COMMAND_FLYMODE_STATUS, GetNameLink(target).c_str(), args);
@@ -6122,7 +6103,6 @@ bool ChatHandler::HandleMovegensCommand(const char* /*args*/)
             case IDLE_MOTION_TYPE:          SendSysMessage(LANG_MOVEGENS_IDLE);          break;
             case RANDOM_MOTION_TYPE:        SendSysMessage(LANG_MOVEGENS_RANDOM);        break;
             case WAYPOINT_MOTION_TYPE:      SendSysMessage(LANG_MOVEGENS_WAYPOINT);      break;
-            case ANIMAL_RANDOM_MOTION_TYPE: SendSysMessage(LANG_MOVEGENS_ANIMAL_RANDOM); break;
             case CONFUSED_MOTION_TYPE:      SendSysMessage(LANG_MOVEGENS_CONFUSED);      break;
             case CHASE_MOTION_TYPE:
             {

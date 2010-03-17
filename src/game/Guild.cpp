@@ -45,9 +45,6 @@ Guild::Guild()
     m_CreatedMonth = 0;
     m_CreatedDay = 0;
 
-    m_EventLogLoaded = false;
-    m_GuildBankLoaded = false;
-    m_OnlineMembers = 0;
     m_GuildBankMoney = 0;
     m_PurchasedTabs = 0;
 
@@ -554,7 +551,7 @@ void Guild::BroadcastToGuild(WorldSession *session, const std::string& msg, uint
 
         for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
         {
-            Player *pl = ObjectAccessor::FindPlayer(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER));
+            Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
             if (pl && pl->GetSession() && HasRankRight(pl->GetRank(),GR_RIGHT_GCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetGUIDLow()) )
                 pl->GetSession()->SendPacket(&data);
@@ -571,7 +568,7 @@ void Guild::BroadcastToOfficers(WorldSession *session, const std::string& msg, u
             WorldPacket data;
             ChatHandler::FillMessageData(&data, session, CHAT_MSG_OFFICER, language, NULL, 0, msg.c_str(), NULL);
 
-            Player *pl = ObjectAccessor::FindPlayer(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER));
+            Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
             if (pl && pl->GetSession() && HasRankRight(pl->GetRank(),GR_RIGHT_OFFCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetGUIDLow()))
                 pl->GetSession()->SendPacket(&data);
@@ -583,7 +580,7 @@ void Guild::BroadcastPacket(WorldPacket *packet)
 {
     for(MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
     {
-        Player *player = ObjectAccessor::FindPlayer(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER));
+        Player *player = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
         if (player)
             player->GetSession()->SendPacket(packet);
     }
@@ -595,7 +592,7 @@ void Guild::BroadcastPacketToRank(WorldPacket *packet, uint32 rankId)
     {
         if (itr->second.RankId == rankId)
         {
-            Player *player = ObjectAccessor::FindPlayer(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER));
+            Player *player = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
             if (player)
                 player->GetSession()->SendPacket(packet);
         }
@@ -734,7 +731,7 @@ void Guild::Roster(WorldSession *session /*= NULL*/)
     }
     for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
     {
-        if (Player *pl = ObjectAccessor::FindPlayer(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER)))
+        if (Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first)))
         {
             data << uint64(pl->GetGUID());
             data << uint8(1);
@@ -749,7 +746,7 @@ void Guild::Roster(WorldSession *session /*= NULL*/)
         }
         else
         {
-            data << uint64(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER));
+            data << ObjectGuid(HIGHGUID_PLAYER, itr->first);
             data << uint8(0);
             data << itr->second.Name;
             data << uint32(itr->second.RankId);
@@ -813,14 +810,6 @@ void Guild::UpdateLogoutTime(uint64 guid)
         return;
 
     itr->second.LogoutTime = time(NULL);
-
-    if (m_OnlineMembers > 0)
-        --m_OnlineMembers;
-    else
-    {
-        UnloadGuildBank();
-        UnloadGuildEventLog();
-    }
 }
 
 // *************************************************
@@ -829,10 +818,6 @@ void Guild::UpdateLogoutTime(uint64 guid)
 // Display guild eventlog
 void Guild::DisplayGuildEventLog(WorldSession *session)
 {
-    // Load guild eventlog, if not already done
-    if (!m_EventLogLoaded)
-        LoadGuildEventLogFromDB();
-
     // Sending result
     WorldPacket data(MSG_GUILD_EVENT_LOG_QUERY, 0);
     // count, max count == 100
@@ -859,10 +844,6 @@ void Guild::DisplayGuildEventLog(WorldSession *session)
 // Load guild eventlog from DB
 void Guild::LoadGuildEventLogFromDB()
 {
-    // Return if already loaded
-    if (m_EventLogLoaded)
-        return;
-
     //                                                     0        1          2            3            4        5
     QueryResult *result = CharacterDatabase.PQuery("SELECT LogGuid, EventType, PlayerGuid1, PlayerGuid2, NewRank, TimeStamp FROM guild_eventlog WHERE guildid=%u ORDER BY TimeStamp DESC,LogGuid DESC LIMIT %u", m_Id, GUILD_EVENTLOG_MAX_RECORDS);
     if (!result)
@@ -895,18 +876,6 @@ void Guild::LoadGuildEventLogFromDB()
 
     } while( result->NextRow() );
     delete result;
-
-    m_EventLogLoaded = true;
-}
-
-// Unload guild eventlog
-void Guild::UnloadGuildEventLog()
-{
-    if (!m_EventLogLoaded)
-        return;
-
-    m_GuildEventLog.clear();
-    m_EventLogLoaded = false;
 }
 
 // Add entry to guild eventlog
@@ -1007,7 +976,7 @@ void Guild::DisplayGuildBankContentUpdate(uint8 TabId, int32 slot1, int32 slot2)
 
     for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
     {
-        Player *player = ObjectAccessor::FindPlayer(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER));
+        Player *player = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
         if (!player)
             continue;
 
@@ -1042,7 +1011,7 @@ void Guild::DisplayGuildBankContentUpdate(uint8 TabId, GuildItemPosCountVec cons
 
     for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
     {
-        Player *player = ObjectAccessor::FindPlayer(MAKE_NEW_GUID(itr->first, 0, HIGHGUID_PLAYER));
+        Player *player = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
         if (!player)
             continue;
 
@@ -1069,10 +1038,6 @@ Item* Guild::GetItem(uint8 TabId, uint8 SlotId)
 
 void Guild::DisplayGuildBankTabsInfo(WorldSession *session)
 {
-    // Time to load bank if not already done
-    if (!m_GuildBankLoaded)
-        LoadGuildBankFromDB();
-
     WorldPacket data(SMSG_GUILD_BANK_LIST, 500);
 
     data << uint64(GetGuildBankMoney());
@@ -1133,17 +1098,11 @@ uint32 Guild::GetBankRights(uint32 rankId, uint8 TabId) const
 }
 
 // *************************************************
-// Guild bank loading/unloading related
+// Guild bank loading related
 
-// This load should be called when the bank is first accessed by a guild member
+// This load should be called on startup only
 void Guild::LoadGuildBankFromDB()
 {
-    if (m_GuildBankLoaded)
-        return;
-
-    m_GuildBankLoaded = true;
-    LoadGuildBankEventLogFromDB();
-
     //                                                     0      1        2        3
     QueryResult *result = CharacterDatabase.PQuery("SELECT TabId, TabName, TabIcon, TabText FROM guild_bank_tab WHERE guildid='%u' ORDER BY TabId", m_Id);
     if (!result)
@@ -1219,28 +1178,7 @@ void Guild::LoadGuildBankFromDB()
 
     delete result;
 }
-// This unload should be called when the last member of the guild gets offline
-void Guild::UnloadGuildBank()
-{
-    if (!m_GuildBankLoaded)
-        return;
-    for (uint8 i = 0 ; i < m_PurchasedTabs ; ++i )
-    {
-        for (uint8 j = 0 ; j < GUILD_BANK_MAX_SLOTS ; ++j)
-        {
-            if (m_TabListMap[i]->Slots[j])
-            {
-                m_TabListMap[i]->Slots[j]->RemoveFromWorld();
-                delete m_TabListMap[i]->Slots[j];
-            }
-        }
-        delete m_TabListMap[i];
-    }
-    m_TabListMap.clear();
 
-    UnloadGuildBankEventLog();
-    m_GuildBankLoaded = false;
-}
 // *************************************************
 // Money deposit/withdraw related
 
@@ -1558,13 +1496,7 @@ void Guild::LoadGuildBankEventLogFromDB()
     } while (result->NextRow());
     delete result;
 }
-void Guild::UnloadGuildBankEventLog()
-{
-    m_GuildBankEventLog_Money.clear();
 
-    for (int i = 0; i < GUILD_BANK_MAX_TABS; ++i)
-        m_GuildBankEventLog_Item[i].clear();
-}
 void Guild::DisplayGuildBankLogs(WorldSession *session, uint8 TabId)
 {
     if (TabId > GUILD_BANK_MAX_TABS)

@@ -28,7 +28,6 @@
 #include "Group.h"
 #include "SocialMgr.h"
 #include "Util.h"
-#include "Vehicle.h"
 
 /* differeces from off:
     -you can uninvite yourself - is is useful
@@ -370,11 +369,11 @@ void WorldSession::HandleLootMethodOpcode( WorldPacket & recv_data )
 
 void WorldSession::HandleLootRoll( WorldPacket &recv_data )
 {
-    uint64 Guid;
-    uint32 NumberOfPlayers;
+    ObjectGuid lootedTarget;
+    uint32 itemSlot;
     uint8  rollType;
-    recv_data >> Guid;                                      //guid of the item rolled
-    recv_data >> NumberOfPlayers;
+    recv_data >> lootedTarget;                                  //guid of the item rolled
+    recv_data >> itemSlot;
     recv_data >> rollType;
 
     //sLog.outDebug("WORLD RECIEVE CMSG_LOOT_ROLL, From:%u, Numberofplayers:%u, rollType:%u", (uint32)Guid, NumberOfPlayers, rollType);
@@ -384,7 +383,7 @@ void WorldSession::HandleLootRoll( WorldPacket &recv_data )
         return;
 
     // everything's fine, do it
-    group->CountRollVote(GetPlayer()->GetGUID(), Guid, NumberOfPlayers, rollType);
+    group->CountRollVote(GetPlayer()->GetObjectGuid(), lootedTarget, itemSlot, rollType);
 
     switch (rollType)
     {
@@ -636,7 +635,7 @@ void WorldSession::BuildPartyMemberStatsChangedPacket(Player *player, WorldPacke
             byteCount += GroupUpdateLength[i];
 
     data->Initialize(SMSG_PARTY_MEMBER_STATS, 8 + 4 + byteCount);
-    data->append(player->GetPackGUID());
+    *data << player->GetPackGUID();
     *data << (uint32) mask;
 
     if (mask & GROUP_UPDATE_FLAG_STATUS)
@@ -691,7 +690,7 @@ void WorldSession::BuildPartyMemberStatsChangedPacket(Player *player, WorldPacke
         }
     }
 
-    Unit *pet = player->GetCharmOrPet();
+    Pet *pet = player->GetPet();
     if (mask & GROUP_UPDATE_FLAG_PET_GUID)
     {
         if(pet)
@@ -774,11 +773,6 @@ void WorldSession::BuildPartyMemberStatsChangedPacket(Player *player, WorldPacke
         else
             *data << (uint64) 0;
     }
-
-    if (mask & GROUP_UPDATE_FLAG_VEHICLE_SEAT)
-    {
-        *data << (uint32) player->m_SeatData.dbc_seat;
-    }
 }
 
 /*this procedure handles clients CMSG_REQUEST_PARTY_MEMBER_STATS request*/
@@ -800,15 +794,15 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode( WorldPacket &recv_data )
         return;
     }
 
-    Unit *pet = player->GetCharmOrPet();
+    Pet *pet = player->GetPet();
 
     WorldPacket data(SMSG_PARTY_MEMBER_STATS_FULL, 4+2+2+2+1+2*6+8+1+8);
     data << uint8(0);                                       // only for SMSG_PARTY_MEMBER_STATS_FULL, probably arena/bg related
-    data.append(player->GetPackGUID());
+    data << player->GetPackGUID();
 
     uint32 mask1 = 0x00040BFF;                              // common mask, real flags used 0x000040BFF
     if(pet)
-        mask1 = 0xFFFFFFFF;                                 // for hunters and other classes with pets
+        mask1 = 0x7FFFFFFF;                                 // for hunters and other classes with pets
 
     Powers powerType = player->getPowerType();
     data << (uint32) mask1;                                 // group update mask
@@ -862,7 +856,6 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode( WorldPacket &recv_data )
             }
         }
         data.put<uint64>(petMaskPos,petauramask);           // GROUP_UPDATE_FLAG_PET_AURAS
-        data << (uint32) player->m_SeatData.dbc_seat;
     }
     else
     {

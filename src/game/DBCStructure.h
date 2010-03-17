@@ -1145,8 +1145,8 @@ struct MovieEntry
 struct PvPDifficultyEntry
 {
     //uint32      id;                                       // 0        m_ID
-    uint32      mapId;                                      // 1  
-    uint32      bracketId;                                  // 2 
+    uint32      mapId;                                      // 1
+    uint32      bracketId;                                  // 2
     uint32      minLevel;                                   // 3
     uint32      maxLevel;                                   // 4
     uint32      difficulty;                                 // 5
@@ -1690,7 +1690,7 @@ struct VehicleEntry
     uint32  m_uiLocomotionType;                             // 34
     float   m_msslTrgtImpactTexRadius;                      // 35
     uint32  m_uiSeatIndicatorType;                          // 36
-    uint32  m_powerType;                                    // 37, new in 3.1                                                        // 37, new in 3.1
+                                                            // 37, new in 3.1
                                                             // 38, new in 3.1
                                                             // 39, new in 3.1
 };

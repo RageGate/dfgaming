@@ -79,12 +79,6 @@ float World::m_MaxVisibleDistanceInFlight     = DEFAULT_VISIBILITY_DISTANCE;
 float World::m_VisibleUnitGreyDistance        = 0;
 float World::m_VisibleObjectGreyDistance      = 0;
 
-int32 World::m_visibility_notify_periodOnContinents = DEFAULT_VISIBILITY_NOTIFY_PERIOD;
-int32 World::m_visibility_notify_periodInInstances  = DEFAULT_VISIBILITY_NOTIFY_PERIOD;
-int32 World::m_visibility_notify_periodInBGArenas   = DEFAULT_VISIBILITY_NOTIFY_PERIOD;
-
-const uint8 BGEvent[3] = {41, 42, 43};
-
 /// World constructor
 World::World()
 {
@@ -531,7 +525,6 @@ void World::LoadConfigSettings(bool reload)
     if (reload)
         sMapMgr.SetGridCleanUpDelay(getConfig(CONFIG_UINT32_INTERVAL_GRIDCLEAN));
 
-    m_configUint32Values[CONFIG_NUMTHREADS] = sConfig.GetIntDefault("MapUpdate.Threads", 1);
     setConfigMin(CONFIG_UINT32_INTERVAL_MAPUPDATE, "MapUpdateInterval", 100, MIN_MAP_UPDATE_DELAY);
     if (reload)
         sMapMgr.SetMapUpdateInterval(getConfig(CONFIG_UINT32_INTERVAL_MAPUPDATE));
@@ -601,8 +594,6 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_BOOL_INSTANCE_IGNORE_LEVEL, "Instance.IgnoreLevel", false);
     setConfig(CONFIG_BOOL_INSTANCE_IGNORE_RAID,  "Instance.IgnoreRaid", false);
-    //Custom variable - end arena if 2v1 etc.
-    m_configBoolValues[CONFIG_BOOL_END_ARENA_IF_NOT_ENOUGH_PLAYERS] = sConfig.GetBoolDefault("EndArenaIfNotEnoughtPlayers", false);
 
     setConfig(CONFIG_BOOL_CAST_UNSTUCK, "CastUnstuck", true);
     setConfig(CONFIG_UINT32_MAX_SPELL_CASTS_IN_CHAIN, "MaxSpellCastsInChain", 10);
@@ -736,6 +727,8 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_BOOL_OFFHAND_CHECK_AT_TALENTS_RESET, "OffhandCheckAtTalentsReset", false);
 
+    setConfig(CONFIG_BOOL_KICK_PLAYER_ON_BAD_PACKET, "Network.KickOnBadPacket", false);
+
     if(int clientCacheId = sConfig.GetIntDefault("ClientCacheVersion", 0))
     {
         // overwrite DB/old value
@@ -830,11 +823,7 @@ void World::LoadConfigSettings(bool reload)
         m_MaxVisibleDistanceInFlight = MAX_VISIBILITY_DISTANCE - m_VisibleObjectGreyDistance;
     }
 
-    m_visibility_notify_periodOnContinents = sConfig.GetIntDefault("Visibility.Notify.Period.OnContinents", DEFAULT_VISIBILITY_NOTIFY_PERIOD);
-    m_visibility_notify_periodInInstances = sConfig.GetIntDefault("Visibility.Notify.Period.InInstances",   DEFAULT_VISIBILITY_NOTIFY_PERIOD);
-    m_visibility_notify_periodInBGArenas = sConfig.GetIntDefault("Visibility.Notify.Period.InBGArenas",    DEFAULT_VISIBILITY_NOTIFY_PERIOD);  
-
-    //- Read the "Data" directory from the config file
+    ///- Read the "Data" directory from the config file
     std::string dataPath = sConfig.GetStringDefault("DataDir","./");
     if( dataPath.at(dataPath.length()-1)!='/' && dataPath.at(dataPath.length()-1)!='\\' )
         dataPath.append("/");
@@ -1214,11 +1203,6 @@ void World::SetInitialWorldSettings()
     sLog.outString( "Loading Scripts text locales..." );    // must be after Load*Scripts calls
     sObjectMgr.LoadDbScriptStrings();
 
-    sLog.outString( "Loading VehicleData..." );
-    sObjectMgr.LoadVehicleData();
-    sLog.outString( "Loading VehicleSeatData..." );
-    sObjectMgr.LoadVehicleSeatData();
-
     sLog.outString( "Loading CreatureEventAI Texts...");
     sEventAIMgr.LoadCreatureEventAI_Texts(false);       // false, will checked in LoadCreatureEventAI_Scripts
 
@@ -1301,6 +1285,7 @@ void World::SetInitialWorldSettings()
     auctionbot.Initialize();
 
     sLog.outString("Starting Autobroadcast system by Xeross..." );
+
     sLog.outString( "WORLD: World initialized" );
 
     uint32 uStartInterval = getMSTimeDiff(uStartTime, getMSTime());
@@ -1367,7 +1352,6 @@ void World::Update(uint32 diff)
     if(m_gameTime > m_NextDailyQuestReset)
     {
         ResetDailyQuests();
-        RandomBG();
         m_NextDailyQuestReset += DAY;
     }
 
@@ -1999,20 +1983,7 @@ void World::InitDailyQuestResetTime()
         m_NextDailyQuestReset = (curTime >= curDayResetTime) ? curDayResetTime + DAY : curDayResetTime;
     }
 }
-void World::RandomBG()
-{
-    //stop event
-    for(int i = 0; i < 3; i++)
-    {
-        sGameEventMgr.StopEvent(BGEvent[i]);
-        WorldDatabase.PExecute("UPDATE game_event SET occurence = 5184000 WHERE entry = %u", BGEvent[i]);
-    }
-    //add event     
-    uint8 random = urand(0,2);
-    sGameEventMgr.StartEvent(BGEvent[random]);
-    WorldDatabase.PExecute("UPDATE game_event SET occurence = 1400 WHERE entry = %u", BGEvent[random]);
 
-}
 void World::ResetDailyQuests()
 {
     sLog.outDetail("Daily quests reset for all characters.");
