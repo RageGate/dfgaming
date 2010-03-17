@@ -7,10 +7,6 @@ INSERT INTO spell_chain VALUES
 (63671, 63670, 3674, 5, 0),
 (63672, 63671, 3674, 6, 0);
 
-DELETE FROM spell_bonus_data WHERE entry = 3674;
-INSERT INTO spell_bonus_data VALUES
-(3674, 0, 1, 0.02, "Hunter - Black Arrow");
-
 DELETE FROM spell_chain WHERE spell_id IN (13812, 14314, 14315, 27026, 49064, 49065);
 INSERT INTO spell_chain VALUES
 (13812, 0, 13812, 1, 0),
@@ -19,10 +15,6 @@ INSERT INTO spell_chain VALUES
 (27026, 14315, 13812, 4, 0),
 (49064, 27026, 13812, 5, 0),
 (49065, 49064, 13812, 6, 0);
-
-DELETE FROM spell_bonus_data WHERE entry = 13812;
-INSERT INTO spell_bonus_data VALUES
-(13812, 1, 1.6, 0.1, "Hunter - Explosive Trap Effect");
 
 DELETE FROM `spell_chain` WHERE spell_id IN (13797, 14298, 14299, 14300, 14301, 27024, 49053, 49054);
 INSERT INTO `spell_chain` VALUES
@@ -34,7 +26,3 @@ INSERT INTO `spell_chain` VALUES
 ('27024','14301','13797','6','0'),
 ('49053','27024','13797','7','0'),
 ('49054','49053','13797','8','0');
-
-DELETE FROM spell_bonus_data WHERE entry = 13797;
-INSERT INTO spell_bonus_data VALUES
-(13797, 0, 0, 0, "Hunter - immolation trap Effect (magic = no RAP)");
