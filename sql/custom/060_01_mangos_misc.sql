@@ -4,8 +4,8 @@ DROP TABLE IF EXISTS `vehicle_seat_data`;
 
 ALTER TABLE `creature_addon`
 		DROP `vehicle_id`,
-		DROP `passangers`;
-		
+		DROP `passengers`;
+
 ALTER TABLE `creature_addon_template`
 		DROP `vehicle_id`,
-		DROP `passangers`;
+		DROP `passengers`;
