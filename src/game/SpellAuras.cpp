@@ -7802,7 +7802,8 @@ void Aura::PeriodicTick()
             m_target->SendPeriodicAuraLog(&pInfo);
 
             int32 gain = m_target->ModifyPower(power,pdamage);
-            if(Unit* pCaster = GetCaster())
+            Unit* pCaster = GetCaster();
+            if (pCaster && power != POWER_HAPPINESS)
                 m_target->getHostileRefManager().threatAssist(pCaster, float(gain) * 0.5f, GetSpellProto());
             break;
         }
