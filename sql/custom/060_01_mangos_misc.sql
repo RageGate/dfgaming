@@ -6,6 +6,6 @@ ALTER TABLE `creature_addon`
 		DROP `vehicle_id`,
 		DROP `passengers`;
 
-ALTER TABLE `creature_addon_template`
+ALTER TABLE `creature_template_addon`
 		DROP `vehicle_id`,
 		DROP `passengers`;
