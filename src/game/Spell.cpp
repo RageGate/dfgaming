@@ -2829,6 +2829,9 @@ void Spell::handle_immediate()
             // Apply duration mod
             if(Player* modOwner = m_caster->GetSpellModOwner())
                 modOwner->ApplySpellMod(m_spellInfo->Id, SPELLMOD_DURATION, duration);
+            //Apply haste rating
+            duration = ApplyHasteToChannelSpell(duration, m_spellInfo, this);
+
             m_spellState = SPELL_STATE_CASTING;
             SendChannelStart(duration);
         }
