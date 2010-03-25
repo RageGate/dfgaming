@@ -6610,6 +6610,9 @@ void Aura::HandleSpellSpecificBoosts(bool apply)
                 else
                     return;
             }
+            // Voidwalker: Consume Shadows
+            else if (m_spellProto->SpellFamilyFlags & UI64LIT(0x0000000002000000) && m_spellProto->SpellIconID == 207)
+                spellId1 = 54501;
             else
                 return;
             break;
