@@ -23,6 +23,10 @@
 #define _PACKAGENAME "MaNGOS"
 #endif
 
+#ifndef _DISTRIBUTION
+#define _DISTRIBUTION "OVcore v1_dev"
+#endif
+
 #include "Platform/Define.h"
 
 #ifndef _VERSION
@@ -91,7 +95,7 @@
 # define _REALMD_CONFIG  SYSCONFDIR"realmd.conf"
 #endif
 
-#define _FULLVERSION(REVD,REVT,REVN,REVH) _PACKAGENAME "/" _VERSION(REVD,REVT,REVN,REVH) " for " _ENDIAN_PLATFORM
+#define _FULLVERSION(REVD,REVT,REVN,REVH) _DISTRIBUTION " for " _ENDIAN_PLATFORM " based on "_PACKAGENAME "/" _VERSION(REVD,REVT,REVN,REVH)
 
 #define DEFAULT_PLAYER_LIMIT 100
 #define DEFAULT_WORLDSERVER_PORT 8085                       //8129
