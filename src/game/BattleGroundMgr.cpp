@@ -1146,16 +1146,15 @@ BattleGroundMgr::~BattleGroundMgr()
 
 void BattleGroundMgr::DeleteAllBattleGrounds()
 {
+    // will also delete template bgs:
     for(uint32 i = BATTLEGROUND_TYPE_NONE; i < MAX_BATTLEGROUND_TYPE_ID; i++)
-        for(BattleGroundSet::iterator itr = m_BattleGrounds[i].begin(); itr != m_BattleGrounds[i].end();)
-            delete itr->second;
-
-    // destroy template battlegrounds that listed only in queues (other already terminated)
-    for(uint32 bgTypeId = 0; bgTypeId < MAX_BATTLEGROUND_TYPE_ID; ++bgTypeId)
     {
-        // ~BattleGround call unregistring BG from queue
-        while(!BGFreeSlotQueue[bgTypeId].empty())
-            delete BGFreeSlotQueue[bgTypeId].front();
+        for(BattleGroundSet::iterator itr = m_BattleGrounds[i].begin(); itr != m_BattleGrounds[i].end();)
+        {
+            BattleGround * bg = itr->second;
+            itr++;
+            delete bg;
+        }
     }
 }
 
@@ -2083,8 +2082,8 @@ void BattleGroundMgr::LoadBattleEventIndexes()
     uint32 count = 0;
 
     QueryResult *result =
-        //                              0            1           2             3                     4           5           6
-        WorldDatabase.PQuery( "SELECT data.typ, data.guid1, data.ev1 AS ev1, data.ev2 AS ev2, data.map AS m, data.guid2, description.map, "
+        //                           0         1           2                3                4              5           6
+        WorldDatabase.Query( "SELECT data.typ, data.guid1, data.ev1 AS ev1, data.ev2 AS ev2, data.map AS m, data.guid2, description.map, "
         //                              7                  8                   9
                                       "description.event1, description.event2, description.description "
                                  "FROM "

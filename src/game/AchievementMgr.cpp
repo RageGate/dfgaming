@@ -29,6 +29,7 @@
 #include "SpellMgr.h"
 #include "ArenaTeam.h"
 #include "ProgressBar.h"
+#include "Mail.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
 #include "Language.h"
@@ -1829,9 +1830,7 @@ void AchievementMgr::CompletedAchievement(AchievementEntry const* achievement)
             }
         }
 
-        uint32 itemTextId = sObjectMgr.CreateItemText( text );
-
-        MailDraft draft(subject, itemTextId);
+        MailDraft draft(subject, text);
 
         if(item)
         {
@@ -1916,7 +1915,7 @@ void AchievementGlobalMgr::LoadAchievementCriteriaList()
         if(!criteria)
             continue;
 
-        assert(criteria->requiredType < ACHIEVEMENT_CRITERIA_TYPE_TOTAL && "Not updated ACHIEVEMENT_CRITERIA_TYPE_TOTAL?");
+        ASSERT(criteria->requiredType < ACHIEVEMENT_CRITERIA_TYPE_TOTAL && "Not updated ACHIEVEMENT_CRITERIA_TYPE_TOTAL?");
 
         m_AchievementCriteriasByType[criteria->requiredType].push_back(criteria);
         m_AchievementCriteriaListByAchievement[criteria->referredAchievement].push_back(criteria);
