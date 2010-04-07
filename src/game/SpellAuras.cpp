@@ -5980,75 +5980,43 @@ void Aura::HandleModDamageDone(bool apply, bool Real)
                 ((Player*)m_target)->_ApplyWeaponDependentAuraDamageMod(pItem, WeaponAttackType(i), this, apply);
     }
 
+    // ===================================================================
     // m_modifier.m_miscvalue is bitmask of spell schools
     // 1 ( 0-bit ) - normal school damage (SPELL_SCHOOL_MASK_NORMAL)
-    // 126 - full bitmask all magic damages (SPELL_SCHOOL_MASK_MAGIC) including wands
+    // 126 - full bitmask all magic damages (SPELL_SCHOOL_MASK_MAGIC)
     // 127 - full bitmask any damages
     //
     // mods must be applied base at equipped weapon class and subclass comparison
     // with spell->EquippedItemClass and  EquippedItemSubClassMask and EquippedItemInventoryTypeMask
-    // m_modifier.m_miscvalue comparison with item generated damage types
+    // m_modifier.m_miscvalue comparison with item intrinsic damage school
+    // ===================================================================
 
-    if((m_modifier.m_miscvalue & SPELL_SCHOOL_MASK_NORMAL) != 0)
-    {
-        // apply generic physical damage bonuses including wand case
-        if (GetSpellProto()->EquippedItemClass == -1 || m_target->GetTypeId() != TYPEID_PLAYER)
-        {
-            m_target->HandleStatModifier(UNIT_MOD_DAMAGE_MAINHAND, TOTAL_VALUE, float(m_modifier.m_amount), apply);
-            m_target->HandleStatModifier(UNIT_MOD_DAMAGE_OFFHAND, TOTAL_VALUE, float(m_modifier.m_amount), apply);
-            m_target->HandleStatModifier(UNIT_MOD_DAMAGE_RANGED, TOTAL_VALUE, float(m_modifier.m_amount), apply);
-        }
-        else
-        {
-            // done in Player::_ApplyWeaponDependentAuraMods
-        }
-
-        if(m_target->GetTypeId() == TYPEID_PLAYER)
-        {
-            if(m_positive)
-                m_target->ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS, m_modifier.m_amount, apply);
-            else
-                m_target->ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_NEG, m_modifier.m_amount, apply);
-        }
-    }
-
-    // Skip non magic case for speedup
-    if((m_modifier.m_miscvalue & SPELL_SCHOOL_MASK_MAGIC) == 0)
+    // skip the genric handling, if aura is weapon-dependent (note: ignore item requirements for non-players)
+    if (GetSpellProto()->EquippedItemClass != -1 && m_target->GetTypeId() == TYPEID_PLAYER)
         return;
 
-    if( GetSpellProto()->EquippedItemClass != -1 || GetSpellProto()->EquippedItemInventoryTypeMask != 0 )
-    {
-        // wand magic case (skip generic to all item spell bonuses)
-        // done in Player::_ApplyWeaponDependentAuraMods
-
-        // Skip item specific requirements for not wand magic damage
-        return;
-    }
-
-    // Magic damage modifiers implemented in Unit::SpellDamageBonus
-    // This information for client side use only
-    if(m_target->GetTypeId() == TYPEID_PLAYER)
-    {
-        if(m_positive)
+    // check, which school is contained in the bitmask
+    for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
+        if (m_modifier.m_miscvalue & (1 << i))
         {
-            for(int i = SPELL_SCHOOL_HOLY; i < MAX_SPELL_SCHOOL; ++i)
+            // apply to weapon damage if school mask fits
+            for (uint8 j = 0; j<3; ++j)
             {
-                if((m_modifier.m_miscvalue & (1<<i)) != 0)
-                    m_target->ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + i, m_modifier.m_amount, apply);
+                // from all we currently now, weapon damage mods MUST always contain SPELL_SCHOOL_MASK_NORMAL
+                // maybe this not correct for creatures? maybe there is also another criteria to differentiate?
+                SpellSchoolMask attSchoolMask = m_target->GetSchoolMaskForAttackType(WeaponAttackType(j));
+                if (attSchoolMask & SPELL_SCHOOL_MASK_NORMAL && attSchoolMask & (1 << i))
+                    m_target->HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + j), TOTAL_VALUE, float(m_modifier.m_amount), apply);
             }
-        }
-        else
-        {
-            for(int i = SPELL_SCHOOL_HOLY; i < MAX_SPELL_SCHOOL; ++i)
+            // send info to client, if target is a player
+            if (m_target->GetTypeId() == TYPEID_PLAYER)
             {
-                if((m_modifier.m_miscvalue & (1<<i)) != 0)
+               if(m_positive)
+                    m_target->ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + i, m_modifier.m_amount, apply);
+               else
                     m_target->ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_NEG + i, m_modifier.m_amount, apply);
             }
         }
-        Pet* pet = m_target->GetPet();
-        if(pet)
-            pet->UpdateAttackPowerAndDamage();
-    }
 }
 
 void Aura::HandleModDamagePercentDone(bool apply, bool Real)
@@ -6063,51 +6031,38 @@ void Aura::HandleModDamagePercentDone(bool apply, bool Real)
                 ((Player*)m_target)->_ApplyWeaponDependentAuraDamageMod(pItem, WeaponAttackType(i), this, apply);
     }
 
+    // ===================================================================
     // m_modifier.m_miscvalue is bitmask of spell schools
     // 1 ( 0-bit ) - normal school damage (SPELL_SCHOOL_MASK_NORMAL)
-    // 126 - full bitmask all magic damages (SPELL_SCHOOL_MASK_MAGIC) including wand
+    // 126 - full bitmask all magic damages (SPELL_SCHOOL_MASK_MAGIC)
     // 127 - full bitmask any damages
     //
     // mods must be applied base at equipped weapon class and subclass comparison
     // with spell->EquippedItemClass and  EquippedItemSubClassMask and EquippedItemInventoryTypeMask
-    // m_modifier.m_miscvalue comparison with item generated damage types
+    // m_modifier.m_miscvalue comparison with item intrinsic damage school
+    // ===================================================================
 
-    if((m_modifier.m_miscvalue & SPELL_SCHOOL_MASK_NORMAL) != 0)
-    {
-        // apply generic physical damage bonuses including wand case
-        if (GetSpellProto()->EquippedItemClass == -1 || m_target->GetTypeId() != TYPEID_PLAYER)
-        {
-            m_target->HandleStatModifier(UNIT_MOD_DAMAGE_MAINHAND, TOTAL_PCT, float(m_modifier.m_amount), apply);
-            m_target->HandleStatModifier(UNIT_MOD_DAMAGE_OFFHAND, TOTAL_PCT, float(m_modifier.m_amount), apply);
-            m_target->HandleStatModifier(UNIT_MOD_DAMAGE_RANGED, TOTAL_PCT, float(m_modifier.m_amount), apply);
-        }
-        else
-        {
-            // done in Player::_ApplyWeaponDependentAuraMods
-        }
-        // For show in client
-        if(m_target->GetTypeId() == TYPEID_PLAYER)
-            m_target->ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT, m_modifier.m_amount/100.0f, apply);
-    }
-
-    // Skip non magic case for speedup
-    if((m_modifier.m_miscvalue & SPELL_SCHOOL_MASK_MAGIC) == 0)
+    // skip the genric handling, if aura is weapon-dependent (note: ignore item requirements for non-players)
+    if (GetSpellProto()->EquippedItemClass != -1 && m_target->GetTypeId() == TYPEID_PLAYER)
         return;
 
-    if( GetSpellProto()->EquippedItemClass != -1 || GetSpellProto()->EquippedItemInventoryTypeMask != 0 )
-    {
-        // wand magic case (skip generic to all item spell bonuses)
-        // done in Player::_ApplyWeaponDependentAuraMods
-
-        // Skip item specific requirements for not wand magic damage
-        return;
-    }
-
-    // Magic damage percent modifiers implemented in Unit::SpellDamageBonus
-    // Send info to client
-    if(m_target->GetTypeId() == TYPEID_PLAYER)
-        for(int i = SPELL_SCHOOL_HOLY; i < MAX_SPELL_SCHOOL; ++i)
-            m_target->ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT + i, m_modifier.m_amount/100.0f, apply);
+    // check, which school is contained in the bitmask
+    for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
+        if (m_modifier.m_miscvalue & (1 << i))
+        {
+            // apply to weapon damage if school mask fits
+            for (uint8 j = 0; j<3; ++j)
+            {
+                // from all we currently now, weapon damage mods MUST always contain SPELL_SCHOOL_MASK_NORMAL
+                // maybe this not correct for creatures? maybe there is also another criteria to differentiate?
+                SpellSchoolMask attSchoolMask = m_target->GetSchoolMaskForAttackType(WeaponAttackType(j));
+                if (attSchoolMask & SPELL_SCHOOL_MASK_NORMAL && attSchoolMask & (1 << i))
+                    m_target->HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + j), TOTAL_PCT, float(m_modifier.m_amount), apply);
+            }
+            // send info to client, if target is a player
+            if (m_target->GetTypeId() == TYPEID_PLAYER)
+                m_target->ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT + i, m_modifier.m_amount/100.0f, apply);
+        }
 }
 
 void Aura::HandleModOffhandDamagePercent(bool apply, bool Real)
