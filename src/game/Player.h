@@ -98,12 +98,6 @@ struct PlayerSpell
 
 typedef UNORDERED_MAP<uint32, PlayerSpell> PlayerSpellMap;
 
-struct PlayerTalent
-{
-    PlayerSpellState state : 8;
-    uint8 spec             : 8;
-};
-
 // Spell modifier (used for modify other spells)
 struct SpellModifier
 {
@@ -129,7 +123,6 @@ struct SpellModifier
     Spell const* lastAffected;
 };
 
-typedef UNORDERED_MAP<uint32, PlayerTalent*> PlayerTalentMap;
 typedef std::list<SpellModifier*> SpellModList;
 
 struct SpellCooldown
@@ -172,11 +165,10 @@ enum ActionButtonType
 
 struct ActionButton
 {
-    ActionButton() : packedData(0), uState( ACTIONBUTTON_NEW ), canRemoveByClient(true){}
+    ActionButton() : packedData(0), uState( ACTIONBUTTON_NEW ) {}
 
     uint32 packedData;
     ActionButtonUpdateState uState;
-    bool canRemoveByClient;
 
     // helpers
     ActionButtonType GetType() const { return ActionButtonType(ACTION_BUTTON_TYPE(packedData)); }
@@ -901,8 +893,7 @@ enum PlayerLoginQueryIndex
     PLAYER_LOGIN_QUERY_LOADGLYPHS               = 22,
     PLAYER_LOGIN_QUERY_LOADMAILS                = 23,
     PLAYER_LOGIN_QUERY_LOADMAILEDITEMS          = 24,
-    PLAYER_LOGIN_QUERY_LOADTALENTS              = 25,
-    MAX_PLAYER_LOGIN_QUERY                      = 26
+    MAX_PLAYER_LOGIN_QUERY                      = 25
 };
 
 enum PlayerDelayedOperations
@@ -1565,9 +1556,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         void LearnTalent(uint32 talentId, uint32 talentRank);
         void LearnPetTalent(uint64 petGuid, uint32 talentId, uint32 talentRank);
 
-        bool AddTalent(uint32 spell, uint8 spec, bool learning);
-        bool HasTalent(uint32 spell_id, uint8 spec) const;
-
         uint32 CalculateTalentsPoints() const;
 
         // Dual Spec
@@ -1655,7 +1643,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         static bool IsActionButtonDataValid(uint8 button, uint32 action, uint8 type, Player* player, bool msg = true);
         ActionButton* addActionButton(uint8 spec, uint8 button, uint32 action, uint8 type);
         void removeActionButton(uint8 spec, uint8 button);
-        void SendInitialActionButtons(uint32 state) const;
+        void SendInitialActionButtons() const;
         ActionButton const* GetActionButton(uint8 button);
 
         PvPInfo pvpInfo;
@@ -2322,7 +2310,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         /***                   LOAD SYSTEM                     ***/
         /*********************************************************/
 
-        void _LoadActions(QueryResult *result, bool startup);
+        void _LoadActions(QueryResult *result);
         void _LoadAuras(QueryResult *result, uint32 timediff);
         void _LoadBoundInstances(QueryResult *result);
         void _LoadInventory(QueryResult *result, uint32 timediff);
@@ -2339,9 +2327,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         void _LoadArenaTeamInfo(QueryResult *result);
         void _LoadEquipmentSets(QueryResult *result);
         void _LoadBGData(QueryResult* result);
-        void _LoadGlyphs(QueryResult *result);
-		void _LoadTalents(QueryResult *result);
         void _LoadIntoDataField(const char* data, uint32 startOffset, uint32 count);
+        void _LoadGlyphs(QueryResult *result);
 
         /*********************************************************/
         /***                   SAVE SYSTEM                     ***/
@@ -2358,7 +2345,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         void _SaveEquipmentSets();
         void _SaveBGData();
         void _SaveGlyphs();
-		void _SaveTalents();
 
         void _SetCreateBits(UpdateMask *updateMask, Player *target) const;
         void _SetUpdateBits(UpdateMask *updateMask, Player *target) const;
@@ -2411,7 +2397,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         PlayerMails m_mail;
         PlayerSpellMap m_spells;
         SpellCooldowns m_spellCooldowns;
-		PlayerTalentMap *m_talents[MAX_TALENT_SPECS];
         uint32 m_lastPotionId;                              // last used health/mana potion in combat, that block next potion use
 
         uint8 m_activeSpec;
