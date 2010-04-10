@@ -1954,7 +1954,7 @@ void Pet::UpdateScalingAuras()
     {
         SpellEntry const* spellInfo = (*itr)->GetSpellProto();
         // check if we need to update aura
-        int32 amount = CalculateSpellDamage(spellInfo, (*itr)->GetEffIndex(), 0 ,this);
+        int32 amount = CalculateSpellDamage(this, spellInfo, (*itr)->GetEffIndex(), 0);
         if ((*itr)->GetModifier()->m_amount == amount)
             continue;
 
@@ -2168,7 +2168,7 @@ uint32 Pet::CalcScalingAuraBonus(SpellEntry const* spellInfo, uint8 effect_index
             scale = 1.0f;
             break;
         }
-        case SPELL_AURA_MELEE_SLOW:
+        case SPELL_AURA_SLOW_ALL:
         {
             // find owners maximum haste (== minimum speedPct factor)
             float cur = 1.0f, factor[3] = {owner->m_modAttackSpeedPct[BASE_ATTACK], m_modAttackSpeedPct[RANGED_ATTACK], owner->GetFloatValue(UNIT_MOD_CAST_SPEED)};
