@@ -1499,9 +1499,6 @@ Network.TcpNodelay = 1
 Network.KickOnBadPacket = 0
 
 ###################################################################################################################
-<<<<<<< HEAD
-# CONSOLE, REMOTE ACCESS AND SOAP
-=======
 # AUCTION HOUSE BOT SETTINGS
 #
 #    AuctionHouseBot.EnableSeller
