@@ -97,5 +97,5 @@ void IRCClient::run()
     // when sending chat or join/leave channels.
     // even when we are not connected the functions must still
     // be availlable where chat is sent to so we keep it running
-    while(!World::IsStopped()){};
+    // while(!World::IsStopped()){};
 }
