@@ -191,6 +191,7 @@ class IRCClient : public ACE_Based::Runnable
         int     CSAVEALL;
         int     CSHUTDOWN;
         int     CSPELL;
+        int     CSYSMSG;
         int     CTELE;
         int     CTOP;
         int     CWHO;

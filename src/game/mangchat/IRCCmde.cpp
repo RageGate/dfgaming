@@ -1254,6 +1254,72 @@ void IRCCmd::Lookup_Player(_CDATA *CD)
     }
 }
 
+void IRCCmd::Sysmsg_Server(_CDATA *CD)
+{
+    std::string* _PARAMS = getArray(CD->PARAMS, CD->PCOUNT);
+	std::string ircchan = "#";
+	ircchan += sIRC._irc_chan[sIRC.anchn].c_str();
+	if(_PARAMS[0] == "a")
+    {
+        std::string str = _PARAMS[1];
+        std::string ancmsg = MakeMsg("\00304,08\037/!\\\037\017\00304 Server Announcement \00304,08\037/!\\\037\017 %s",_PARAMS[1].c_str());
+        sWorld.SendWorldText(LANG_SYSTEMMESSAGE,str.c_str());
+		sIRC.Send_IRC_Channel(ircchan, ancmsg, true);
+    }
+    else if (_PARAMS[0] == "e")
+    {
+        std::string str = _PARAMS[1];
+        std::string notstr = "[Server Event]: " + _PARAMS[1];
+        std::string notmsg = MakeMsg("\00304,08\037/!\\\037\017\00304 Game Event \00304,08\037/!\\\037\017 %s",_PARAMS[1].c_str());
+        sWorld.SendWorldText(LANG_EVENTMESSAGE,str.c_str());
+		sIRC.Send_IRC_Channel(ircchan, notmsg, true);
+    }
+    else if (_PARAMS[0] == "n")
+    {
+        std::string str = "Global notify: " + _PARAMS[1];
+        std::string notmsg = MakeMsg("\00304,08\037/!\\\037\017\00304 Global Notify \00304,08\037/!\\\037\017 %s",_PARAMS[1].c_str());
+        WorldPacket data(SMSG_NOTIFICATION, (str.size()+1));
+        data << str;
+        sWorld.SendGlobalMessage(&data);
+		sIRC.Send_IRC_Channel(ircchan, notmsg, true);
+    }
+    /* NOT WORKING!!
+    else if (_PARAMS[0] == "add")
+    {
+        WorldDatabase.PExecute( "INSERT INTO IRC_AutoAnnounce (message, addedby) VALUES ('%s', '%s')", _PARAMS[1].c_str(), CD->USER.c_str());
+        std::string str = _PARAMS[1];
+        std::string ancmsg = MakeMsg("\00304,08\037/!\\\037\017\00304 Server Information \00304,08\037/!\\\037\017 %s",_PARAMS[1].c_str());
+        sWorld.SendWorldText(3000,str.c_str());
+        sIRC.Send_IRC_Channel(ircchan, ancmsg, true);
+    }
+    else if (_PARAMS[0] == "del")
+    {
+        WorldDatabase.PExecute( "DELETE FROM IRC_AutoAnnounce WHERE id = %s", _PARAMS[1].c_str());
+        Send_IRCA(ChanOrPM(CD), MakeMsg("Deleted Automatic Announcement Message ID: %s", _PARAMS[1].c_str()), true, CD->TYPE);
+    }
+    else if (_PARAMS[0] == "list")
+    {
+        QueryResult *result = WorldDatabase.PQuery("SELECT * FROM IRC_AutoAnnounce LIMIT 5;", _PARAMS[1].c_str());
+        if(result)
+        {
+            Field *fields = result->Fetch();
+            for (uint64 i=0; i < result->GetRowCount(); i++)
+            {
+                std::string id = fields[0].GetCppString();
+                std::string message = fields[1].GetCppString();
+                std::string addedby = fields[2].GetCppString();
+                Send_IRCA(ChanOrPM(CD), MakeMsg("ID: %s - Added By: %s - Message: %s", id.c_str(), addedby.c_str(), message.c_str()), true, CD->TYPE);
+                result->NextRow();
+            }
+            delete result;
+        }
+        else
+            Send_IRCA(CD->USER, "\0034[ERROR] : No Auto Announce Messages Are In The Database.", true, "ERROR");
+    }*/
+    else
+        Send_IRCA(CD->USER, "\0034[ERROR] : Please Use (a-Announce)(n-Notify)(e-Event) As Second Parameter!", true, "ERROR");
+}
+
 void IRCCmd::Level_Player(_CDATA *CD)
 {
     std::string* _PARAMS = getArray(CD->PARAMS, CD->PCOUNT);
@@ -1904,9 +1970,7 @@ void IRCCmd::GM_Ticket(_CDATA *CD)
             return;
         }
 
-        std::string escapedString = _PARAMS[2].c_str();
-        CharacterDatabase.escape_string(escapedString);
-        CharacterDatabase.PExecute("UPDATE character_ticket SET response_text = '%s' WHERE guid = '%u'", escapedString.c_str(), guid);
+        ticket->SetResponseText(_PARAMS[2].c_str());
 
         if (Player* pl = sObjectMgr.GetPlayer(guid))
             pl->GetSession()->SendGMResponse(ticket);

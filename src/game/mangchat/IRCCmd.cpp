@@ -477,6 +477,23 @@ bool IRCCmd::IsValid(std::string USER, std::string FROM, std::string CHAT, std::
             }
             cValid = true;
         }
+        else if(CDATA.CMD == "SYSMSG")
+        {
+            CDATA.PCOUNT = 2;
+            switch(ParamsValid(&CDATA, 2, sIRC.CSYSMSG))
+            {
+                case E_OK:
+                    Sysmsg_Server(&CDATA);
+                    break;
+                case E_SIZE:
+                    sIRC.Send_IRC_Channel(USER, "\0034[ERROR] : Syntax Error! ( "+sIRC._cmd_prefx+"sysmsg <a/e/n/add/del/list> <Message> )", true, "ERROR");
+                    break;
+                case E_AUTH:
+                    AuthValid = false;
+                    break;
+            }
+            cValid = true;
+        }
         else if(CDATA.CMD == "TELE")
         {
             switch(ParamsValid(&CDATA, 2, sIRC.CTELE))

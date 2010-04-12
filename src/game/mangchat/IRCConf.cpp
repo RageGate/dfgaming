@@ -128,6 +128,7 @@ bool IRCClient::LoadConfig(char const* cfgfile)
             if (command == "saveall") sIRC.CSAVEALL = gmlvl;
             if (command == "shutdown") sIRC.CSHUTDOWN = gmlvl;
             if (command == "spell") sIRC.CSPELL = gmlvl;
+            if (command == "sysmsg") sIRC.CSPELL = gmlvl;
             if (command == "tele") sIRC.CTELE = gmlvl;
             if (command == "top") sIRC.CTOP = gmlvl;
             if (command == "who") sIRC.CWHO = gmlvl;
@@ -160,6 +161,7 @@ bool IRCClient::LoadConfig(char const* cfgfile)
         sIRC.CSAVEALL  = 3;
         sIRC.CSHUTDOWN = 3;
         sIRC.CSPELL    = 3;
+        sIRC.CSYSMSG   = 3;
         sIRC.CTELE     = 3;
         sIRC.CTOP      = 3;
         sIRC.CWHO      = 3;

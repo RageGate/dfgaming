@@ -106,6 +106,7 @@ private:
     void    Saveall_Player(_CDATA *CD);
     void    Shutdown_Mangos(_CDATA *CD);
     void    Spell_Player(_CDATA *CD);
+    void    Sysmsg_Server(_CDATA *CD);
     void    Tele_Player(_CDATA *CD);
     void    Top_Player(_CDATA *CD);
     void    Who_Logged(_CDATA *CD);
