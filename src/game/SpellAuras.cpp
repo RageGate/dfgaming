@@ -2511,17 +2511,9 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 if (m_spellProto->Id == 34026)              // kill command, cast spell
                 {
                     Unit* p_caster = GetCaster();
-                    if(!p_caster || p_caster->GetTypeId() != TYPEID_PLAYER)
+                    if(!p_caster || p_caster->GetTypeId() != TYPEID_PLAYER || !p_caster->GetPet())
                         return;
 
-                    // check pet
-                    if( !p_caster->GetPet() )
-                    {
-                        Spell::SendCastResult((Player*)p_caster, m_spellProto, 0, SPELL_FAILED_NO_PET);
-                        ((Player*)p_caster)->RemoveSpellCooldown(m_spellProto->Id, true);
-                        SetAuraDuration(0);
-                        return;
-                    }
                     // caster spellmods (+ pet's dummy aura)
                     p_caster->CastSpell(p_caster,34027,true,NULL,this);
 
@@ -2671,16 +2663,6 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 m_target->CastSpell(m_target, 58601, true);
                 // Parachute
                 m_target->CastSpell(m_target, 45472, true);
-                return;
-            }
-            case 58914:                                     // kill command, pet aura
-            {
-                // remove owner auras
-                Unit* caster = GetCaster();
-                if(!caster)
-                    return;
-                // the spellmod aura (owner)
-                caster->RemoveAurasDueToSpell(34027);
                 return;
             }
             case 59907:                                     // Lightwell charges - despawn creature if no charges remain

@@ -5083,6 +5083,10 @@ SpellCastResult Spell::CheckCast(bool strict)
                         if(m_caster->GetTypeId() != TYPEID_PLAYER || !((Player*)m_caster)->IsInFeralForm())
                             return SPELL_FAILED_ONLY_SHAPESHIFT;
                         break;
+                    case 34026:
+                        if(!m_caster->GetPet())
+                            return SPELL_FAILED_NO_PET;
+                        break;
                     default:
                         break;
                 }
