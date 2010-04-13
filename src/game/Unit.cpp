@@ -11508,8 +11508,10 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
     }
 
     float bonus = non_stack_bonus > stack_bonus ? non_stack_bonus : stack_bonus;
+    // apply creatures base speed mod (creature_template)
+    float speed  = (GetTypeId() == TYPEID_UNIT) ? ((Creature*)this)->GetBaseSpeedMod(mtype) : 1.0f;
     // now we ready for speed calculation
-    float speed  = main_speed_mod ? bonus*(100.0f + main_speed_mod)/100.0f : bonus;
+    speed *= main_speed_mod ? bonus*(100.0f + main_speed_mod)/100.0f : bonus;
 
     switch(mtype)
     {

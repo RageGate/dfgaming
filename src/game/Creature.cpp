@@ -260,10 +260,10 @@ bool Creature::InitEntry(uint32 Entry, uint32 team, const CreatureData *data )
 
     SetFloatValue(UNIT_MOD_CAST_SPEED, 1.0f);
 
-    SetSpeedRate(MOVE_WALK, cinfo->speed_walk);
-    SetSpeedRate(MOVE_RUN,  cinfo->speed_run);
-    SetSpeedRate(MOVE_SWIM, 1.0f);                          // using 1.0 rate
-    SetSpeedRate(MOVE_FLIGHT, 1.0f);                        // using 1.0 rate
+    SetSpeedRate(MOVE_WALK,   GetBaseSpeedMod(MOVE_WALK));
+    SetSpeedRate(MOVE_RUN,    GetBaseSpeedMod(MOVE_RUN));
+    SetSpeedRate(MOVE_SWIM,   GetBaseSpeedMod(MOVE_SWIM));  // using 1.0 rate
+    SetSpeedRate(MOVE_FLIGHT, GetBaseSpeedMod(MOVE_FLIGHT));// using 1.0 rate
 
     SetFloatValue(OBJECT_FIELD_SCALE_X, cinfo->scale);
 
@@ -1870,6 +1870,31 @@ bool Creature::HasSpellCooldown(uint32 spell_id) const
 bool Creature::IsInEvadeMode() const
 {
     return !i_motionMaster.empty() && i_motionMaster.GetCurrentMovementGeneratorType() == HOME_MOTION_TYPE;
+}
+
+float Creature::GetBaseSpeedMod(UnitMoveType mtype) const
+{
+    switch(mtype)
+    {
+        case MOVE_WALK:
+        {
+            if (isPet() && ((Pet*)this)->getPetType() == HUNTER_PET)
+                return 1.0f;
+            else
+                return GetCreatureInfo()->speed_walk;
+        }
+        case MOVE_RUN:
+        {
+             if (isPet() && ((Pet*)this)->getPetType() == HUNTER_PET)
+                return 8.0f/7.0f;
+            else
+                return GetCreatureInfo()->speed_run;
+        }
+        default:
+            break;
+    }
+
+    return 1.0f;
 }
 
 bool Creature::HasSpell(uint32 spellID) const
