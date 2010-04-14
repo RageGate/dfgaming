@@ -328,7 +328,7 @@ void IRCCmd::Char_Player(_CDATA *CD)
                     //does player have the skill yet
                     if (plr->GetSkillValue(skill))
                     {
-                        plr->SetSkill(skill,plr->GetSkillStep(skill),level,max);
+                        plr->SetSkill(skill,level,max);
                         Send_Player(plr, MakeMsg("Skill: %s Has Been Set To Level: %i Max: %i By: %s",skilllookup->name[0], level, max, CD->USER.c_str()));
                         Send_IRCA(ChanOrPM(CD), MakeMsg("\00313[%s] : Has Had Skill: %s Set To Level: %d Max: %d",_PARAMS[0].c_str() , skilllookup->name[0], level, max), true, CD->TYPE);
                     }
