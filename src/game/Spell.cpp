@@ -5464,8 +5464,12 @@ SpellCastResult Spell::CheckRange(bool strict)
 
 int32 Spell::CalculatePowerCost()
 {
-    // item cast and triggered not use power
-    if (m_CastItem || m_IsTriggeredSpell)
+    // item cast not used power
+    if (m_CastItem)
+        return 0;
+
+    // HACK: Slam trigger and "master of ghouls" (passive dk talent)
+    if (m_spellInfo->Id == 50782 || m_spellInfo->Id == 52143)
         return 0;
 
     // Spell drain all exist power on cast (Only paladin lay of Hands)
@@ -5532,8 +5536,8 @@ int32 Spell::CalculatePowerCost()
 
 SpellCastResult Spell::CheckPower()
 {
-    // item cast, and triggered not use power
-    if(m_CastItem || m_IsTriggeredSpell)
+    // item cast not used power
+    if(m_CastItem)
         return SPELL_CAST_OK;
 
     // Do precise power regen on spell cast
