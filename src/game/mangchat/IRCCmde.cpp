@@ -1736,6 +1736,11 @@ void IRCCmd::Tele_Player(_CDATA *CD)
     }
     else if (_PARAMS[1] == "to")
     {
+        if (!plr)
+        {
+            Send_IRCA(CD->USER, "\0034[ERROR] First Player Not Online! Offline Tele Not Supported For 'to'.", true, "ERROR");
+            return;
+        }
         Player* plr2 = GetPlayer(_PARAMS[2]);
         if (plr2)
         {
