@@ -1766,6 +1766,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 Unit* target = m_targets.getUnitTarget();
                 if(!target)
                     target = m_caster;
+
                 uint32 count = CalculateDamage(EFFECT_INDEX_2,m_caster); // stored in dummy effect, affected by mods
                 targetUnitMap.clear();                                   // clear unit map (unit target from DUEL_VS_PLAYER_COORDINATES)
                 FillRaidOrPartyHealthPriorityTargets(targetUnitMap, m_caster, target, radius, count, true, false, true);

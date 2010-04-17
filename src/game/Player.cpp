@@ -6756,19 +6756,13 @@ void Player::_ApplyItemMods(Item *item, uint8 slot,bool apply)
     if(slot >= INVENTORY_SLOT_BAG_END || !item)
         return;
 
+    // not apply/remove mods for broken item
+    if(item->IsBroken())
+        return;
+
     ItemPrototype const *proto = item->GetProto();
 
     if(!proto)
-        return;
-
-    if(item->IsBroken() && proto->Socket[0].Color)  //This need to remove bonuses from meta if item broken
-    {
-        CorrectMetaGemEnchants(slot, apply);
-        return;
-    }
-
-    // not apply/remove mods for broken item
-    if(item->IsBroken())
         return;
   
     sLog.outDetail("applying mods for item %u ",item->GetGUIDLow());
@@ -7120,7 +7114,7 @@ void Player::_ApplyWeaponDependentAuraCritMod(Item *item, WeaponAttackType attac
         default: return;
     }
 
-    if (!item->IsBroken() && item->IsFitToSpellRequirements(aura->GetSpellProto()))
+    if (item->IsFitToSpellRequirements(aura->GetSpellProto()))
     {
         HandleBaseModValue(mod, FLAT_MOD, float (aura->GetModifier()->m_amount), apply);
     }
@@ -8406,6 +8400,14 @@ void Player::SendPetSkillWipeConfirm()
     data << pet->GetGUID();
     data << uint32(pet->resetTalentsCost());
     GetSession()->SendPacket( &data );
+}
+
+void Player::LearnDualSpec(uint64 guid)
+{
+    ModifyMoney(-1000*GOLD);
+
+    CastSpell(this, 63680, true, NULL, NULL, guid);
+    CastSpell(this, 63624, true, NULL, NULL, guid);
 }
 
 /*********************************************************/
@@ -12623,6 +12625,10 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
                     if (!pCreature->isCanTrainingOf(this, false))
                         bCanTalk = false;
                     break;
+                case GOSSIP_OPTION_LEARNDUALSPEC:
+                    if(!(GetSpecsCount() == 1 && pCreature->isCanTrainingAndResetTalentsOf(this) && !(getLevel() < 40)))
+                        bCanTalk = false;
+                    break;
                 case GOSSIP_OPTION_UNLEARNTALENTS:
                     if (!pCreature->isCanTrainingAndResetTalentsOf(this))
                         bCanTalk = false;
@@ -12833,6 +12839,10 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
             break;
         case GOSSIP_OPTION_TRAINER:
             GetSession()->SendTrainerList(guid);
+            break;
+        case GOSSIP_OPTION_LEARNDUALSPEC:
+            PlayerTalkClass->CloseGossip();
+            LearnDualSpec(guid);
             break;
         case GOSSIP_OPTION_UNLEARNTALENTS:
             PlayerTalkClass->CloseGossip();
