@@ -21,7 +21,7 @@
 #include "Log.h"
 #include "ProgressBar.h"
 #include "SharedDefines.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 
 #include "DBCfmt.h"
 
@@ -104,7 +104,10 @@ MapDifficultyMap sMapDifficultyMap;
 
 DBCStorage <MovieEntry> sMovieStore(MovieEntryfmt);
 
+DBCStorage <QuestFactionRewardEntry> sQuestFactionRewardStore(QuestFactionRewardfmt);
 DBCStorage <QuestSortEntry> sQuestSortStore(QuestSortEntryfmt);
+DBCStorage <QuestXPLevel> sQuestXPLevelStore(QuestXPLevelfmt);
+
 DBCStorage <PvPDifficultyEntry> sPvPDifficultyStore(PvPDifficultyfmt);
 
 DBCStorage <RandomPropertiesPointsEntry> sRandomPropertiesPointsStore(RandomPropertiesPointsfmt);
@@ -230,7 +233,7 @@ static bool LoadDBC_assert_print(uint32 fsize,uint32 rsize, const std::string& f
 {
     sLog.outError("ERROR: Size of '%s' setted by format string (%u) not equal size of C++ structure (%u).",filename.c_str(),fsize,rsize);
 
-    // assert must fail after function call
+    // ASSERT must fail after function call
     return false;
 }
 
@@ -248,7 +251,7 @@ template<class T>
 inline void LoadDBC(LocalData& localeData,barGoLink& bar, StoreProblemList& errlist, DBCStorage<T>& storage, const std::string& dbc_path, const std::string& filename)
 {
     // compatibility format and C++ structure sizes
-    assert(DBCFileLoader::GetFormatRecordSize(storage.GetFormat()) == sizeof(T) || LoadDBC_assert_print(DBCFileLoader::GetFormatRecordSize(storage.GetFormat()),sizeof(T),filename));
+    ASSERT(DBCFileLoader::GetFormatRecordSize(storage.GetFormat()) == sizeof(T) || LoadDBC_assert_print(DBCFileLoader::GetFormatRecordSize(storage.GetFormat()),sizeof(T),filename));
 
     std::string dbc_filename = dbc_path + filename;
     if(storage.Load(dbc_filename.c_str()))
@@ -320,9 +323,9 @@ void LoadDBCStores(const std::string& dataPath)
         exit(1);
     }
 
-    const uint32 DBCFilesCount = 82;
+    const uint32 DBCFilesCount = 84;
 
-    barGoLink bar( DBCFilesCount );
+    barGoLink bar( (int)DBCFilesCount );
 
     StoreProblemList bad_dbc_files;
 
@@ -419,12 +422,14 @@ void LoadDBCStores(const std::string& dataPath)
     sMapDifficultyStore.Clear();
 
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sMovieStore,               dbcPath,"Movie.dbc");
+    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sQuestFactionRewardStore,  dbcPath,"QuestFactionReward.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sQuestSortStore,           dbcPath,"QuestSort.dbc");
-    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sPvPDifficultyStore,       dbcPath,"PvpDifficulty.dbc");   
+    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sQuestXPLevelStore,        dbcPath,"QuestXP.dbc");
+    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sPvPDifficultyStore,       dbcPath,"PvpDifficulty.dbc");
     for(uint32 i = 0; i < sPvPDifficultyStore.GetNumRows(); ++i)
         if (PvPDifficultyEntry const* entry = sPvPDifficultyStore.LookupEntry(i))
             if (entry->bracketId > MAX_BATTLEGROUND_BRACKETS)
-                assert(false && "Need update MAX_BATTLEGROUND_BRACKETS by DBC data");
+                ASSERT(false && "Need update MAX_BATTLEGROUND_BRACKETS by DBC data");
 
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sRandomPropertiesPointsStore, dbcPath,"RandPropPoints.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sScalingStatDistributionStore, dbcPath,"ScalingStatDistribution.dbc");
@@ -445,6 +450,20 @@ void LoadDBCStores(const std::string& dataPath)
         std::swap(*((uint32*)(&spell->SpellFamilyFlags)),*(((uint32*)(&spell->SpellFamilyFlags))+1));
         #endif
     }
+
+    //Shaman totem bar hack-fix
+    SpellEntry *sfix1 = const_cast<SpellEntry*>(sSpellStore.LookupEntry(66842));
+    sfix1->EffectImplicitTargetA[0] = TARGET_SELF;
+    SpellEntry *sfix2 = const_cast<SpellEntry*>(sSpellStore.LookupEntry(66843));
+    sfix2->EffectImplicitTargetA[0] = TARGET_SELF;
+    SpellEntry *sfix3 = const_cast<SpellEntry*>(sSpellStore.LookupEntry(66844));
+    sfix3->EffectImplicitTargetA[0] = TARGET_SELF;
+
+    //Surge of power spells should be longer
+    SpellEntry *sfix4 = const_cast<SpellEntry*>(sSpellStore.LookupEntry(57407));
+    sfix4->DurationIndex = 28;
+    SpellEntry *sfix5 = const_cast<SpellEntry*>(sSpellStore.LookupEntry(60936));
+    sfix5->DurationIndex = 28;
 
     for (uint32 j = 0; j < sSkillLineAbilityStore.GetNumRows(); ++j)
     {
@@ -552,7 +571,7 @@ void LoadDBCStores(const std::string& dataPath)
         std::set<uint32> spellPaths;
         for(uint32 i = 1; i < sSpellStore.GetNumRows (); ++i)
             if(SpellEntry const* sInfo = sSpellStore.LookupEntry (i))
-                for(int j=0; j < 3; ++j)
+                for(int j=0; j < MAX_EFFECT_INDEX; ++j)
                     if(sInfo->Effect[j]==123 /*SPELL_EFFECT_SEND_TAXI*/)
                         spellPaths.insert(sInfo->EffectMiscValue[j]);
 
@@ -617,13 +636,13 @@ void LoadDBCStores(const std::string& dataPath)
     }
 
     // Check loaded DBC files proper version
-    if( !sSpellStore.LookupEntry(73190)            ||       // last added spell in 3.3.0a
-        !sMapStore.LookupEntry(718)                ||       // last map added in 3.3.0a
-        !sGemPropertiesStore.LookupEntry(1629)     ||       // last gem property added in 3.3.0a
-        !sItemExtendedCostStore.LookupEntry(2935)  ||       // last item extended cost added in 3.3.0a
-        !sCharTitlesStore.LookupEntry(177)         ||       // last char title added in 3.3.0a
-        !sAreaStore.LookupEntry(3460)              ||       // last area (areaflag) added in 3.3.0a
-        !sItemStore.LookupEntry(52062)             )        // last client known item added in 3.3.0a
+    if( !sAreaStore.LookupEntry(3617)              ||       // last area (areaflag) added in 3.3.3a
+        !sCharTitlesStore.LookupEntry(177)         ||       // last char title added in 3.3.3a
+        !sGemPropertiesStore.LookupEntry(1629)     ||       // last gem property added in 3.3.3a
+        !sItemStore.LookupEntry(54860)             ||       // last client known item added in 3.3.3a
+        !sItemExtendedCostStore.LookupEntry(2997)  ||       // last item extended cost added in 3.3.3a
+        !sMapStore.LookupEntry(724)                ||       // last map added in 3.3.3a
+        !sSpellStore.LookupEntry(76567)            )        // last added spell in 3.3.3a
     {
         sLog.outError("\nYou have mixed version DBC files. Please re-extract DBC files for one from client build: %s",AcceptableClientBuildsListStr().c_str());
         exit(1);
@@ -660,12 +679,17 @@ TalentSpellPos const* GetTalentSpellPos(uint32 spellId)
     return &itr->second;
 }
 
-uint32 GetTalentSpellCost(uint32 spellId)
+uint32 GetTalentSpellCost(TalentSpellPos const* pos)
 {
-    if(TalentSpellPos const* pos = GetTalentSpellPos(spellId))
+    if (pos)
         return pos->rank+1;
 
     return 0;
+}
+
+uint32 GetTalentSpellCost(uint32 spellId)
+{
+    return GetTalentSpellCost(GetTalentSpellPos(spellId));
 }
 
 int32 GetAreaFlagByAreaID(uint32 area_id)
@@ -767,30 +791,34 @@ bool IsTotemCategoryCompatiableWith(uint32 itemTotemCategoryId, uint32 requiredT
     return (itemEntry->categoryMask & reqEntry->categoryMask)==reqEntry->categoryMask;
 }
 
-void Zone2MapCoordinates(float& x,float& y,uint32 zone)
+bool Zone2MapCoordinates(float& x,float& y,uint32 zone)
 {
     WorldMapAreaEntry const* maEntry = sWorldMapAreaStore.LookupEntry(zone);
 
     // if not listed then map coordinates (instance)
-    if(!maEntry)
-        return;
+    if (!maEntry || maEntry->x2 == maEntry->x1 || maEntry->y2 == maEntry->y1)
+        return false;
 
     std::swap(x,y);                                         // at client map coords swapped
     x = x*((maEntry->x2-maEntry->x1)/100)+maEntry->x1;
     y = y*((maEntry->y2-maEntry->y1)/100)+maEntry->y1;      // client y coord from top to down
+
+    return true;
 }
 
-void Map2ZoneCoordinates(float& x,float& y,uint32 zone)
+bool Map2ZoneCoordinates(float& x,float& y,uint32 zone)
 {
     WorldMapAreaEntry const* maEntry = sWorldMapAreaStore.LookupEntry(zone);
 
     // if not listed then map coordinates (instance)
-    if(!maEntry)
-        return;
+    if (!maEntry || maEntry->x2 == maEntry->x1 || maEntry->y2 == maEntry->y1)
+        return false;
 
     x = (x-maEntry->x1)/((maEntry->x2-maEntry->x1)/100);
     y = (y-maEntry->y1)/((maEntry->y2-maEntry->y1)/100);    // client y coord from top to down
     std::swap(x,y);                                         // client have map coords swapped
+
+    return true;
 }
 
 MapDifficulty const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
@@ -826,6 +854,51 @@ PvPDifficultyEntry const* GetBattlegroundBracketById(uint32 mapid, BattleGroundB
 uint32 const* GetTalentTabPages(uint32 cls)
 {
     return sTalentTabPages[cls];
+}
+
+bool IsPointInAreaTriggerZone(AreaTriggerEntry const* atEntry, uint32 mapid, float x, float y, float z, float delta)
+{
+    if (mapid != atEntry->mapid)
+        return false;
+
+    if (atEntry->radius > 0)
+    {
+        // if we have radius check it
+        float dist2 = (x-atEntry->x)*(x-atEntry->x) + (y-atEntry->y)*(y-atEntry->y) + (z-atEntry->z)*(z-atEntry->z);
+        if(dist2 > (atEntry->radius + delta)*(atEntry->radius + delta))
+            return false;
+    }
+    else
+    {
+        // we have only extent
+
+        // rotate the players position instead of rotating the whole cube, that way we can make a simplified
+        // is-in-cube check and we have to calculate only one point instead of 4
+
+        // 2PI = 360°, keep in mind that ingame orientation is counter-clockwise
+        double rotation = 2*M_PI-atEntry->box_orientation;
+        double sinVal = sin(rotation);
+        double cosVal = cos(rotation);
+
+        float playerBoxDistX = x - atEntry->x;
+        float playerBoxDistY = y - atEntry->y;
+
+        float rotPlayerX = float(atEntry->x + playerBoxDistX * cosVal - playerBoxDistY*sinVal);
+        float rotPlayerY = float(atEntry->y + playerBoxDistY * cosVal + playerBoxDistX*sinVal);
+
+        // box edges are parallel to coordiante axis, so we can treat every dimension independently :D
+        float dz = z - atEntry->z;
+        float dx = rotPlayerX - atEntry->x;
+        float dy = rotPlayerY - atEntry->y;
+        if( (fabs(dx) > atEntry->box_x/2 + delta) ||
+            (fabs(dy) > atEntry->box_y/2 + delta) ||
+            (fabs(dz) > atEntry->box_z/2 + delta) )
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // script support functions

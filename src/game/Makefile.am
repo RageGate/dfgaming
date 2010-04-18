@@ -17,9 +17,10 @@
 ## Process this file with automake to produce Makefile.in
 
 ## Sub-directories to parse
+SUBDIRS = mangchat
 
 ## CPP flags for includes, defines, etc.
-AM_CPPFLAGS = $(MANGOS_INCLUDES) -I$(top_builddir)/src/shared -I$(srcdir) -I$(srcdir)/../../dep/include -I$(srcdir)/../framework -I$(srcdir)/../shared -I$(srcdir)/../shared/vmap -I$(srcdir)/../realmd -DSYSCONFDIR=\"$(sysconfdir)/\"
+AM_CPPFLAGS = $(MANGOS_INCLUDES) -I$(top_builddir)/src/shared -I$(srcdir) -I$(srcdir)/../../dep/tbb/include -I$(srcdir)/../../dep/include -I$(srcdir)/../framework -I$(srcdir)/../shared -I$(srcdir)/../shared/vmap -I$(srcdir)/../realmd -DSYSCONFDIR=\"$(sysconfdir)/\"
 
 ## Build MaNGOS game library as convenience library.
 #  All libraries will be convenience libraries. Might be changed to shared
@@ -37,6 +38,8 @@ libmangosgame_a_SOURCES = \
 	ArenaTeam.cpp \
 	ArenaTeam.h \
 	ArenaTeamHandler.cpp \
+	AuctionHouseBot.cpp \
+	AuctionHouseBot.h \
 	AuctionHouseHandler.cpp \
 	AuctionHouseMgr.cpp \
 	AuctionHouseMgr.h \
@@ -45,7 +48,7 @@ libmangosgame_a_SOURCES = \
 	BattleGround.cpp \
 	BattleGroundAA.cpp \
 	BattleGroundAB.cpp \
-	BattleGroundABG.cpp \
+	BattleGroundRB.cpp \
 	BattleGroundAV.cpp \
 	BattleGroundBE.cpp \
 	BattleGroundDS.cpp \
@@ -59,7 +62,7 @@ libmangosgame_a_SOURCES = \
 	BattleGround.h \
 	BattleGroundAA.h \
 	BattleGroundAB.h \
-	BattleGroundABG.h \
+	BattleGroundRB.h \
 	BattleGroundAV.h \
 	BattleGroundBE.h \
 	BattleGroundDS.h \
@@ -87,6 +90,10 @@ libmangosgame_a_SOURCES = \
 	Chat.cpp \
 	Chat.h \
 	ChatHandler.cpp \
+	ChatLexicsCutter.cpp \
+	ChatLexicsCutter.h \
+	ChatLog.cpp \
+	ChatLog.h \
 	CombatHandler.cpp \
 	ConfusedMovementGenerator.cpp \
 	ConfusedMovementGenerator.h \
@@ -124,8 +131,6 @@ libmangosgame_a_SOURCES = \
 	GameEventMgr.h \
 	GameObject.cpp \
 	GameObject.h \
-	GlobalEvents.cpp \
-	GlobalEvents.h \
 	GMTicketHandler.cpp \
 	GMTicketMgr.cpp \
 	GMTicketMgr.h \
@@ -178,6 +183,8 @@ libmangosgame_a_SOURCES = \
 	MapInstanced.h \
 	MapManager.cpp \
 	MapManager.h \
+	MapUpdater.cpp \
+	MapUpdater.h \
 	MapReference.h \
 	MapRefManager.h \
 	MiscHandler.cpp \
@@ -194,7 +201,8 @@ libmangosgame_a_SOURCES = \
 	ObjectAccessor.cpp \
 	ObjectAccessor.h \
 	Object.cpp \
-	ObjectDefines.h \
+	ObjectGuid.cpp \
+	ObjectGuid.h \
 	ObjectGridLoader.cpp \
 	ObjectGridLoader.h \
 	Object.h \

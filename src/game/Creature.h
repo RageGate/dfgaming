@@ -24,6 +24,7 @@
 #include "UpdateMask.h"
 #include "ItemPrototype.h"
 #include "LootMgr.h"
+#include "DBCEnums.h"
 #include "Database/DatabaseEnv.h"
 #include "Cell.h"
 
@@ -80,7 +81,8 @@ struct CreatureInfo
     uint32  faction_A;
     uint32  faction_H;
     uint32  npcflag;
-    float   speed;
+    float   speed_walk;
+    float   speed_run;
     float   scale;
     uint32  rank;
     float   mindmg;
@@ -206,7 +208,7 @@ struct CreatureData
 struct CreatureDataAddonAura
 {
     uint32 spell_id;
-    uint8 effect_idx;
+    SpellEffectIndex effect_idx;
 };
 
 // from `creature_addon` table
@@ -217,7 +219,7 @@ struct CreatureDataAddon
     uint32 bytes1;
     uint32 bytes2;
     uint32 emote;
-    uint32 move_flags;
+    uint32 splineFlags;
     CreatureDataAddonAura const* auras;                     // loaded as char* "spell1 eff1 spell2 eff2 ... "
 };
 
@@ -299,8 +301,7 @@ struct VendorItemData
         m_items.push_back(new VendorItem(item, maxcount, ptime, ExtendedCost));
     }
     bool RemoveItem( uint32 item_id );
-    VendorItem const* FindItem(uint32 item_id) const;
-    size_t FindItemSlot(uint32 item_id) const;
+    VendorItem const* FindItemCostPair(uint32 item_id, uint32 extendedCost) const;
 
     void Clear()
     {
@@ -384,7 +385,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
 
         bool Create(uint32 guidlow, Map *map, uint32 phaseMask, uint32 Entry, uint32 team, const CreatureData *data = NULL);
         bool LoadCreaturesAddon(bool reload = false);
-        void SelectLevel(const CreatureInfo *cinfo);
+        void SelectLevel(const CreatureInfo *cinfo, float percentHealth = 100.0f, float percentMana = 100.0f);
         void LoadEquipment(uint32 equip_entry, bool force=false);
 
         uint32 GetDBTableGUIDLow() const { return m_DBTableGuid; }
@@ -413,7 +414,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         bool IsOutOfThreatArea(Unit* pVictim) const;
         bool IsImmunedToSpell(SpellEntry const* spellInfo);
                                                             // redefine Unit::IsImmunedToSpell
-        bool IsImmunedToSpellEffect(SpellEntry const* spellInfo, uint32 index) const;
+        bool IsImmunedToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex index) const;
                                                             // redefine Unit::IsImmunedToSpellEffect
         bool isElite() const
         {
@@ -438,53 +439,52 @@ class MANGOS_DLL_SPEC Creature : public Unit
 
         bool AIM_Initialize();
 
-        void AI_SendMoveToPacket(float x, float y, float z, uint32 time, MonsterMovementFlags MovementFlags, uint8 type);
+        void AI_SendMoveToPacket(float x, float y, float z, uint32 time, SplineFlags MovementFlags, SplineType type);
         CreatureAI* AI() { return i_AI; }
 
-        void AddMonsterMoveFlag(MonsterMovementFlags f)
+        void AddSplineFlag(SplineFlags f)
         {
-            bool need_walk_sync = (f & MONSTER_MOVE_WALK) != (m_monsterMoveFlags & MONSTER_MOVE_WALK);
-            m_monsterMoveFlags = MonsterMovementFlags(m_monsterMoveFlags | f);
+            bool need_walk_sync = (f & SPLINEFLAG_WALKMODE) != (m_splineFlags & SPLINEFLAG_WALKMODE);
+            m_splineFlags = SplineFlags(m_splineFlags | f);
             if (need_walk_sync)
-                UpdateWalkMode(this,false);
+                UpdateWalkMode(this, false);
         }
-        void RemoveMonsterMoveFlag(MonsterMovementFlags f)
+        void RemoveSplineFlag(SplineFlags f)
         {
-            bool need_walk_sync = (f & MONSTER_MOVE_WALK) != (m_monsterMoveFlags & MONSTER_MOVE_WALK);
-            m_monsterMoveFlags = MonsterMovementFlags(m_monsterMoveFlags & ~f);
+            bool need_walk_sync = (f & SPLINEFLAG_WALKMODE) != (m_splineFlags & SPLINEFLAG_WALKMODE);
+            m_splineFlags = SplineFlags(m_splineFlags & ~f);
             if (need_walk_sync)
-                UpdateWalkMode(this,false);
+                UpdateWalkMode(this, false);
         }
-        bool HasMonsterMoveFlag(MonsterMovementFlags f) const { return m_monsterMoveFlags & f; }
-        MonsterMovementFlags GetMonsterMoveFlags() const { return m_monsterMoveFlags; }
-        void SetMonsterMoveFlags(MonsterMovementFlags f)
+        bool HasSplineFlag(SplineFlags f) const { return m_splineFlags & f; }
+        SplineFlags GetSplineFlags() const { return m_splineFlags; }
+        void SetSplineFlags(SplineFlags f)
         {
-            bool need_walk_sync = (f & MONSTER_MOVE_WALK) != (m_monsterMoveFlags & MONSTER_MOVE_WALK);
-            m_monsterMoveFlags = f;                     // need set before
+            bool need_walk_sync = (f & SPLINEFLAG_WALKMODE) != (m_splineFlags & SPLINEFLAG_WALKMODE);
+            m_splineFlags = f;                              // need set before
             if (need_walk_sync)
-                UpdateWalkMode(this,false);
+                UpdateWalkMode(this, false);
         }
 
-        void SendMonsterMoveWithSpeed(float x, float y, float z, uint32 transitTime = 0, Player* player = NULL);
         void SendMonsterMoveWithSpeedToCurrentDestination(Player* player = NULL);
 
         uint32 GetShieldBlockValue() const                  //dunno mob block value
         {
-            return (getLevel()/2 + uint32(GetStat(STAT_STRENGTH)/20));
+            return (getLevel() / 2 + uint32(GetStat(STAT_STRENGTH) / 20));
         }
 
-        SpellSchoolMask GetMeleeDamageSchoolMask() const { return m_meleeDamageSchoolMask; }
+        SpellSchoolMask GetSchoolMaskForAttackType() const { return m_meleeDamageSchoolMask; }
         void SetMeleeDamageSchool(SpellSchools school) { m_meleeDamageSchoolMask = SpellSchoolMask(1 << school); }
 
         void _AddCreatureSpellCooldown(uint32 spell_id, time_t end_time);
         void _AddCreatureCategoryCooldown(uint32 category, time_t apply_time);
-        void AddCreatureSpellCooldown(uint32 spellid);
+        void AddSpellAndCategoryCooldowns(SpellEntry const* spellInfo, uint32 itemId, Spell* spell = NULL, bool infinityCooldown = false);
         bool HasSpellCooldown(uint32 spell_id) const;
         bool HasCategoryCooldown(uint32 spell_id) const;
 
         bool HasSpell(uint32 spellID) const;
 
-        bool UpdateEntry(uint32 entry, uint32 team=ALLIANCE, const CreatureData* data=NULL);
+        bool UpdateEntry(uint32 entry, uint32 team = ALLIANCE, const CreatureData* data = NULL, bool preserveHPAndPower = true);
         bool UpdateStats(Stats stat);
         bool UpdateAllStats();
         void UpdateResistances(uint32 school);
@@ -555,9 +555,11 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void SetNoSearchAssistance(bool val) { m_AlreadySearchedAssistance = val; }
         bool HasSearchedAssistance() { return m_AlreadySearchedAssistance; }
         bool CanAssistTo(const Unit* u, const Unit* enemy, bool checkfaction = true) const;
+        bool CanInitiateAttack();
 
         MovementGeneratorType GetDefaultMovementType() const { return m_defaultMovementType; }
         void SetDefaultMovementType(MovementGeneratorType mgt) { m_defaultMovementType = mgt; }
+        float GetBaseSpeedMod(UnitMoveType mtype) const;
 
         // for use only in LoadHelper, Map::Add Map::CreatureCellRelocation
         Cell const& GetCurrentCell() const { return m_currentCell; }
@@ -583,7 +585,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void SetRespawnRadius(float dist) { m_respawnradius = dist; }
 
         uint32 m_groupLootTimer;                            // (msecs)timer used for group loot
-        uint64 lootingGroupLeaderGUID;                      // used to find group which is looting corpse
+        uint32 m_groupLootId;                               // used to find group which is looting corpse
 
         void SendZoneUnderAttackMessage(Player* attacker);
 
@@ -610,17 +612,48 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void GetSummonPoint(float &fX, float &fY, float &fZ, float &fOrient) const { fX = m_summonXpoint; fY = m_summonYpoint; fZ = m_summonZpoint; fOrient = m_summonOrientation; }
 
         uint32 GetGlobalCooldown() const { return m_GlobalCooldown; }
+        void SetGlobalCooldown(uint32 gcd){ m_GlobalCooldown = gcd; }
 
         void SetDeadByDefault (bool death_state) { m_isDeadByDefault = death_state; }
 
         bool isActiveObject() const { return m_isActiveObject || HasAuraType(SPELL_AURA_BIND_SIGHT) || HasAuraType(SPELL_AURA_FAR_SIGHT); }
         void SetActiveObjectState(bool on);
 
+        void SetNeedNotify() { m_needNotify = true; }
+
         void SendAreaSpiritHealerQueryOpcode(Player *pl);
+
+        void IncrementReceivedDamage(Unit* pAttacker, uint32 unDamage)
+        {
+            if(!pAttacker || !unDamage)
+                return;
+
+            if(pAttacker->GetCharmerOrOwnerPlayerOrPlayerItself())
+            {
+                m_unPlayerDamageDone += unDamage;
+                return;
+            }
+            else if(pAttacker->GetTypeId() == TYPEID_UNIT)
+            {
+                //some conditions can be placed here
+                m_unUnitDamageDone += unDamage;
+                return;
+            }
+        }
+        bool AreLootAndRewardAllowed() { return (m_unPlayerDamageDone > m_unUnitDamageDone); }
+        void ResetObtainedDamage()
+        {
+            m_unPlayerDamageDone = 0;
+            m_unUnitDamageDone = 0;
+        }
 
     protected:
         bool CreateFromProto(uint32 guidlow,uint32 Entry,uint32 team, const CreatureData *data = NULL);
         bool InitEntry(uint32 entry, uint32 team=ALLIANCE, const CreatureData* data=NULL);
+        void RelocationNotify();
+
+        uint32 m_unPlayerDamageDone;
+        uint32 m_unUnitDamageDone;
 
         // vendor items
         VendorItemCounts m_vendorItemCounts;
@@ -653,6 +686,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         bool m_regenHealth;
         bool m_AI_locked;
         bool m_isDeadByDefault;
+        bool m_needNotify;
 
         SpellSchoolMask m_meleeDamageSchoolMask;
         uint32 m_originalEntry;
@@ -670,7 +704,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         GridReference<Creature> m_gridRef;
         CreatureInfo const* m_creatureInfo;                 // in difficulty mode > 0 can different from ObjMgr::GetCreatureTemplate(GetEntry())
         bool m_isActiveObject;
-        MonsterMovementFlags m_monsterMoveFlags;
+        SplineFlags m_splineFlags;
 };
 
 class AssistDelayEvent : public BasicEvent

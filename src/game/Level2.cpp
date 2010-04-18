@@ -20,7 +20,7 @@
 #include "Database/DatabaseEnv.h"
 #include "DBCStores.h"
 #include "ObjectMgr.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 #include "Player.h"
 #include "Item.h"
 #include "GameObject.h"
@@ -41,7 +41,6 @@
 #include <iostream>
 #include <fstream>
 #include <map>
-#include "GlobalEvents.h"
 
 #include "TargetedMovementGenerator.h"                      // for HandleNpcUnFollowCommand
 
@@ -499,7 +498,7 @@ bool ChatHandler::HandleGameObjectTargetCommand(const char* args)
 
     if(target)
     {
-        int32 curRespawnDelay = target->GetRespawnTimeEx()-time(NULL);
+        time_t curRespawnDelay = target->GetRespawnTimeEx()-time(NULL);
         if(curRespawnDelay < 0)
             curRespawnDelay = 0;
 
@@ -805,7 +804,7 @@ bool ChatHandler::HandleGameObjectPhaseCommand(const char* args)
 
 bool ChatHandler::HandleGameObjectNearCommand(const char* args)
 {
-    float distance = (!*args) ? 10 : atol(args);
+    float distance = (!*args) ? 10.0f : (float)atof(args);
     uint32 count = 0;
 
     Player* pl = m_session->GetPlayer();
@@ -832,7 +831,7 @@ bool ChatHandler::HandleGameObjectNearCommand(const char* args)
             if(!gInfo)
                 continue;
 
-            PSendSysMessage(LANG_GO_LIST_CHAT, guid, guid, gInfo->name, x, y, z, mapid);
+            PSendSysMessage(LANG_GO_LIST_CHAT, guid, entry, guid, gInfo->name, x, y, z, mapid);
 
             ++count;
         } while (result->NextRow());
@@ -1256,7 +1255,7 @@ bool ChatHandler::HandleNpcChangeLevelCommand(const char* args)
         return false;
 
     uint8 lvl = (uint8) atoi((char*)args);
-    if ( lvl < 1 || lvl > sWorld.getConfig(CONFIG_MAX_PLAYER_LEVEL) + 3)
+    if ( lvl < 1 || lvl > sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL) + 3)
     {
         SendSysMessage(LANG_BAD_VALUE);
         SetSentErrorMessage(true);
@@ -1646,7 +1645,7 @@ bool ChatHandler::HandleNpcSpawnDistCommand(const char* args)
     if(!*args)
         return false;
 
-    float option = atof((char*)args);
+    float option = (float)atof((char*)args);
     if (option < 0.0f)
     {
         SendSysMessage(LANG_BAD_VALUE);
@@ -1809,7 +1808,7 @@ bool ChatHandler::HandleNpcTameCommand(const char* /*args*/)
     // place pet before player
     float x,y,z;
     player->GetClosePoint (x,y,z,creatureTarget->GetObjectSize (),CONTACT_DISTANCE);
-    pet->Relocate (x,y,z,M_PI-player->GetOrientation ());
+    pet->Relocate (x,y,z,M_PI_F-player->GetOrientation ());
 
     // set pet to defensive mode by default (some classes can't control controlled pets in fact).
     pet->GetCharmInfo()->SetReactState(REACT_DEFENSIVE);
@@ -2159,7 +2158,7 @@ bool ChatHandler::HandlePInfoCommand(const char* args)
 
     std::string username = GetMangosString(LANG_ERROR);
     std::string last_ip = GetMangosString(LANG_ERROR);
-    uint32 security = 0;
+    AccountTypes security = SEC_PLAYER;
     std::string last_login = GetMangosString(LANG_ERROR);
 
     QueryResult* result = loginDatabase.PQuery("SELECT username,gmlevel,last_ip,last_login FROM account WHERE id = '%u'",accId);
@@ -2167,9 +2166,9 @@ bool ChatHandler::HandlePInfoCommand(const char* args)
     {
         Field* fields = result->Fetch();
         username = fields[0].GetCppString();
-        security = fields[1].GetUInt32();
+        security = (AccountTypes)fields[1].GetUInt32();
 
-        if(!m_session || m_session->GetSecurity() >= security)
+        if(GetAccessLevel() >= security)
         {
             last_ip = fields[2].GetCppString();
             last_login = fields[3].GetCppString();
@@ -2383,7 +2382,7 @@ bool ChatHandler::HandleDelTicketCommand(const char *args)
         sTicketMgr.Delete(guid);
 
         //notify player
-        if(Player* pl = sObjectMgr.GetPlayer(MAKE_NEW_GUID(guid, 0, HIGHGUID_PLAYER)))
+        if(Player* pl = sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, guid)))
         {
             pl->GetSession()->SendGMTicketGetTicket(0x0A, 0);
             PSendSysMessage(LANG_COMMAND_TICKETPLAYERDEL, GetNameLink(pl).c_str());
@@ -3659,7 +3658,11 @@ bool ChatHandler::HandleModifyStandStateCommand(const char* args)
         return false;
 
     uint32 anim_id = atoi((char*)args);
-    m_session->GetPlayer( )->SetUInt32Value( UNIT_NPC_EMOTESTATE , anim_id );
+
+    if (!sEmotesStore.LookupEntry(anim_id))
+        return false;
+
+    m_session->GetPlayer()->HandleEmoteState(anim_id);
 
     return true;
 }
@@ -3681,7 +3684,7 @@ bool ChatHandler::HandleHonorAddCommand(const char* args)
     if (HasLowerSecurity(target, 0))
         return false;
 
-    uint32 amount = (uint32)atoi(args);
+    float amount = (float)atof(args);
     target->RewardHonor(NULL, 1, amount);
     return true;
 }
@@ -3873,7 +3876,7 @@ bool ChatHandler::HandleEventStartCommand(const char* args)
 
     GameEventMgr::GameEventDataMap const& events = sGameEventMgr.GetEventMap();
 
-    if(event_id < 1 || event_id >=events.size())
+    if(event_id < 1 || event_id >=(int32)events.size())
     {
         SendSysMessage(LANG_EVENT_NOT_EXIST);
         SetSentErrorMessage(true);
@@ -3915,7 +3918,7 @@ bool ChatHandler::HandleEventStopCommand(const char* args)
 
     GameEventMgr::GameEventDataMap const& events = sGameEventMgr.GetEventMap();
 
-    if(event_id < 1 || event_id >=events.size())
+    if(event_id < 1 || event_id >=(int32)events.size())
     {
         SendSysMessage(LANG_EVENT_NOT_EXIST);
         SetSentErrorMessage(true);
@@ -3989,7 +3992,7 @@ void ChatHandler::HandleLearnSkillRecipesHelper(Player* player,uint32 skill_id)
         if(!spellInfo || !SpellMgr::IsSpellValid(spellInfo,player,false))
             continue;
 
-        player->learnSpell(skillLine->spellId,false);
+        player->learnSpell(skillLine->spellId, false);
     }
 }
 
@@ -4196,7 +4199,7 @@ bool ChatHandler::LookupPlayerSearchCommand(QueryResult* result, int32 limit)
 /// Triggering corpses expire check in world
 bool ChatHandler::HandleServerCorpsesCommand(const char* /*args*/)
 {
-    CorpsesErase();
+    sObjectAccessor.RemoveOldCorpses();
     return true;
 }
 

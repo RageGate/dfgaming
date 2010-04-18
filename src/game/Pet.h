@@ -19,7 +19,7 @@
 #ifndef MANGOSSERVER_PET_H
 #define MANGOSSERVER_PET_H
 
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 #include "Creature.h"
 #include "Unit.h"
 
@@ -127,8 +127,8 @@ typedef std::vector<uint32> AutoSpellList;
 
 #define ACTIVE_SPELLS_MAX           4
 
-#define PET_FOLLOW_DIST  1
-#define PET_FOLLOW_ANGLE (M_PI/2)
+#define PET_FOLLOW_DIST  1.0f
+#define PET_FOLLOW_ANGLE M_PI_F/2
 
 class Player;
 
@@ -180,15 +180,19 @@ class Pet : public Creature
 
         int32 GetBonusDamage() { return m_bonusdamage; }
         void SetBonusDamage(int32 damage) { m_bonusdamage = damage; }
+        float GetHappinessDamageMod();
 
         bool UpdateStats(Stats stat);
         bool UpdateAllStats();
-        void UpdateResistances(uint32 school);
+        // void UpdateResistances(uint32 school);
         void UpdateArmor();
         void UpdateMaxHealth();
         void UpdateMaxPower(Powers power);
         void UpdateAttackPowerAndDamage(bool ranged = false);
         void UpdateDamagePhysical(WeaponAttackType attType);
+        void UpdateScalingAuras();
+
+        uint32 CalcScalingAuraBonus(SpellEntry const* spellInfo, uint8 effect_index);
 
         bool CanTakeMoreActiveSpells(uint32 SpellIconID);
         void ToggleAutocast(uint32 spellid, bool apply);
@@ -219,6 +223,7 @@ class Pet : public Creature
 
         PetSpellMap     m_spells;
         AutoSpellList   m_autospells;
+        AuraList        m_scalingauras;
 
         void InitPetCreateSpells();
 
@@ -230,6 +235,7 @@ class Pet : public Creature
         uint8 GetMaxTalentPointsForLevel(uint32 level);
         uint8 GetFreeTalentPoints() { return GetByteValue(UNIT_FIELD_BYTES_1, 1); }
         void SetFreeTalentPoints(uint8 points) { SetByteValue(UNIT_FIELD_BYTES_1, 1, points); }
+        void UpdateFreeTalentPoints(bool resetIfNeed = true);
 
         uint32  m_resetTalentsCost;
         time_t  m_resetTalentsTime;
@@ -260,11 +266,11 @@ class Pet : public Creature
 
         void SaveToDB(uint32, uint8)                        // overwrited of Creature::SaveToDB     - don't must be called
         {
-            assert(false);
+            ASSERT(false);
         }
         void DeleteFromDB()                                 // overwrited of Creature::DeleteFromDB - don't must be called
         {
-            assert(false);
+            ASSERT(false);
         }
 };
 #endif

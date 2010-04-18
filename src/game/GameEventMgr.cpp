@@ -19,13 +19,14 @@
 #include "GameEventMgr.h"
 #include "World.h"
 #include "ObjectMgr.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 #include "PoolManager.h"
 #include "ProgressBar.h"
 #include "Language.h"
 #include "Log.h"
 #include "MapManager.h"
 #include "Policies/SingletonImp.h"
+#include "mangchat/IRCClient.h"
 
 INSTANTIATE_SINGLETON_1(GameEventMgr);
 
@@ -50,7 +51,7 @@ uint32 GameEventMgr::NextCheck(uint16 entry) const
 
     // never started event, we return delay before start
     if (mGameEvent[entry].start > currenttime)
-        return (mGameEvent[entry].start - currenttime);
+        return uint32(mGameEvent[entry].start - currenttime);
 
     uint32 delay;
     // in event, we return the end of it
@@ -61,7 +62,7 @@ uint32 GameEventMgr::NextCheck(uint16 entry) const
         delay = (mGameEvent[entry].occurence * MINUTE) - ((currenttime - mGameEvent[entry].start) % (mGameEvent[entry].occurence * MINUTE));
     // In case the end is before next check
     if (mGameEvent[entry].end  < time_t(currenttime + delay))
-        return (mGameEvent[entry].end - currenttime);
+        return uint32(mGameEvent[entry].end - currenttime);
     else
         return delay;
 }
@@ -121,7 +122,7 @@ void GameEventMgr::LoadFromDB()
     uint32 count = 0;
 
     {
-        barGoLink bar( result->GetRowCount() );
+        barGoLink bar( (int)result->GetRowCount() );
         do
         {
             ++count;
@@ -187,7 +188,7 @@ void GameEventMgr::LoadFromDB()
     else
     {
 
-        barGoLink bar( result->GetRowCount() );
+        barGoLink bar( (int)result->GetRowCount() );
         do
         {
             Field *fields = result->Fetch();
@@ -233,7 +234,7 @@ void GameEventMgr::LoadFromDB()
     else
     {
 
-        barGoLink bar( result->GetRowCount() );
+        barGoLink bar( (int)result->GetRowCount() );
         do
         {
             Field *fields = result->Fetch();
@@ -281,7 +282,7 @@ void GameEventMgr::LoadFromDB()
     else
     {
 
-        barGoLink bar( result->GetRowCount() );
+        barGoLink bar( (int)result->GetRowCount() );
         do
         {
             Field *fields = result->Fetch();
@@ -338,7 +339,7 @@ void GameEventMgr::LoadFromDB()
     else
     {
 
-        barGoLink bar( result->GetRowCount() );
+        barGoLink bar( (int)result->GetRowCount() );
         do
         {
             Field *fields = result->Fetch();
@@ -382,7 +383,7 @@ void GameEventMgr::LoadFromDB()
     else
     {
 
-        barGoLink bar2( result->GetRowCount() );
+        barGoLink bar2( (int)result->GetRowCount() );
         do
         {
             Field *fields = result->Fetch();
@@ -462,7 +463,7 @@ uint32 GameEventMgr::Update()                               // return the next e
             nextEventDelay = calcDelay;
     }
     sLog.outBasic("Next game event check in %u seconds.", nextEventDelay + 1);
-    return (nextEventDelay + 1) * IN_MILISECONDS;           // Add 1 second to be sure event has started/stopped at next call
+    return (nextEventDelay + 1) * IN_MILLISECONDS;           // Add 1 second to be sure event has started/stopped at next call
 }
 
 void GameEventMgr::UnApplyEvent(uint16 event_id)
@@ -481,13 +482,17 @@ void GameEventMgr::UnApplyEvent(uint16 event_id)
 
 void GameEventMgr::ApplyNewEvent(uint16 event_id)
 {
-    switch(sWorld.getConfig(CONFIG_EVENT_ANNOUNCE))
+    if (sWorld.getConfig(CONFIG_BOOL_EVENT_ANNOUNCE))
     {
-        case 0:                                             // disable
-            break;
-        case 1:                                             // announce events
-            sWorld.SendWorldText(LANG_EVENTMESSAGE, mGameEvent[event_id].description.c_str());
-            break;
+        sWorld.SendWorldText(LANG_EVENTMESSAGE, mGameEvent[event_id].description.c_str());
+
+        /* IRC Additions */
+        if((sIRC.BOTMASK & 256) != 0)
+        {
+            std::string ircchan = std::string("#") + sIRC._irc_chan[sIRC.anchn];
+            sIRC.Send_IRC_Channel(ircchan, sIRC.MakeMsg("\00304,08\037/!\\\037\017\00304 Game Event \00304,08\037/!\\\037\017 %s", "%s", mGameEvent[event_id].description.c_str()), true);
+        }
+
     }
 
     sLog.outString("GameEvent %u \"%s\" started.", event_id, mGameEvent[event_id].description.c_str());
@@ -580,7 +585,7 @@ void GameEventMgr::GameEventSpawn(int16 event_id)
     }
 
     for (IdList::iterator itr = mGameEventPoolIds[internal_event_id].begin();itr != mGameEventPoolIds[internal_event_id].end();++itr)
-        sPoolMgr.SpawnPool(*itr);
+        sPoolMgr.SpawnPool(*itr, true);
 }
 
 void GameEventMgr::GameEventUnspawn(int16 event_id)
@@ -600,7 +605,7 @@ void GameEventMgr::GameEventUnspawn(int16 event_id)
         {
             sObjectMgr.RemoveCreatureFromGrid(*itr, data);
 
-            if( Creature* pCreature = ObjectAccessor::GetCreatureInWorld(MAKE_NEW_GUID(*itr, data->id, HIGHGUID_UNIT)) )
+            if (Creature* pCreature = ObjectAccessor::GetCreatureInWorld(ObjectGuid(HIGHGUID_UNIT, data->id, *itr)))
                 pCreature->AddObjectToRemoveList();
         }
     }
@@ -618,7 +623,7 @@ void GameEventMgr::GameEventUnspawn(int16 event_id)
         {
             sObjectMgr.RemoveGameobjectFromGrid(*itr, data);
 
-            if( GameObject* pGameobject = ObjectAccessor::GetGameObjectInWorld(MAKE_NEW_GUID(*itr, data->id, HIGHGUID_GAMEOBJECT)) )
+            if( GameObject* pGameobject = ObjectAccessor::GetGameObjectInWorld(ObjectGuid(HIGHGUID_GAMEOBJECT, data->id, *itr)) )
                 pGameobject->AddObjectToRemoveList();
         }
     }
@@ -644,8 +649,7 @@ void GameEventMgr::ChangeEquipOrModel(int16 event_id, bool activate)
             continue;
 
         // Update if spawned
-        Creature* pCreature = ObjectAccessor::GetCreatureInWorld(MAKE_NEW_GUID(itr->first, data->id,HIGHGUID_UNIT));
-        if (pCreature)
+        if (Creature* pCreature = ObjectAccessor::GetCreatureInWorld(ObjectGuid(HIGHGUID_UNIT, data->id, itr->first)))
         {
             if (activate)
             {

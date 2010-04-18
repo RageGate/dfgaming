@@ -21,7 +21,7 @@
 #include "ObjectAccessor.h"
 #include "CreatureAI.h"
 
-TemporarySummon::TemporarySummon( uint64 summoner ) :
+TemporarySummon::TemporarySummon( ObjectGuid summoner ) :
 Creature(CREATURE_SUBTYPE_TEMPORARY_SUMMON), m_type(TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN), m_timer(0), m_lifetime(0), m_summoner(summoner)
 {
 }
@@ -104,18 +104,13 @@ void TemporarySummon::Update( uint32 diff )
                 return;
             }
 
-            if (!isInCombat())
+            if (m_timer <= diff)
             {
-                if (m_timer <= diff)
-                {
-                    UnSummon();
-                    return;
-                }
-                else
-                    m_timer -= diff;
+                UnSummon();
+                return;
             }
-            else if (m_timer != m_lifetime)
-                m_timer = m_lifetime;
+            else
+                m_timer -= diff;
             break;
         }
         case TEMPSUMMON_TIMED_OR_DEAD_DESPAWN:
@@ -127,18 +122,13 @@ void TemporarySummon::Update( uint32 diff )
                 return;
             }
 
-            if (!isInCombat() && isAlive() )
+            if (m_timer <= diff)
             {
-                if (m_timer <= diff)
-                {
-                    UnSummon();
-                    return;
-                }
-                else
-                    m_timer -= diff;
+                UnSummon();
+                return;
             }
-            else if (m_timer != m_lifetime)
-                m_timer = m_lifetime;
+            else
+                m_timer -= diff;
             break;
         }
         default:
@@ -165,8 +155,8 @@ void TemporarySummon::UnSummon()
 {
     CombatStop();
 
-    if (IS_CREATURE_GUID(GetSummonerGUID()))
-        if(Creature* sum = GetMap()->GetCreature(GetSummonerGUID()))
+    if (GetSummonerGuid().IsCreature())
+        if(Creature* sum = GetMap()->GetCreature(GetSummonerGuid()))
             if (sum->AI())
                 sum->AI()->SummonedCreatureDespawn(this);
 

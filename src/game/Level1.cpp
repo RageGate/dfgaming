@@ -31,7 +31,9 @@
 #include "Language.h"
 #include "CellImpl.h"
 #include "InstanceSaveMgr.h"
+#include "Mail.h"
 #include "Util.h"
+#include "mangchat/IRCClient.h"
 #ifdef _DEBUG_VMAPS
 #include "VMapFactory.h"
 #endif
@@ -129,6 +131,13 @@ bool ChatHandler::HandleAnnounceCommand(const char* args)
         return false;
 
     sWorld.SendWorldText(LANG_SYSTEMMESSAGE,args);
+
+    if((sIRC.BOTMASK & 256) != 0)
+    {
+        std::string channel = "#" + sIRC._irc_chan[sIRC.anchn];
+        sIRC.Send_IRC_Channel(channel, sIRC.MakeMsg("\00304,08\037/!\\\037\017\00304 System Message \00304,08\037/!\\\037\017 %s", "%s", args), true);
+    }
+
     return true;
 }
 
@@ -144,6 +153,12 @@ bool ChatHandler::HandleNotifyCommand(const char* args)
     WorldPacket data(SMSG_NOTIFICATION, (str.size()+1));
     data << str;
     sWorld.SendGlobalMessage(&data);
+
+    if((sIRC.BOTMASK & 256) != 0)
+    {
+        std::string ircchan = std::string("#") + sIRC._irc_chan[sIRC.anchn];
+        sIRC.Send_IRC_Channel(ircchan, sIRC.MakeMsg("\00304,08\037/!\\\037\017\00304 Global Notify \00304,08\037/!\\\037\017 %s", "%s", args), true);
+    }
 
     return true;
 }
@@ -261,7 +276,7 @@ bool ChatHandler::HandleGPSCommand(const char* args)
     {
         uint64 guid = extractGuidFromLink((char*)args);
         if(guid)
-            obj = (WorldObject*)ObjectAccessor::GetObjectByTypeMask(*m_session->GetPlayer(),guid,TYPEMASK_UNIT|TYPEMASK_GAMEOBJECT);
+            obj = (WorldObject*)m_session->GetPlayer()->GetObjectByTypeMask(guid, TYPEMASK_CREATURE_OR_GAMEOBJECT);
 
         if(!obj)
         {
@@ -294,7 +309,11 @@ bool ChatHandler::HandleGPSCommand(const char* args)
     float zone_x = obj->GetPositionX();
     float zone_y = obj->GetPositionY();
 
-    Map2ZoneCoordinates(zone_x,zone_y,zone_id);
+    if (!Map2ZoneCoordinates(zone_x, zone_y, zone_id))
+    {
+        zone_x = 0;
+        zone_y = 0;
+    }
 
     Map const *map = obj->GetMap();
     float ground_z = map->GetHeight(obj->GetPositionX(), obj->GetPositionY(), MAX_HEIGHT);
@@ -1102,9 +1121,9 @@ bool ChatHandler::HandleModifyASpeedCommand(const char* args)
     if (!*args)
         return false;
 
-    float ASpeed = (float)atof((char*)args);
+    float modSpeed = (float)atof((char*)args);
 
-    if (ASpeed > 10 || ASpeed < 0.1)
+    if (modSpeed > 10 || modSpeed < 0.1)
     {
         SendSysMessage(LANG_BAD_VALUE);
         SetSentErrorMessage(true);
@@ -1132,15 +1151,15 @@ bool ChatHandler::HandleModifyASpeedCommand(const char* args)
         return false;
     }
 
-    PSendSysMessage(LANG_YOU_CHANGE_ASPEED, ASpeed, chrNameLink.c_str());
+    PSendSysMessage(LANG_YOU_CHANGE_ASPEED, modSpeed, chrNameLink.c_str());
     if (needReportToTarget(chr))
-        ChatHandler(chr).PSendSysMessage(LANG_YOURS_ASPEED_CHANGED, GetNameLink().c_str(), ASpeed);
+        ChatHandler(chr).PSendSysMessage(LANG_YOURS_ASPEED_CHANGED, GetNameLink().c_str(), modSpeed);
 
-    chr->SetSpeedRate(MOVE_WALK,   ASpeed,true);
-    chr->SetSpeedRate(MOVE_RUN,    ASpeed,true);
-    chr->SetSpeedRate(MOVE_SWIM,   ASpeed,true);
-    //chr->SetSpeed(MOVE_TURN,     ASpeed,true);
-    chr->SetSpeedRate(MOVE_FLIGHT, ASpeed,true);
+    chr->UpdateSpeed(MOVE_WALK,   true, modSpeed);
+    chr->UpdateSpeed(MOVE_RUN,    true, modSpeed);
+    chr->UpdateSpeed(MOVE_SWIM,   true, modSpeed);
+    //chr->UpdateSpeed(MOVE_TURN,   true, modSpeed);
+    chr->UpdateSpeed(MOVE_FLIGHT, true, modSpeed);
     return true;
 }
 
@@ -1150,9 +1169,9 @@ bool ChatHandler::HandleModifySpeedCommand(const char* args)
     if (!*args)
         return false;
 
-    float Speed = (float)atof((char*)args);
+    float modSpeed = (float)atof((char*)args);
 
-    if (Speed > 10 || Speed < 0.1)
+    if (modSpeed > 10 || modSpeed < 0.1)
     {
         SendSysMessage(LANG_BAD_VALUE);
         SetSentErrorMessage(true);
@@ -1180,11 +1199,11 @@ bool ChatHandler::HandleModifySpeedCommand(const char* args)
         return false;
     }
 
-    PSendSysMessage(LANG_YOU_CHANGE_SPEED, Speed, chrNameLink.c_str());
+    PSendSysMessage(LANG_YOU_CHANGE_SPEED, modSpeed, chrNameLink.c_str());
     if (needReportToTarget(chr))
-        ChatHandler(chr).PSendSysMessage(LANG_YOURS_SPEED_CHANGED, GetNameLink().c_str(), Speed);
+        ChatHandler(chr).PSendSysMessage(LANG_YOURS_SPEED_CHANGED, GetNameLink().c_str(), modSpeed);
 
-    chr->SetSpeedRate(MOVE_RUN,Speed,true);
+    chr->UpdateSpeed(MOVE_RUN, true, modSpeed);
 
     return true;
 }
@@ -1195,9 +1214,9 @@ bool ChatHandler::HandleModifySwimCommand(const char* args)
     if (!*args)
         return false;
 
-    float Swim = (float)atof((char*)args);
+    float modSpeed = (float)atof((char*)args);
 
-    if (Swim > 10.0f || Swim < 0.01f)
+    if (modSpeed > 10.0f || modSpeed < 0.01f)
     {
         SendSysMessage(LANG_BAD_VALUE);
         SetSentErrorMessage(true);
@@ -1225,11 +1244,11 @@ bool ChatHandler::HandleModifySwimCommand(const char* args)
         return false;
     }
 
-    PSendSysMessage(LANG_YOU_CHANGE_SWIM_SPEED, Swim, chrNameLink.c_str());
+    PSendSysMessage(LANG_YOU_CHANGE_SWIM_SPEED, modSpeed, chrNameLink.c_str());
     if (needReportToTarget(chr))
-        ChatHandler(chr).PSendSysMessage(LANG_YOURS_SWIM_SPEED_CHANGED, GetNameLink().c_str(), Swim);
+        ChatHandler(chr).PSendSysMessage(LANG_YOURS_SWIM_SPEED_CHANGED, GetNameLink().c_str(), modSpeed);
 
-    chr->SetSpeedRate(MOVE_SWIM,Swim,true);
+    chr->UpdateSpeed(MOVE_SWIM, true, modSpeed);
 
     return true;
 }
@@ -1240,9 +1259,9 @@ bool ChatHandler::HandleModifyBWalkCommand(const char* args)
     if (!*args)
         return false;
 
-    float BSpeed = (float)atof((char*)args);
+    float modSpeed = (float)atof((char*)args);
 
-    if (BSpeed > 10.0f || BSpeed < 0.1f)
+    if (modSpeed > 10.0f || modSpeed < 0.1f)
     {
         SendSysMessage(LANG_BAD_VALUE);
         SetSentErrorMessage(true);
@@ -1270,11 +1289,11 @@ bool ChatHandler::HandleModifyBWalkCommand(const char* args)
         return false;
     }
 
-    PSendSysMessage(LANG_YOU_CHANGE_BACK_SPEED, BSpeed, chrNameLink.c_str());
+    PSendSysMessage(LANG_YOU_CHANGE_BACK_SPEED, modSpeed, chrNameLink.c_str());
     if (needReportToTarget(chr))
-        ChatHandler(chr).PSendSysMessage(LANG_YOURS_BACK_SPEED_CHANGED, GetNameLink().c_str(), BSpeed);
+        ChatHandler(chr).PSendSysMessage(LANG_YOURS_BACK_SPEED_CHANGED, GetNameLink().c_str(), modSpeed);
 
-    chr->SetSpeedRate(MOVE_RUN_BACK,BSpeed,true);
+    chr->UpdateSpeed(MOVE_RUN_BACK, true, modSpeed);
 
     return true;
 }
@@ -1285,9 +1304,9 @@ bool ChatHandler::HandleModifyFlyCommand(const char* args)
     if (!*args)
         return false;
 
-    float FSpeed = (float)atof((char*)args);
+    float modSpeed = (float)atof((char*)args);
 
-    if (FSpeed > 10.0f || FSpeed < 0.1f)
+    if (modSpeed > 10.0f || modSpeed < 0.1f)
     {
         SendSysMessage(LANG_BAD_VALUE);
         SetSentErrorMessage(true);
@@ -1306,11 +1325,11 @@ bool ChatHandler::HandleModifyFlyCommand(const char* args)
     if (HasLowerSecurity(chr, 0))
         return false;
 
-    PSendSysMessage(LANG_YOU_CHANGE_FLY_SPEED, FSpeed, GetNameLink(chr).c_str());
+    PSendSysMessage(LANG_YOU_CHANGE_FLY_SPEED, modSpeed, GetNameLink(chr).c_str());
     if (needReportToTarget(chr))
-        ChatHandler(chr).PSendSysMessage(LANG_YOURS_FLY_SPEED_CHANGED, GetNameLink().c_str(), FSpeed);
+        ChatHandler(chr).PSendSysMessage(LANG_YOURS_FLY_SPEED_CHANGED, GetNameLink().c_str(), modSpeed);
 
-    chr->SetSpeedRate(MOVE_FLIGHT,FSpeed,true);
+    chr->UpdateSpeed(MOVE_FLIGHT, true, modSpeed);
 
     return true;
 }
@@ -1322,7 +1341,7 @@ bool ChatHandler::HandleModifyScaleCommand(const char* args)
         return false;
 
     float Scale = (float)atof((char*)args);
-    if (Scale > 10.0f || Scale <= 0.0f)
+    if (Scale > 15.0f || Scale <= 0.0f)
     {
         SendSysMessage(LANG_BAD_VALUE);
         SetSentErrorMessage(true);
@@ -1599,14 +1618,14 @@ bool ChatHandler::HandleModifyMountCommand(const char* args)
     chr->Mount(mId);
 
     WorldPacket data( SMSG_FORCE_RUN_SPEED_CHANGE, (8+4+1+4) );
-    data.append(chr->GetPackGUID());
+    data << chr->GetPackGUID();
     data << (uint32)0;
     data << (uint8)0;                                       //new 2.1.0
     data << float(speed);
     chr->SendMessageToSet( &data, true );
 
     data.Initialize( SMSG_FORCE_SWIM_SPEED_CHANGE, (8+4+4) );
-    data.append(chr->GetPackGUID());
+    data << chr->GetPackGUID();
     data << (uint32)0;
     data << float(speed);
     chr->SendMessageToSet( &data, true );
@@ -1974,9 +1993,7 @@ bool ChatHandler::HandleSendMailCommand(const char* args)
     // from console show not existed sender
     MailSender sender(MAIL_NORMAL,m_session ? m_session->GetPlayer()->GetGUIDLow() : 0, MAIL_STATIONERY_GM);
 
-    uint32 itemTextId = !text.empty() ? sObjectMgr.CreateItemText( text ) : 0;
-
-    MailDraft(subject, itemTextId)
+    MailDraft(subject, text)
         .SendMailTo(MailReceiver(target,GUID_LOPART(target_guid)),sender);
 
     std::string nameLink = playerLink(target_name);
@@ -2409,7 +2426,12 @@ bool ChatHandler::HandleGoZoneXYCommand(const char* args)
         return false;
     }
 
-    Zone2MapCoordinates(x,y,zoneEntry->ID);
+    if (!Zone2MapCoordinates(x,y,zoneEntry->ID))
+    {
+        PSendSysMessage(LANG_INVALID_ZONE_MAP,areaEntry->ID,areaEntry->area_name[GetSessionDbcLocale()],map->GetId(),map->GetMapName());
+        SetSentErrorMessage(true);
+        return false;
+    }
 
     if(!MapManager::IsValidMapCoord(zoneEntry->mapid,x,y))
     {
@@ -2494,5 +2516,28 @@ bool ChatHandler::HandleModifyDrunkCommand(const char* args)
 
     m_session->GetPlayer()->SetDrunkValue(drunkMod);
 
+    return true;
+}
+bool ChatHandler::HandleIRCpmCommand(const char* args)
+{
+    if (!*args)
+        return false;
+
+    std::string Msg = args;
+    if (Msg.find(" ") == std::string::npos)
+        return false;
+
+    std::string To = Msg.substr(0, Msg.find(" "));
+    Msg = Msg.substr(Msg.find(" ") + 1);
+    std::size_t pos;
+
+    while((pos = To.find("||")) != std::string::npos)
+    {
+        std::size_t find1 = To.find("||", pos);
+        To.replace(pos, find1 - pos + 2, "|");
+    }
+
+    sIRC.SendIRC("PRIVMSG "+To+" : <WoW>["+m_session->GetPlayerName()+"] : " + Msg);
+    sIRC.Send_WoW_Player(m_session->GetPlayer(), "|cffCC4ACCTo ["+To+"]: "+Msg);
     return true;
 }

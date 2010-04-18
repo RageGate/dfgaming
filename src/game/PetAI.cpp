@@ -62,7 +62,6 @@ void PetAI::MoveInLineOfSight(Unit *u)
             if(m_creature->IsWithinLOSInMap(u))
             {
                 AttackStart(u);
-                u->RemoveSpellsCausingAura(SPELL_AURA_MOD_STEALTH);
             }
         }
     }
@@ -167,7 +166,7 @@ void PetAI::UpdateAI(const uint32 diff)
                     return;
             }
             // not required to be stopped case
-            else if (m_creature->isAttackReady() && m_creature->canReachWithAttack(m_creature->getVictim()))
+            else if (m_creature->isAttackReady() && m_creature->IsWithinDistInMap(m_creature->getVictim(), ATTACK_DISTANCE))
             {
                 m_creature->AttackerStateUpdate(m_creature->getVictim());
 
@@ -200,7 +199,7 @@ void PetAI::UpdateAI(const uint32 diff)
     }
 
     // Autocast (casted only in combat or persistent spells in any state)
-    if (m_creature->GetGlobalCooldown() == 0 && !m_creature->IsNonMeleeSpellCasted(false))
+    if (!m_creature->IsNonMeleeSpellCasted(false))
     {
         typedef std::vector<std::pair<Unit*, Spell*> > TargetSpellList;
         TargetSpellList targetSpellStore;
@@ -213,6 +212,10 @@ void PetAI::UpdateAI(const uint32 diff)
 
             SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellID);
             if (!spellInfo)
+                continue;
+
+            // do not cast if spell is on global cooldown
+            if (spellInfo->StartRecoveryTime > 0 && m_creature->GetGlobalCooldown())
                 continue;
 
             // ignore some combinations of combat state and combat/noncombat spells
@@ -288,7 +291,7 @@ void PetAI::UpdateAI(const uint32 diff)
             SpellCastTargets targets;
             targets.setUnitTarget( target );
 
-            if (!m_creature->HasInArc(M_PI, target))
+            if (!m_creature->HasInArc(M_PI_F, target))
             {
                 m_creature->SetInFront(target);
                 if (target->GetTypeId() == TYPEID_PLAYER)
@@ -297,8 +300,6 @@ void PetAI::UpdateAI(const uint32 diff)
                 if (owner && owner->GetTypeId() == TYPEID_PLAYER)
                     m_creature->SendCreateUpdateToPlayer( (Player*)owner );
             }
-
-            m_creature->AddCreatureSpellCooldown(spell->m_spellInfo->Id);
 
             spell->prepare(&targets);
         }
@@ -311,7 +312,7 @@ void PetAI::UpdateAI(const uint32 diff)
 
 bool PetAI::_isVisible(Unit *u) const
 {
-    return m_creature->IsWithinDist(u,sWorld.getConfig(CONFIG_SIGHT_GUARDER))
+    return m_creature->IsWithinDist(u,sWorld.getConfig(CONFIG_FLOAT_SIGHT_GUARDER))
         && u->isVisibleForOrDetect(m_creature,m_creature,true);
 }
 
@@ -320,7 +321,7 @@ void PetAI::UpdateAllies()
     Unit* owner = m_creature->GetCharmerOrOwner();
     Group *pGroup = NULL;
 
-    m_updateAlliesTimer = 10*IN_MILISECONDS;                //update friendly targets every 10 seconds, lesser checks increase performance
+    m_updateAlliesTimer = 10*IN_MILLISECONDS;                //update friendly targets every 10 seconds, lesser checks increase performance
 
     if(!owner)
         return;
@@ -358,6 +359,7 @@ void PetAI::AttackedBy(Unit *attacker)
 {
     //when attacked, fight back in case 1)no victim already AND 2)not set to passive AND 3)not set to stay, unless can it can reach attacker with melee attack anyway
     if(!m_creature->getVictim() && m_creature->GetCharmInfo() && !m_creature->GetCharmInfo()->HasReactState(REACT_PASSIVE) &&
-        (!m_creature->GetCharmInfo()->HasCommandState(COMMAND_STAY) || m_creature->canReachWithAttack(attacker)))
+        (!m_creature->GetCharmInfo()->HasCommandState(COMMAND_STAY) || m_creature->IsWithinDistInMap(m_creature->getVictim(), ATTACK_DISTANCE)))
+
         AttackStart(attacker);
 }

@@ -566,11 +566,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\game\BattleGroundABG.cpp"
+				RelativePath="..\..\src\game\BattleGroundRB.cpp"
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\game\BattleGroundABG.h"
+				RelativePath="..\..\src\game\BattleGroundRB.h"
 				>
 			</File>
 			<File
@@ -713,6 +713,22 @@
 				RelativePath="..\..\src\game\ChatHandler.cpp"
 				>
 			</File>
+            <File
+                RelativePath="..\..\src\game\ChatLexicsCutter.cpp"
+                >
+            </File>
+            <File
+                RelativePath="..\..\src\game\ChatLexicsCutter.h"
+                >
+            </File>
+            <File
+                RelativePath="..\..\src\game\ChatLog.cpp"
+                >
+            </File>
+            <File
+                RelativePath="..\..\src\game\ChatLog.h"
+                >
+            </File>
 			<File
 				RelativePath="..\..\src\game\CombatHandler.cpp"
 				>
@@ -1130,6 +1146,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\game\AuctionHouseBot.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\AuctionHouseBot.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\game\AuctionHouseMgr.cpp"
 				>
 			</File>
@@ -1310,7 +1334,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\game\ObjectDefines.h"
+				RelativePath="..\..\src\game\ObjectGuid.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\ObjectGuid.h"
 				>
 			</File>
 			<File
@@ -1463,14 +1491,6 @@
 			</File>
 			<File
 				RelativePath="..\..\src\game\DBCStructure.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\game\GlobalEvents.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\game\GlobalEvents.h"
 				>
 			</File>
 			<File
@@ -1646,6 +1666,61 @@
 			RelativePath="..\..\src\game\pchdef.h"
 			>
 		</File>
+		<Filter
+			Name="IRC">
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCClient.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCClient.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCCmd.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCCmd.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCCmde.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCConf.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCFunc.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCIO.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCLog.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCLog.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\IRCSock.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\MCS_OnlinePlayers.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\mangchat\MCS_OnlinePlayers.h"
+				>
+			</File>
+		</Filter>
 	</Files>
 	<Globals>
 	</Globals>

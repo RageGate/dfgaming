@@ -31,10 +31,10 @@ void PointMovementGenerator<T>::Initialize(T &unit)
     unit.StopMoving();
     unit.addUnitState(UNIT_STAT_ROAMING|UNIT_STAT_ROAMING_MOVE);
     Traveller<T> traveller(unit);
-    i_destinationHolder.SetDestination(traveller,i_x,i_y,i_z);
+    i_destinationHolder.SetDestination(traveller, i_x, i_y, i_z);
 
     if (unit.GetTypeId() == TYPEID_UNIT && ((Creature*)&unit)->canFly())
-        ((Creature&)unit).AddMonsterMoveFlag(MONSTER_MOVE_FLY);
+        ((Creature&)unit).AddSplineFlag(SPLINEFLAG_UNKNOWN7);
 }
 
 template<class T>
@@ -71,7 +71,11 @@ bool PointMovementGenerator<T>::Update(T &unit, const uint32 &diff)
 
     unit.addUnitState(UNIT_STAT_ROAMING_MOVE);
     Traveller<T> traveller(unit);
-    i_destinationHolder.UpdateTraveller(traveller, diff, false);
+    if (i_destinationHolder.UpdateTraveller(traveller, diff, false))
+    {
+        if (!IsActive(unit))                                // force stop processing (movement can move out active zone with cleanup movegens list)
+            return true;                                    // not expire now, but already lost
+    }
 
     if(i_destinationHolder.HasArrived())
     {
@@ -97,8 +101,8 @@ void PointMovementGenerator<Creature>::MovementInform(Creature &unit)
     if (unit.isTemporarySummon())
     {
         TemporarySummon* pSummon = (TemporarySummon*)(&unit);
-        if (IS_CREATURE_GUID(pSummon->GetSummonerGUID()))
-            if(Creature* pSummoner = unit.GetMap()->GetCreature(pSummon->GetSummonerGUID()))
+        if (pSummon->GetSummonerGuid().IsCreature())
+            if(Creature* pSummoner = unit.GetMap()->GetCreature(pSummon->GetSummonerGuid()))
                 if (pSummoner->AI())
                     pSummoner->AI()->SummonedMovementInform(&unit, POINT_MOTION_TYPE, id);
     }
@@ -122,5 +126,5 @@ void AssistanceMovementGenerator::Finalize(Unit &unit)
     ((Creature*)&unit)->SetNoCallAssistance(false);
     ((Creature*)&unit)->CallAssistance();
     if (unit.isAlive())
-        unit.GetMotionMaster()->MoveSeekAssistanceDistract(sWorld.getConfig(CONFIG_CREATURE_FAMILY_ASSISTANCE_DELAY));
+        unit.GetMotionMaster()->MoveSeekAssistanceDistract(sWorld.getConfig(CONFIG_UINT32_CREATURE_FAMILY_ASSISTANCE_DELAY));
 }

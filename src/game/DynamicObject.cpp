@@ -55,7 +55,7 @@ void DynamicObject::RemoveFromWorld()
     Object::RemoveFromWorld();
 }
 
-bool DynamicObject::Create( uint32 guidlow, Unit *caster, uint32 spellId, uint32 effIndex, float x, float y, float z, int32 duration, float radius )
+bool DynamicObject::Create( uint32 guidlow, Unit *caster, uint32 spellId, SpellEffectIndex effIndex, float x, float y, float z, int32 duration, float radius )
 {
     WorldObject::_Create(guidlow, HIGHGUID_DYNAMICOBJECT, caster->GetPhaseMask());
     SetMap(caster->GetMap());
@@ -68,7 +68,7 @@ bool DynamicObject::Create( uint32 guidlow, Unit *caster, uint32 spellId, uint32
     }
 
     SetEntry(spellId);
-    SetFloatValue( OBJECT_FIELD_SCALE_X, 1 );
+    SetFloatValue( OBJECT_FIELD_SCALE_X, 2 );
     SetUInt64Value( DYNAMICOBJECT_CASTER, caster->GetGUID() );
     SetUInt32Value( DYNAMICOBJECT_BYTES, 0x00000001 );
     SetUInt32Value( DYNAMICOBJECT_SPELLID, spellId );
@@ -114,18 +114,8 @@ void DynamicObject::Update(uint32 p_time)
     if(m_radius)
     {
         // TODO: make a timer and update this in larger intervals
-        CellPair p(MaNGOS::ComputeCellPair(GetPositionX(), GetPositionY()));
-        Cell cell(p);
-        cell.data.Part.reserved = ALL_DISTRICT;
-        cell.SetNoCreate();
-
         MaNGOS::DynamicObjectUpdater notifier(*this, caster);
-
-        TypeContainerVisitor<MaNGOS::DynamicObjectUpdater, WorldTypeMapContainer > world_object_notifier(notifier);
-        TypeContainerVisitor<MaNGOS::DynamicObjectUpdater, GridTypeMapContainer > grid_object_notifier(notifier);
-
-        cell.Visit(p, world_object_notifier, *GetMap(), *this, m_radius);
-        cell.Visit(p, grid_object_notifier,  *GetMap(), *this, m_radius);
+        Cell::VisitAllObjects(this, notifier, m_radius);
     }
 
     if(deleteThis)
@@ -160,4 +150,20 @@ bool DynamicObject::isVisibleForInState(Player const* u, WorldObject const* view
 
     // normal case
     return IsWithinDistInMap(viewPoint, World::GetMaxVisibleDistanceForObject() + (inVisibleList ? World::GetVisibleObjectGreyDistance() : 0.0f), false);
+}
+
+bool DynamicObject::IsHostileTo( Unit const* unit ) const
+{
+    if (Unit* owner = GetCaster())
+        return owner->IsHostileTo(unit);
+    else
+        return false;
+}
+
+bool DynamicObject::IsFriendlyTo( Unit const* unit ) const
+{
+    if (Unit* owner = GetCaster())
+        return owner->IsFriendlyTo(unit);
+    else
+        return true;
 }

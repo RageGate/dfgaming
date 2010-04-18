@@ -107,9 +107,9 @@ enum __QuestGiverStatus
 {
     DIALOG_STATUS_NONE                     = 0,
     DIALOG_STATUS_UNAVAILABLE              = 1,
-    DIALOG_STATUS_CHAT                     = 2,             // 3.1 - may be changed
-    DIALOG_STATUS_UNK1                     = 3,             // 3.1
-    DIALOG_STATUS_UNK2                     = 4,             // 3.1
+    DIALOG_STATUS_LOW_LEVEL_AVAILABLE      = 2,
+    DIALOG_STATUS_LOW_LEVEL_REWARD_REP     = 3,
+    DIALOG_STATUS_LOW_LEVEL_AVAILABLE_REP  = 4,
     DIALOG_STATUS_INCOMPLETE               = 5,
     DIALOG_STATUS_REWARD_REP               = 6,
     DIALOG_STATUS_AVAILABLE_REP            = 7,
@@ -121,6 +121,7 @@ enum __QuestGiverStatus
 enum __QuestFlags
 {
     // Flags used at server and sent to client
+    QUEST_FLAGS_NONE           = 0x00000000,
     QUEST_FLAGS_STAY_ALIVE     = 0x00000001,                // Not used currently
     QUEST_FLAGS_PARTY_ACCEPT   = 0x00000002,                // If player in party, all players that can accept this quest will receive confirmation box to accept quest CMSG_QUEST_CONFIRM_ACCEPT/SMSG_QUEST_CONFIRM_ACCEPT
     QUEST_FLAGS_EXPLORATION    = 0x00000004,                // Not used currently
@@ -133,12 +134,14 @@ enum __QuestFlags
     QUEST_FLAGS_HIDDEN_REWARDS = 0x00000200,                // Items and money rewarded only sent in SMSG_QUESTGIVER_OFFER_REWARD (not in SMSG_QUESTGIVER_QUEST_DETAILS or in client quest log(SMSG_QUEST_QUERY_RESPONSE))
     QUEST_FLAGS_AUTO_REWARDED  = 0x00000400,                // These quests are automatically rewarded on quest complete and they will never appear in quest log client side.
     QUEST_FLAGS_TBC_RACES      = 0x00000800,                // Not used currently: Blood elf/Draenei starting zone quests
-    QUEST_FLAGS_DAILY          = 0x00001000,                // Used to know quest is Daily one
-    QUEST_FLAGS_UNK3           = 0x00002000,                // activates PvP?
+    QUEST_FLAGS_DAILY          = 0x00001000,                // Daily quest. Can be done once a day. Quests reset at regular intervals for all players.
+    QUEST_FLAGS_FLAGS_PVP      = 0x00002000,                // activates PvP on accept
     QUEST_FLAGS_UNK4           = 0x00004000,                // ? Membership Card Renewal
-    QUEST_FLAGS_WEEKLY         = 0x00008000,                // Not used currently: Weekly quests
-    // 0x20000 - 1 quest in 3.3, 0x40000 - 1 quest in 3.3
-    QUEST_FLAGS_LOW_LEVEL      = 0x00080000,                // quests in starting areas
+    QUEST_FLAGS_WEEKLY         = 0x00008000,                // Weekly quest. Can be done once a week. Quests reset at regular intervals for all players.
+    QUEST_FLAGS_AUTOCOMPLETE   = 0x00010000,                // auto complete
+    QUEST_FLAGS_UNK5           = 0x00020000,                // has something to do with ReqItemId and SrcItemId
+    QUEST_FLAGS_UNK6           = 0x00040000,                // use Objective text as Complete text
+    QUEST_FLAGS_AUTO_ACCEPT    = 0x00080000,                // quests in starting areas
 
     // Mangos flags for set SpecialFlags in DB if required but used only at server
     QUEST_MANGOS_FLAGS_REPEATABLE           = 0x01000000,   // Set by 1 in SpecialFlags from DB
@@ -162,6 +165,7 @@ struct QuestLocale
     std::vector<std::string> OfferRewardText;
     std::vector<std::string> RequestItemsText;
     std::vector<std::string> EndText;
+    std::vector<std::string> CompletedText;
     std::vector< std::vector<std::string> > ObjectiveText;
 };
 
@@ -200,6 +204,7 @@ class Quest
         int32  GetNextQuestId() const { return NextQuestId; }
         int32  GetExclusiveGroup() const { return ExclusiveGroup; }
         uint32 GetNextQuestInChain() const { return NextQuestInChain; }
+        uint32 GetRewXPId() const { return RewXPId; }
         uint32 GetCharTitleId() const { return CharTitleId; }
         uint32 GetPlayersSlain() const { return PlayersSlain; }
         uint32 GetBonusTalents() const { return BonusTalents; }
@@ -212,8 +217,10 @@ class Quest
         std::string GetOfferRewardText() const { return OfferRewardText; }
         std::string GetRequestItemsText() const { return RequestItemsText; }
         std::string GetEndText() const { return EndText; }
+        std::string GetCompletedText() const { return CompletedText; }
         int32  GetRewOrReqMoney() const;
-        uint32 GetRewHonorableKills() const { return RewHonorableKills; }
+        uint32 GetRewHonorAddition() const { return RewHonorAddition; }
+        float GetRewHonorMultiplier() const { return RewHonorMultiplier; }
         uint32 GetRewMoneyMaxLevel() const { return RewMoneyMaxLevel; }
                                                             // use in XP calculation at client
         uint32 GetRewSpell() const { return RewSpell; }
@@ -232,6 +239,9 @@ class Quest
         bool   IsAutoComplete() const { return QuestMethod ? false : true; }
         uint32 GetFlags() const { return QuestFlags; }
         bool   IsDaily() const { return QuestFlags & QUEST_FLAGS_DAILY; }
+        bool   IsWeekly() const { return QuestFlags & QUEST_FLAGS_WEEKLY; }
+        bool   IsDailyOrWeekly() const { return QuestFlags & (QUEST_FLAGS_DAILY | QUEST_FLAGS_WEEKLY); }
+        bool   IsAutoAccept() const { return QuestFlags & QUEST_FLAGS_AUTO_ACCEPT; }
 
         // multiple values
         std::string ObjectiveText[QUEST_OBJECTIVES_COUNT];
@@ -247,6 +257,7 @@ class Quest
         uint32 RewItemId[QUEST_REWARDS_COUNT];
         uint32 RewItemCount[QUEST_REWARDS_COUNT];
         uint32 RewRepFaction[QUEST_REPUTATIONS_COUNT];
+        int32  RewRepValueId[QUEST_REPUTATIONS_COUNT];
         int32  RewRepValue[QUEST_REPUTATIONS_COUNT];
         uint32 DetailsEmote[QUEST_EMOTE_COUNT];
         uint32 DetailsEmoteDelay[QUEST_EMOTE_COUNT];
@@ -297,6 +308,7 @@ class Quest
         int32  NextQuestId;
         int32  ExclusiveGroup;
         uint32 NextQuestInChain;
+        uint32 RewXPId;
         uint32 SrcItemId;
         uint32 SrcItemCount;
         uint32 SrcSpell;
@@ -306,7 +318,9 @@ class Quest
         std::string OfferRewardText;
         std::string RequestItemsText;
         std::string EndText;
-        uint32 RewHonorableKills;
+        std::string CompletedText;
+        uint32 RewHonorAddition;
+        float RewHonorMultiplier;
         int32  RewOrReqMoney;
         uint32 RewMoneyMaxLevel;
         uint32 RewSpell;

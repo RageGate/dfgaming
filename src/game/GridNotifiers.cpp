@@ -28,22 +28,6 @@
 using namespace MaNGOS;
 
 void
-MaNGOS::PlayerNotifier::Visit(PlayerMapType &m)
-{
-    WorldObject const* viewPoint = i_player.GetViewPoint();
-
-    for(PlayerMapType::iterator iter=m.begin(); iter != m.end(); ++iter)
-    {
-        Player* player = iter->getSource();
-        if( player == &i_player )
-            continue;
-
-        player->UpdateVisibilityOf(player->GetViewPoint(),&i_player);
-        i_player.UpdateVisibilityOf(viewPoint,player);
-    }
-}
-
-void
 VisibleChangesNotifier::Visit(PlayerMapType &m)
 {
     for(PlayerMapType::iterator iter=m.begin(); iter != m.end(); ++iter)
@@ -53,23 +37,6 @@ VisibleChangesNotifier::Visit(PlayerMapType &m)
             continue;
 
         player->UpdateVisibilityOf(player->GetViewPoint(),&i_object);
-    }
-}
-
-void
-VisibleNotifier::Visit(PlayerMapType &m)
-{
-    WorldObject const* viewPoint = i_player.GetViewPoint();
-
-    for(PlayerMapType::iterator iter=m.begin(); iter != m.end(); ++iter)
-    {
-        Player* player = iter->getSource();
-        if( player == &i_player )
-            continue;
-
-        player->UpdateVisibilityOf(player->GetViewPoint(),&i_player);
-        i_player.UpdateVisibilityOf(viewPoint,player,i_data,i_data_updates,i_visibleNow);
-        i_clientGUIDs.erase(player->GetGUID());
     }
 }
 
@@ -94,13 +61,13 @@ VisibleNotifier::Notify()
 
     // generate outOfRange for not iterate objects
     i_data.AddOutOfRangeGUID(i_clientGUIDs);
-    for(Player::ClientGUIDs::iterator itr = i_clientGUIDs.begin();itr!=i_clientGUIDs.end();++itr)
+    for(ObjectGuidSet::iterator itr = i_clientGUIDs.begin();itr!=i_clientGUIDs.end();++itr)
     {
         i_player.m_clientGUIDs.erase(*itr);
 
         #ifdef MANGOS_DEBUG
         if((sLog.getLogFilter() & LOG_FILTER_VISIBILITY_CHANGES)==0)
-            sLog.outDebug("Object %u (Type: %u) is out of range (no in active cells set) now for player %u",GUID_LOPART(*itr),GuidHigh2TypeId(GUID_HIPART(*itr)),i_player.GetGUIDLow());
+            sLog.outDebug("%s is out of range (no in active cells set) now for player %u",itr->GetString().c_str(),i_player.GetGUIDLow());
         #endif
     }
 
@@ -123,10 +90,10 @@ VisibleNotifier::Notify()
         i_player.GetSession()->SendPacket(&packet);
 
         // send out of range to other players if need
-        std::set<uint64> const& oor = i_data.GetOutOfRangeGUIDs();
-        for(std::set<uint64>::const_iterator iter = oor.begin(); iter != oor.end(); ++iter)
+        ObjectGuidSet const& oor = i_data.GetOutOfRangeGUIDs();
+        for(ObjectGuidSet::const_iterator iter = oor.begin(); iter != oor.end(); ++iter)
         {
-            if(!IS_PLAYER_GUID(*iter))
+            if(!iter->IsPlayer())
                 continue;
 
             if (Player* plr = ObjectAccessor::FindPlayer(*iter))
@@ -229,10 +196,10 @@ bool CannibalizeObjectCheck::operator()(Corpse* u)
 
     Player* owner = ObjectAccessor::FindPlayer(u->GetOwnerGUID());
 
-    if( !owner || i_funit->IsFriendlyTo(owner))
+    if( !owner || i_fobj->IsFriendlyTo(owner))
         return false;
 
-    if(i_funit->IsWithinDistInMap(u, i_range) )
+    if(i_fobj->IsWithinDistInMap(u, i_range) )
         return true;
 
     return false;

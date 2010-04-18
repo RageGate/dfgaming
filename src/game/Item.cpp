@@ -19,7 +19,7 @@
 #include "Common.h"
 #include "Item.h"
 #include "ObjectMgr.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 #include "WorldPacket.h"
 #include "Database/DatabaseEnv.h"
 #include "ItemEnchantmentMgr.h"
@@ -159,7 +159,7 @@ void RemoveItemsSetItem(Player*player,ItemPrototype const *proto)
 
     if(!eff->item_count)                                    //all items of a set were removed
     {
-        assert(eff == player->ItemSetEff[setindex]);
+        ASSERT(eff == player->ItemSetEff[setindex]);
         delete eff;
         player->ItemSetEff[setindex] = NULL;
     }
@@ -268,7 +268,7 @@ bool Item::Create( uint32 guidlow, uint32 itemid, Player const* owner)
         SetSpellCharges(i,itemProto->Spells[i].SpellCharges);
 
     SetUInt32Value(ITEM_FIELD_FLAGS, itemProto->Flags);
-    SetUInt32Value(ITEM_FIELD_DURATION, abs(itemProto->Duration));
+    SetUInt32Value(ITEM_FIELD_DURATION, itemProto->Duration);
 
     return true;
 }
@@ -297,21 +297,26 @@ void Item::SaveToDB()
     {
         case ITEM_NEW:
         {
+            std::string text = m_text;
+            CharacterDatabase.escape_string(text);
             CharacterDatabase.PExecute( "DELETE FROM item_instance WHERE guid = '%u'", guid );
             std::ostringstream ss;
-            ss << "INSERT INTO item_instance (guid,owner_guid,data) VALUES (" << guid << "," << GUID_LOPART(GetOwnerGUID()) << ",'";
+            ss << "INSERT INTO item_instance (guid,owner_guid,data,text) VALUES (" << guid << "," << GUID_LOPART(GetOwnerGUID()) << ",'";
             for(uint16 i = 0; i < m_valuesCount; ++i )
                 ss << GetUInt32Value(i) << " ";
-            ss << "' )";
+            ss << "', '" << text << "')";
             CharacterDatabase.Execute( ss.str().c_str() );
         } break;
         case ITEM_CHANGED:
         {
+            std::string text = m_text;
+            CharacterDatabase.escape_string(text);
             std::ostringstream ss;
             ss << "UPDATE item_instance SET data = '";
             for(uint16 i = 0; i < m_valuesCount; ++i )
                 ss << GetUInt32Value(i) << " ";
-            ss << "', owner_guid = '" << GUID_LOPART(GetOwnerGUID()) << "' WHERE guid = '" << guid << "'";
+            ss << "', owner_guid = '" << GUID_LOPART(GetOwnerGUID());
+            ss << "', text = '" << text << "' WHERE guid = '" << guid << "'";
 
             CharacterDatabase.Execute( ss.str().c_str() );
 
@@ -320,8 +325,6 @@ void Item::SaveToDB()
         } break;
         case ITEM_REMOVED:
         {
-            if (GetUInt32Value(ITEM_FIELD_ITEM_TEXT_ID) > 0 )
-                CharacterDatabase.PExecute("DELETE FROM item_text WHERE id = '%u'", GetUInt32Value(ITEM_FIELD_ITEM_TEXT_ID));
             CharacterDatabase.PExecute("DELETE FROM item_instance WHERE guid = '%u'", guid);
             if(HasFlag(ITEM_FIELD_FLAGS, ITEM_FLAGS_WRAPPED))
                 CharacterDatabase.PExecute("DELETE FROM character_gifts WHERE item_guid = '%u'", GetGUIDLow());
@@ -403,20 +406,20 @@ bool Item::LoadFromDB(uint32 guid, uint64 owner_guid, QueryResult *result)
     }
 
     // update duration if need, and remove if not need
-    if((proto->Duration==0) != (GetUInt32Value(ITEM_FIELD_DURATION)==0))
+    if ((proto->Duration == 0) != (GetUInt32Value(ITEM_FIELD_DURATION) == 0))
     {
-        SetUInt32Value(ITEM_FIELD_DURATION,abs(proto->Duration));
+        SetUInt32Value(ITEM_FIELD_DURATION, proto->Duration);
         need_save = true;
     }
 
     // set correct owner
-    if(owner_guid != 0 && GetOwnerGUID() != owner_guid)
+    if (owner_guid != 0 && GetOwnerGUID() != owner_guid)
     {
         SetOwnerGUID(owner_guid);
         need_save = true;
     }
 
-    if(need_save)                                           // normal item changed state set not work at loading
+    if (need_save)                                          // normal item changed state set not work at loading
     {
         std::ostringstream ss;
         ss << "UPDATE item_instance SET data = '";
@@ -712,6 +715,9 @@ bool Item::CanBeTraded(bool mail) const
     if (m_lootGenerated)
         return false;
 
+    if(!mail && IsBoundAccountWide()) // Dirty hack, because trade window is closing
+        return false;
+
     if ((!mail || !IsBoundAccountWide()) && IsSoulBound())
         return false;
 
@@ -754,6 +760,10 @@ bool Item::IsBoundByEnchant() const
 bool Item::IsFitToSpellRequirements(SpellEntry const* spellInfo) const
 {
     ItemPrototype const* proto = GetProto();
+
+    //Lava Lash
+    if (spellInfo->Id==60103 && spellInfo->EquippedItemClass==ITEM_CLASS_WEAPON)
+         return true;
 
     if (spellInfo->EquippedItemClass != -1)                 // -1 == any item class
     {
@@ -868,6 +878,7 @@ bool Item::GemsFitSockets() const
             }
         }
 
+        SocketColor = SocketColor ? SocketColor : PRISMATIC_SOCKET;
         fits &= (GemColor & SocketColor) ? true : false;
     }
     return fits;
@@ -946,7 +957,7 @@ Item* Item::CreateItem( uint32 item, uint32 count, Player const* player )
         if ( count > pProto->GetMaxStackSize())
             count = pProto->GetMaxStackSize();
 
-        assert(count !=0 && "pProto->Stackable==0 but checked at loading already");
+        ASSERT(count !=0 && "pProto->Stackable==0 but checked at loading already");
 
         Item *pItem = NewItemOrBag( pProto );
         if( pItem->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_ITEM), item, player) )
@@ -1053,5 +1064,30 @@ bool ItemRequiredTarget::IsFitToRequirements( Unit* pUnitTarget ) const
             return !pUnitTarget->isAlive();
         default:
             return false;
+    }
+}
+
+bool Item::HasMaxCharges() const
+{
+    ItemPrototype const* itemProto = GetProto();
+
+    for(int i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
+        if (GetSpellCharges(i) != itemProto->Spells[i].SpellCharges)
+            return false;
+
+    return true;
+}
+
+void Item::RestoreCharges()
+{
+    ItemPrototype const* itemProto = GetProto();
+
+    for(int i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
+    {
+        if (GetSpellCharges(i) != itemProto->Spells[i].SpellCharges)
+        {
+            SetSpellCharges(i, itemProto->Spells[i].SpellCharges);
+            SetState(ITEM_CHANGED);
+        }
     }
 }

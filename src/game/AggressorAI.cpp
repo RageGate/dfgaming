@@ -40,6 +40,11 @@ AggressorAI::AggressorAI(Creature *c) : CreatureAI(c), i_victimGuid(0), i_state(
 {
 }
 
+void AggressorAI::JustReachedHome()
+{
+    m_creature->LoadCreaturesAddon();
+}
+
 void
 AggressorAI::MoveInLineOfSight(Unit *u)
 {
@@ -47,9 +52,8 @@ AggressorAI::MoveInLineOfSight(Unit *u)
     if( !m_creature->canFly() && m_creature->GetDistanceZ(u) > CREATURE_Z_ATTACK_RANGE )
         return;
 
-    if (!m_creature->hasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_DIED) && u->isTargetableForAttack() &&
-        ( m_creature->IsHostileTo( u ) /*|| u->getVictim() && m_creature->IsFriendlyTo( u->getVictim() )*/ ) &&
-        u->isInAccessablePlaceFor(m_creature))
+    if (m_creature->CanInitiateAttack() && u->isTargetableForAttack() &&
+        m_creature->IsHostileTo(u) && u->isInAccessablePlaceFor(m_creature))
     {
         float attackRadius = m_creature->GetAttackDistance(u);
         if(m_creature->IsWithinDistInMap(u, attackRadius) && m_creature->IsWithinLOSInMap(u) )
@@ -57,7 +61,6 @@ AggressorAI::MoveInLineOfSight(Unit *u)
             if(!m_creature->getVictim())
             {
                 AttackStart(u);
-                u->RemoveSpellsCausingAura(SPELL_AURA_MOD_STEALTH);
             }
             else if(sMapStore.LookupEntry(m_creature->GetMapId())->IsDungeon())
             {
@@ -117,6 +120,7 @@ void AggressorAI::EnterEvadeMode()
     i_victimGuid = 0;
     m_creature->CombatStop(true);
     m_creature->SetLootRecipient(NULL);
+    m_creature->ResetObtainedDamage();
 }
 
 void
@@ -141,7 +145,7 @@ AggressorAI::UpdateAI(const uint32 /*diff*/)
 bool
 AggressorAI::IsVisible(Unit *pl) const
 {
-    return m_creature->IsWithinDist(pl,sWorld.getConfig(CONFIG_SIGHT_MONSTER))
+    return m_creature->IsWithinDist(pl,sWorld.getConfig(CONFIG_FLOAT_SIGHT_MONSTER))
         && pl->isVisibleForOrDetect(m_creature,m_creature,true);
 }
 

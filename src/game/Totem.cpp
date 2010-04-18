@@ -23,6 +23,7 @@
 #include "Player.h"
 #include "ObjectMgr.h"
 #include "SpellMgr.h"
+#include "CreatureAI.h"
 
 Totem::Totem() : Creature(CREATURE_SUBTYPE_TOTEM)
 {
@@ -67,17 +68,22 @@ void Totem::Summon(Unit* owner)
 
     AIM_Initialize();
 
+    if (owner->GetTypeId() == TYPEID_UNIT && ((Creature*)owner)->AI())
+        ((Creature*)owner)->AI()->JustSummoned((Creature*)this);
+
     // there are some totems, which exist just for their visual appeareance
-    if (!GetSpell())
+    if (!m_spells[0])
         return;
 
     switch(m_type)
     {
         case TOTEM_PASSIVE:
-            CastSpell(this, GetSpell(), true);
+            for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+                CastSpell(this, m_spells[i], true);
             break;
         case TOTEM_STATUE:
-            CastSpell(GetOwner(), GetSpell(), true);
+           for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+                CastSpell(GetOwner(), m_spells[i], true);
             break;
         default: break;
     }
@@ -86,21 +92,14 @@ void Totem::Summon(Unit* owner)
 void Totem::UnSummon()
 {
     CombatStop();
-    RemoveAurasDueToSpell(GetSpell());
+     for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+        RemoveAurasDueToSpell(m_spells[i]);
 
     if (Unit *owner = GetOwner())
     {
-        // clear owner's totem slot
-        for(int i = 0; i < MAX_TOTEM; ++i)
-        {
-            if(owner->m_TotemSlot[i] == GetGUID())
-            {
-                owner->m_TotemSlot[i] = 0;
-                break;
-            }
-        }
-
-        owner->RemoveAurasDueToSpell(GetSpell());
+        owner->_RemoveTotem(this);
+        for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+            owner->RemoveAurasDueToSpell(m_spells[i]);
 
         //remove aura all party members too
         if (owner->GetTypeId() == TYPEID_PLAYER)
@@ -114,10 +113,14 @@ void Totem::UnSummon()
                 {
                     Player* Target = itr->getSource();
                     if(Target && pGroup->SameSubGroup((Player*)owner, Target))
-                        Target->RemoveAurasDueToSpell(GetSpell());
+                        for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
+                            Target->RemoveAurasDueToSpell(m_spells[i]);
                 }
             }
         }
+
+        if (owner->GetTypeId() == TYPEID_UNIT && ((Creature*)owner)->AI())
+            ((Creature*)owner)->AI()->SummonedCreatureDespawn((Creature*)this);
     }
 
     AddObjectToRemoveList();
@@ -145,7 +148,7 @@ Unit *Totem::GetOwner()
 void Totem::SetTypeBySummonSpell(SpellEntry const * spellProto)
 {
     // Get spell casted by totem
-    SpellEntry const * totemSpell = sSpellStore.LookupEntry(GetSpell());
+    SpellEntry const * totemSpell = sSpellStore.LookupEntry(m_spells[0]);
     if (totemSpell)
     {
         // If spell have cast time -> so its active totem
@@ -156,7 +159,7 @@ void Totem::SetTypeBySummonSpell(SpellEntry const * spellProto)
         m_type = TOTEM_STATUE;                              //Jewelery statue
 }
 
-bool Totem::IsImmunedToSpellEffect(SpellEntry const* spellInfo, uint32 index) const
+bool Totem::IsImmunedToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex index) const
 {
     // TODO: possibly all negative auras immune?
     switch(spellInfo->Effect[index])

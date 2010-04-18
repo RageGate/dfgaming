@@ -170,8 +170,6 @@ void WorldSession::HandlePetAction( WorldPacket & recv_data )
         case ACT_ENABLED:                                   // 0xC1    spell
         {
             Unit* unit_target = NULL;
-            if (((Creature*)pet)->GetGlobalCooldown() > 0)
-                return;
 
             if(guid2)
                 unit_target = ObjectAccessor::GetUnit(*_player,guid2);
@@ -184,7 +182,10 @@ void WorldSession::HandlePetAction( WorldPacket & recv_data )
                 return;
             }
 
-            for(uint32 i = 0; i < 3;++i)
+            if (spellInfo->StartRecoveryTime && ((Creature*)pet)->GetGlobalCooldown() > 0)
+                return;
+
+            for(int i = 0; i < MAX_EFFECT_INDEX;++i)
             {
                 if(spellInfo->EffectImplicitTargetA[i] == TARGET_ALL_ENEMY_IN_AREA || spellInfo->EffectImplicitTargetA[i] == TARGET_ALL_ENEMY_IN_AREA_INSTANT || spellInfo->EffectImplicitTargetA[i] == TARGET_ALL_ENEMY_IN_AREA_CHANNELED)
                     return;
@@ -223,8 +224,6 @@ void WorldSession::HandlePetAction( WorldPacket & recv_data )
 
             if(result == SPELL_CAST_OK)
             {
-                ((Creature*)pet)->AddCreatureSpellCooldown(spellid);
-
                 unit_target = spell->m_targets.getUnitTarget();
 
                 //10% chance to play special pet attack talk, else growl
@@ -472,7 +471,7 @@ void WorldSession::HandlePetRename( WorldPacket & recv_data )
 
         std::wstring wname;
         Utf8toWStr(name, wname);
-        if(!ObjectMgr::CheckDeclinedNames(GetMainPartOfName(wname,0),declinedname))
+        if(!ObjectMgr::CheckDeclinedNames(wname, declinedname))
         {
             SendPetNameInvalid(PET_NAME_DECLENSION_DOESNT_MATCH_BASE_NAME, name, &declinedname);
             return;
@@ -493,7 +492,7 @@ void WorldSession::HandlePetRename( WorldPacket & recv_data )
     CharacterDatabase.PExecute("UPDATE character_pet SET name = '%s', renamed = '1' WHERE owner = '%u' AND id = '%u'", name.c_str(), _player->GetGUIDLow(), pet->GetCharmInfo()->GetPetNumber());
     CharacterDatabase.CommitTransaction();
 
-    pet->SetUInt32Value(UNIT_FIELD_PET_NAME_TIMESTAMP, time(NULL));
+    pet->SetUInt32Value(UNIT_FIELD_PET_NAME_TIMESTAMP, uint32(time(NULL)));
 }
 
 void WorldSession::HandlePetAbandon( WorldPacket & recv_data )
@@ -615,9 +614,6 @@ void WorldSession::HandlePetCastSpellOpcode( WorldPacket& recvPacket )
         return;
     }
 
-    if (pet->GetGlobalCooldown() > 0)
-        return;
-
     SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellid);
     if (!spellInfo)
     {
@@ -625,13 +621,16 @@ void WorldSession::HandlePetCastSpellOpcode( WorldPacket& recvPacket )
         return;
     }
 
+    if (spellInfo->StartRecoveryTime && pet->GetGlobalCooldown() > 0)
+        return;
+
     // do not cast not learned spells
     if (!pet->HasSpell(spellid) || IsPassiveSpell(spellid))
         return;
 
     SpellCastTargets targets;
-    if (!targets.read(&recvPacket,pet))
-        return;
+
+    recvPacket >> targets.ReadForCaster(pet);
 
     pet->clearUnitState(UNIT_STAT_MOVING);
 
@@ -642,7 +641,6 @@ void WorldSession::HandlePetCastSpellOpcode( WorldPacket& recvPacket )
     SpellCastResult result = spell->CheckPetCast(NULL);
     if (result == SPELL_CAST_OK)
     {
-        pet->AddCreatureSpellCooldown(spellid);
         if (pet->isPet())
         {
             //10% chance to play special pet attack talk, else growl

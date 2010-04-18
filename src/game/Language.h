@@ -83,7 +83,7 @@ enum MangosStrings
     LANG_USING_WORLD_DB                 = 57,
     LANG_USING_SCRIPT_LIB               = 58,
     LANG_USING_EVENT_AI                 = 59,
-    LANG_RA_BUSY                        = 60,
+    //LANG_RA_BUSY                      = 60, not used
     LANG_RA_USER                        = 61,
     LANG_RA_PASS                        = 62,
     // Room for more level 0              63-99 not used
@@ -819,7 +819,9 @@ enum MangosStrings
     LANG_MOVEGENS_FOLLOW_PLAYER         = 1132,
     LANG_MOVEGENS_FOLLOW_CREATURE       = 1133,
     LANG_MOVEGENS_FOLLOW_NULL           = 1134,
-    // Room for more level 3              1135-1199 not used
+    LANG_LIST_TALENTS_TITLE             = 1135,
+    LANG_LIST_TALENTS_COUNT             = 1136,
+    // Room for more level 3              1137-1199 not used
 
     // Debug commands
     LANG_CINEMATIC_NOT_EXIST            = 1200,
@@ -827,6 +829,9 @@ enum MangosStrings
     // Room for more debug                1202-1299 not used
 
     // FREE IDS                           1300-9999
+
+    // Broadcaster
+    LANG_AUTO_BROADCAST                 = 1300,
 
     // Use for not-in-offcial-sources patches
     //                                    10000-10999

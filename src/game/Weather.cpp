@@ -31,15 +31,15 @@
 /// Create the Weather object
 Weather::Weather(uint32 zone, WeatherZoneChances const* weatherChances) : m_zone(zone), m_weatherChances(weatherChances)
 {
-    m_timer.SetInterval(sWorld.getConfig(CONFIG_INTERVAL_CHANGEWEATHER));
+    m_timer.SetInterval(sWorld.getConfig(CONFIG_UINT32_INTERVAL_CHANGEWEATHER));
     m_type = WEATHER_TYPE_FINE;
     m_grade = 0;
 
-    sLog.outDetail("WORLD: Starting weather system for zone %u (change every %u minutes).", m_zone, (uint32)(m_timer.GetInterval() / (MINUTE*IN_MILISECONDS)) );
+    sLog.outDetail("WORLD: Starting weather system for zone %u (change every %u minutes).", m_zone, (uint32)(m_timer.GetInterval() / (MINUTE*IN_MILLISECONDS)) );
 }
 
 /// Launch a weather update
-bool Weather::Update(uint32 diff)
+bool Weather::Update(time_t diff)
 {
     if (m_timer.GetCurrent()>=0)
         m_timer.Update(diff);
@@ -168,16 +168,16 @@ bool Weather::ReGenerate()
     }
     else if (u < 90)
     {
-        m_grade = rand_norm() * 0.3333f;
+        m_grade = rand_norm_f() * 0.3333f;
     }
     else
     {
         // Severe change, but how severe?
         rnd = urand(0, 99);
         if (rnd < 50)
-            m_grade = rand_norm() * 0.3333f + 0.3334f;
+            m_grade = rand_norm_f() * 0.3333f + 0.3334f;
         else
-            m_grade = rand_norm() * 0.3333f + 0.6667f;
+            m_grade = rand_norm_f() * 0.3333f + 0.6667f;
     }
 
     // return true only in case weather changes

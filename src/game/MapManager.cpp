@@ -28,6 +28,7 @@
 #include "World.h"
 #include "CellImpl.h"
 #include "Corpse.h"
+#include "Config/ConfigEnv.h"
 #include "ObjectMgr.h"
 
 #define CLASS_LOCK MaNGOS::ClassLevelLockable<MapManager, ACE_Thread_Mutex>
@@ -36,9 +37,9 @@ INSTANTIATE_CLASS_MUTEX(MapManager, ACE_Thread_Mutex);
 
 extern GridState* si_GridStates[];                          // debugging code, should be deleted some day
 
-MapManager::MapManager() : i_gridCleanUpDelay(sWorld.getConfig(CONFIG_INTERVAL_GRIDCLEAN))
+MapManager::MapManager() : i_gridCleanUpDelay(sWorld.getConfig(CONFIG_UINT32_INTERVAL_GRIDCLEAN))
 {
-    i_timer.SetInterval(sWorld.getConfig(CONFIG_INTERVAL_MAPUPDATE));
+    i_timer.SetInterval(sWorld.getConfig(CONFIG_UINT32_INTERVAL_MAPUPDATE));
 }
 
 MapManager::~MapManager()
@@ -65,6 +66,10 @@ MapManager::Initialize()
         }
         i_GridStateErrorCount = 0;
     }
+    int num_threads(sWorld.getConfig(CONFIG_UINT32_NUMTHREADS));
+    // Start mtmaps if needed.
+    if(num_threads > 0 && m_updater.activate(num_threads) == -1)
+        abort();
 
     InitMaxInstanceId();
 }
@@ -99,7 +104,7 @@ void MapManager::checkAndCorrectGridStatesArray()
     if(!ok)
         ++i_GridStateErrorCount;
     if(i_GridStateErrorCount > 2)
-        assert(false);                                      // force a crash. Too many errors
+        ASSERT(false);                                      // force a crash. Too many errors
 }
 
 Map*
@@ -123,7 +128,7 @@ MapManager::_createBaseMap(uint32 id)
         i_maps[id] = m;
     }
 
-    assert(m != NULL);
+    ASSERT(m != NULL);
     return m;
 }
 
@@ -135,6 +140,13 @@ Map* MapManager::CreateMap(uint32 id, const WorldObject* obj)
 
     if (m && (obj->GetTypeId() == TYPEID_PLAYER) && m->Instanceable()) m = ((MapInstanced*)m)->CreateInstance(id, (Player*)obj);
 
+    return m;
+}
+
+Map* MapManager::CreateBgMap(uint32 mapid, BattleGround* bg)
+{
+    Map *m = _createBaseMap(mapid);
+    ((MapInstanced*)m)->CreateBattleGroundMap(sMapMgr.GenerateInstanceId(), bg);
     return m;
 }
 
@@ -165,7 +177,7 @@ bool MapManager::CanPlayerEnter(uint32 mapid, Player* player)
         if (entry->map_type == MAP_RAID)
         {
             // GMs can avoid raid limitations
-            if(!player->isGameMaster() && !sWorld.getConfig(CONFIG_INSTANCE_IGNORE_RAID))
+            if(!player->isGameMaster() && !sWorld.getConfig(CONFIG_BOOL_INSTANCE_IGNORE_RAID))
             {
                 // can only enter in a raid group
                 Group* group = player->GetGroup();
@@ -237,33 +249,31 @@ bool MapManager::CanPlayerEnter(uint32 mapid, Player* player)
 
 void MapManager::DeleteInstance(uint32 mapid, uint32 instanceId)
 {
+    Guard guard(*this);
+
     Map *m = _createBaseMap(mapid);
     if (m && m->Instanceable())
         ((MapInstanced*)m)->DestroyInstance(instanceId);
 }
 
-void MapManager::RemoveBonesFromMap(uint32 mapid, uint64 guid, float x, float y)
-{
-    bool remove_result = _createBaseMap(mapid)->RemoveBones(guid, x, y);
-
-    if (!remove_result)
-    {
-        sLog.outDebug("Bones %u not found in world. Delete from DB also.", GUID_LOPART(guid));
-    }
-}
-
-void
-MapManager::Update(uint32 diff)
+void MapManager::Update(uint32 diff)
 {
     i_timer.Update(diff);
-    if( !i_timer.Passed() )
+    if (!i_timer.Passed())
         return;
 
     for(MapMapType::iterator iter=i_maps.begin(); iter != i_maps.end(); ++iter)
     {
-        checkAndCorrectGridStatesArray();                   // debugging code, should be deleted some day
-        iter->second->Update(i_timer.GetCurrent());
+	 if (m_updater.activated())
+            m_updater.schedule_update(*iter->second, i_timer.GetCurrent());
+	 else
+            iter->second->Update(i_timer.GetCurrent());
     }
+
+    if (m_updater.activated())
+	 m_updater.wait();
+
+    checkAndCorrectGridStatesArray();
 
     for (TransportSet::iterator iter = m_Transports.begin(); iter != m_Transports.end(); ++iter)
         (*iter)->Update(i_timer.GetCurrent());
@@ -271,10 +281,10 @@ MapManager::Update(uint32 diff)
     i_timer.SetCurrent(0);
 }
 
-void MapManager::DoDelayedMovesAndRemoves()
+void MapManager::RemoveAllObjectsInRemoveList()
 {
     for(MapMapType::iterator iter=i_maps.begin(); iter != i_maps.end(); ++iter)
-        iter->second->DoDelayedMovesAndRemoves();
+        iter->second->RemoveAllObjectsInRemoveList();
 }
 
 bool MapManager::ExistMapAndVMap(uint32 mapid, float x,float y)
@@ -304,6 +314,9 @@ void MapManager::UnloadAll()
         delete i_maps.begin()->second;
         i_maps.erase(i_maps.begin());
     }
+
+    if (m_updater.activated())
+        m_updater.deactivate();
 }
 
 void MapManager::InitMaxInstanceId()
@@ -320,6 +333,8 @@ void MapManager::InitMaxInstanceId()
 
 uint32 MapManager::GetNumInstances()
 {
+    Guard guard(*this);
+
     uint32 ret = 0;
     for(MapMapType::iterator itr = i_maps.begin(); itr != i_maps.end(); ++itr)
     {
@@ -334,6 +349,8 @@ uint32 MapManager::GetNumInstances()
 
 uint32 MapManager::GetNumPlayersInInstances()
 {
+    Guard guard(*this);
+
     uint32 ret = 0;
     for(MapMapType::iterator itr = i_maps.begin(); itr != i_maps.end(); ++itr)
     {

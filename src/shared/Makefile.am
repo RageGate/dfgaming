@@ -33,6 +33,8 @@ libmangosshared_a_SOURCES = \
 	ByteBuffer.h \
 	Common.cpp \
 	Common.h \
+	DelayExecutor.cpp \
+	DelayExecutor.h \
 	Errors.h \
 	LockedQueue.h \
 	Log.cpp \
@@ -70,7 +72,8 @@ EXTRA_DIST = \
 
 # System configuration
 EXTRA_DIST += \
-	SystemConfig.h
+    SystemConfig.h \
+    ../game/mangchat/IRCConf.h
 
 # System Win32 files
 EXTRA_DIST += \

@@ -68,7 +68,12 @@ patches-*
 #
 bin/*
 
+# OS specific
+# MacOS
+.DS_Store
+
 #
 # Special exceptions
 #
 !dep/ACE_wrappers/ace/ace_message_table.bin
+!dep/tbb/src/Makefile

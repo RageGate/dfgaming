@@ -57,14 +57,8 @@
 #if COMPILER == COMPILER_MICROSOFT
 #  pragma warning(disable:4996)                             // 'function': was declared deprecated
 #ifndef __SHOW_STUPID_WARNINGS__
-#  pragma warning(disable:4005)                             // 'identifier' : macro redefinition
-#  pragma warning(disable:4018)                             // 'expression' : signed/unsigned mismatch
 #  pragma warning(disable:4244)                             // 'argument' : conversion from 'type1' to 'type2', possible loss of data
-#  pragma warning(disable:4267)                             // 'var' : conversion from 'size_t' to 'type', possible loss of data
-#  pragma warning(disable:4305)                             // 'identifier' : truncation from 'type1' to 'type2'
-#  pragma warning(disable:4311)                             // 'variable' : pointer truncation from 'type' to 'type'
 #  pragma warning(disable:4355)                             // 'this' : used in base member initializer list
-#  pragma warning(disable:4800)                             // 'type' : forcing value to bool 'true' or 'false' (performance warning)
 #endif                                                      // __SHOW_STUPID_WARNINGS__
 #endif                                                      // __GNUC__
 
@@ -81,6 +75,10 @@
 #include <signal.h>
 #include <assert.h>
 
+#if defined(__sun__)
+#include <ieeefp.h> // finite() on Solaris
+#endif
+
 #include <set>
 #include <list>
 #include <string>
@@ -96,6 +94,7 @@
 #include <ace/Guard_T.h>
 #include <ace/RW_Thread_Mutex.h>
 #include <ace/Thread_Mutex.h>
+#include <ace/OS_NS_arpa_inet.h>
 
 #if PLATFORM == PLATFORM_WINDOWS
 #  define FD_SETSIZE 4096
@@ -152,23 +151,50 @@ inline float finiteAlways(float f) { return finite(f) ? f : 0.0f; }
 
 #define STRINGIZE(a) #a
 
+// used for creating values for respawn for example
+#define MAKE_PAIR64(l, h)  uint64( uint32(l) | ( uint64(h) << 32 ) )
+#define PAIR64_HIPART(x)   (uint32)((uint64(x) >> 32) & UI64LIT(0x00000000FFFFFFFF))
+#define PAIR64_LOPART(x)   (uint32)(uint64(x)         & UI64LIT(0x00000000FFFFFFFF))
+
+#define MAKE_PAIR32(l, h)  uint32( uint16(l) | ( uint32(h) << 16 ) )
+#define PAIR32_HIPART(x)   (uint16)((uint32(x) >> 16) & 0x0000FFFF)
+#define PAIR32_LOPART(x)   (uint16)(uint32(x)         & 0x0000FFFF)
+
 enum TimeConstants
 {
     MINUTE = 60,
     HOUR   = MINUTE*60,
     DAY    = HOUR*24,
+    WEEK   = DAY*7,
     MONTH  = DAY*30,
     YEAR   = MONTH*12,
-    IN_MILISECONDS = 1000
+    IN_MILLISECONDS = 1000
 };
 
 enum AccountTypes
 {
-    SEC_PLAYER         = 0,
-    SEC_MODERATOR      = 1,
-    SEC_GAMEMASTER     = 2,
-    SEC_ADMINISTRATOR  = 3,
-    SEC_CONSOLE        = 4                                  // must be always last in list, accounts must have less security level always also
+    SEC_PLAYER              = 0,
+    SEC_TRIAL               = 1,
+    SEC_MODERATOR           = 2,
+    SEC_PR                  = 3,
+    SEC_GAMEMASTER          = 4,
+    SEC_GROUPLEADER         = 5,
+    SEC_ADMINISTRATOR       = 7,
+    SEC_CONSOLE             = 8                                  // must be always last in list, accounts must have less security level always also
+};
+
+// Used in mangosd/realmd
+enum RealmFlags
+{
+    REALM_FLAG_NONE         = 0x00,
+    REALM_FLAG_INVALID      = 0x01,
+    REALM_FLAG_OFFLINE      = 0x02,
+    REALM_FLAG_SPECIFYBUILD = 0x04,                         // client will show realm version in RealmList screen in form "RealmName (major.minor.revision.build)"
+    REALM_FLAG_UNK1         = 0x08,
+    REALM_FLAG_UNK2         = 0x10,
+    REALM_FLAG_NEW_PLAYERS  = 0x20,
+    REALM_FLAG_RECOMMENDED  = 0x40,
+    REALM_FLAG_FULL         = 0x80
 };
 
 enum LocaleConstant
@@ -218,6 +244,10 @@ inline char * mangos_strdup(const char * source)
 
 #ifndef M_PI
 #  define M_PI          3.14159265358979323846
+#endif
+
+#ifndef M_PI_F
+#  define M_PI_F        float(M_PI)
 #endif
 
 #endif

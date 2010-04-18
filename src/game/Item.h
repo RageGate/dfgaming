@@ -174,7 +174,7 @@ enum EnchantmentSlot
 };
 
 #define MAX_VISIBLE_ITEM_OFFSET       2                     // 2 fields per visible item (entry+enchantment)
-
+#define PRISMATIC_SOCKET              14                    // 1110 mask = blue(1) yellow(1) red(1) meta(0)
 #define MAX_GEM_SOCKETS               MAX_ITEM_PROTO_SOCKETS// (BONUS_ENCHANTMENT_SLOT-SOCK_ENCHANTMENT_SLOT) and item proto size, equal value expected
 
 enum EnchantmentOffset
@@ -244,7 +244,7 @@ class MANGOS_DLL_SPEC Item : public Object
         bool IsBindedNotWith(Player const* player) const;
         bool IsBoundByEnchant() const;
         virtual void SaveToDB();
-        virtual bool LoadFromDB(uint32 guid, uint64 owner_guid, QueryResult *result = NULL);
+        virtual bool LoadFromDB(uint32 guid, uint64 owner_guid, QueryResult *result);
         virtual void DeleteFromDB();
         void DeleteFromInventoryDB();
 
@@ -293,12 +293,17 @@ class MANGOS_DLL_SPEC Item : public Object
         uint32 GetEnchantmentDuration(EnchantmentSlot slot) const { return GetUInt32Value(ITEM_FIELD_ENCHANTMENT_1_1 + slot*MAX_ENCHANTMENT_OFFSET + ENCHANTMENT_DURATION_OFFSET);}
         uint32 GetEnchantmentCharges(EnchantmentSlot slot)  const { return GetUInt32Value(ITEM_FIELD_ENCHANTMENT_1_1 + slot*MAX_ENCHANTMENT_OFFSET + ENCHANTMENT_CHARGES_OFFSET);}
 
+        std::string const& GetText() const { return m_text; }
+        void SetText(std::string const& text) { m_text = text; }
+
         void SendTimeUpdate(Player* owner);
         void UpdateDuration(Player* owner, uint32 diff);
 
         // spell charges (signed but stored as unsigned)
         int32 GetSpellCharges(uint8 index/*0..5*/ = 0) const { return GetInt32Value(ITEM_FIELD_SPELL_CHARGES + index); }
         void  SetSpellCharges(uint8 index/*0..5*/, int32 value) { SetInt32Value(ITEM_FIELD_SPELL_CHARGES + index,value); }
+        bool HasMaxCharges() const;
+        void RestoreCharges();
 
         Loot loot;
         bool m_lootGenerated;
@@ -324,6 +329,7 @@ class MANGOS_DLL_SPEC Item : public Object
         void RemoveFromClientUpdateList();
         void BuildUpdateData(UpdateDataMapType& update_players);
     private:
+        std::string m_text;
         uint8 m_slot;
         Bag *m_container;
         ItemUpdateState uState;

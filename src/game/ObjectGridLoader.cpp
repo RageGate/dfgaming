@@ -56,7 +56,7 @@ ObjectGridRespawnMover::Visit(CreatureMapType &m)
 
         Creature * c = iter->getSource();
 
-        assert((!c->isPet() || !c->isVehicle()) && "ObjectGridRespawnMover don't must be called for pets");
+        ASSERT((!c->isPet() || !c->isVehicle()) && "ObjectGridRespawnMover don't must be called for pets");
 
         Cell const& cur_cell  = c->GetCurrentCell();
 
@@ -266,7 +266,7 @@ ObjectGridUnloader::Visit(GridRefManager<T> &m)
     {
         T *obj = m.getFirst()->getSource();
         // if option set then object already saved at this moment
-        if(!sWorld.getConfig(CONFIG_SAVE_RESPAWN_TIME_IMMEDIATLY))
+        if(!sWorld.getConfig(CONFIG_BOOL_SAVE_RESPAWN_TIME_IMMEDIATLY))
             obj->SaveRespawnTime();
         ///- object must be out of world before delete
         obj->RemoveFromWorld();
