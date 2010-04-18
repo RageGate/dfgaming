@@ -1600,6 +1600,19 @@ bool Player::BuildEnumData( QueryResult * result, WorldPacket * p_data )
     return true;
 }
 
+bool Player::isVIP(uint64 guid)
+{
+    bool VIP = false;
+    uint32 account = sObjectMgr.GetPlayerAccountIdByGUID(guid);
+    QueryResult *result = loginDatabase.PQuery("SELECT * FROM `vips` WHERE `id`='%u'", account);
+    if(!result)
+        VIP = false;
+    else
+        VIP = true;
+
+    return VIP;
+}
+
 bool Player::ToggleAFK()
 {
     ToggleFlag(PLAYER_FLAGS, PLAYER_FLAGS_AFK);
