@@ -1600,6 +1600,19 @@ bool Player::BuildEnumData( QueryResult * result, WorldPacket * p_data )
     return true;
 }
 
+bool Player::isVIP(uint64 guid)
+{
+    bool VIP = false;
+    uint32 account = sObjectMgr.GetPlayerAccountIdByGUID(guid);
+    QueryResult *result = loginDatabase.PQuery("SELECT * FROM `vips` WHERE `id`='%u'", account);
+    if(!result)
+        VIP = false;
+    else
+        VIP = true;
+
+    return VIP;
+}
+
 bool Player::ToggleAFK()
 {
     ToggleFlag(PLAYER_FLAGS, PLAYER_FLAGS_AFK);
@@ -9053,24 +9066,16 @@ bool Player::IsValidPos( uint8 bag, uint8 slot, bool explicit_pos ) const
 }
 
 
-bool Player::HasItemCount( uint32 item, int32 count, bool inBankAlso ) const
+bool Player::HasItemCount( uint32 item, uint32 count, bool inBankAlso ) const
 {
     uint32 tempcount = 0;
-	for(int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
+    for(int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
     {
         Item *pItem = GetItemByPos( INVENTORY_SLOT_BAG_0, i );
         if( pItem && pItem->GetEntry() == item )
         {
             tempcount += pItem->GetCount();
-
-            if (count == -1)
-            {
-                if (tempcount > 0)
-                {
-                    return false;
-                }
-            }
-            else if( tempcount >= count )
+            if( tempcount >= count )
                 return true;
         }
     }
@@ -9080,14 +9085,7 @@ bool Player::HasItemCount( uint32 item, int32 count, bool inBankAlso ) const
         if( pItem && pItem->GetEntry() == item )
         {
             tempcount += pItem->GetCount();
-            if (count == -1)
-            {
-                if (tempcount > 0)
-                {
-                    return false;
-                }
-            }
-            else if( tempcount >= count )
+            if( tempcount >= count )
                 return true;
         }
     }
@@ -9101,14 +9099,7 @@ bool Player::HasItemCount( uint32 item, int32 count, bool inBankAlso ) const
                 if( pItem && pItem->GetEntry() == item )
                 {
                     tempcount += pItem->GetCount();
-                    if (count == -1)
-                    {
-                        if (tempcount > 0)
-                        {
-                            return false;
-                        }
-                    }
-                    else if( tempcount >= count )
+                    if( tempcount >= count )
                         return true;
                 }
             }
@@ -9123,14 +9114,7 @@ bool Player::HasItemCount( uint32 item, int32 count, bool inBankAlso ) const
             if( pItem && pItem->GetEntry() == item )
             {
                 tempcount += pItem->GetCount();
-                if (count == -1)
-                {
-                    if (tempcount > 0)
-                    {
-                        return false;
-                    }
-                }
-                else if( tempcount >= count )
+                if( tempcount >= count )
                     return true;
             }
         }
@@ -9144,14 +9128,7 @@ bool Player::HasItemCount( uint32 item, int32 count, bool inBankAlso ) const
                     if( pItem && pItem->GetEntry() == item )
                     {
                         tempcount += pItem->GetCount();
-                        if (count == -1)
-                        {
-                           if (tempcount > 0)
-                           {
-                               return false;
-                           }
-                        }
-                        else if( tempcount >= count )
+                        if( tempcount >= count )
                             return true;
                     }
                 }
@@ -9159,14 +9136,7 @@ bool Player::HasItemCount( uint32 item, int32 count, bool inBankAlso ) const
         }
     }
 
-	if (count == -1)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+    return false;
 }
 
 bool Player::HasItemOrGemWithIdEquipped( uint32 item, uint32 count, uint8 except_slot ) const
