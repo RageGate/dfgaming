@@ -1075,8 +1075,6 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         void UpdateVisibilityForPlayer();
 
-        bool isVIP(uint64 guid);
-
         bool ToggleAFK();
         bool ToggleDND();
         bool isAFK() const { return HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_AFK); }
