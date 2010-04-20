@@ -6563,3 +6563,17 @@ WorldObject* Spell::GetCastingObject() const
 {
     return m_caster->IsInWorld() && !m_originalCasterGUID.IsEmpty() && m_caster->GetObjectGuid() != m_originalCasterGUID ? m_caster->GetMap()->GetWorldObject(m_originalCasterGUID) : m_caster;
 }
+
+ObjectGuid Spell::GetTargetForPeriodicTriggerAura() const
+{
+    // dummy aura provides target
+    for (uint8 i = 0; i<MAX_EFFECT_INDEX; i++)
+        if (m_spellInfo->Effect[i] == SPELL_EFFECT_APPLY_AURA && m_spellInfo->EffectApplyAuraName[i] == SPELL_AURA_DUMMY)
+            for(tbb::concurrent_vector<TargetInfo>::const_iterator itr = m_UniqueTargetInfo.begin(); itr != m_UniqueTargetInfo.end(); ++itr)
+            {
+                if(itr->effectMask & (1 << i))
+                    return (*itr).targetGUID;
+            }
+
+    return ObjectGuid(0);
+}
