@@ -55,6 +55,8 @@ void BattleGroundDS::Update(uint32 diff)
             for(BattleGroundPlayerMap::const_iterator itr = GetPlayers().begin(); itr != GetPlayers().end(); ++itr)
             {
                 Player * plr = sObjectMgr.GetPlayer(itr->first);
+                if(!plr)
+                    continue;
                 if (plr->GetTeam() == ALLIANCE && plr->GetDistance2d(1214, 765) <= 50 && plr->GetPositionZ() > 10)
                     plr->KnockBackPlayerWithAngle(6.05f, 55, 7);
                 if (plr->GetTeam() == HORDE && plr->GetDistance2d(1369, 817) <= 50 && plr->GetPositionZ() > 10)
@@ -71,6 +73,8 @@ void BattleGroundDS::Update(uint32 diff)
             for(BattleGroundPlayerMap::const_iterator itr = GetPlayers().begin(); itr != GetPlayers().end(); ++itr)
             {
                 Player * plr = sObjectMgr.GetPlayer(itr->first);
+                if(!plr)
+                    continue;
                 if (plr->GetTeam() == ALLIANCE && plr->GetDistance2d(1214, 765) <= 50 && plr->GetPositionZ() > 10)
                     plr->TeleportTo(617, 1257+urand(0,2), 761+urand(0,2), 3.2f, 0.5);
                 if (plr->GetTeam() == HORDE && plr->GetDistance2d(1369, 817) <= 50 && plr->GetPositionZ() > 10)
