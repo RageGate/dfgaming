@@ -4692,13 +4692,9 @@ SpellCastResult Spell::CheckCast(bool strict)
             {
                 // Spell can be triggered, we need to check original caster prior to caster
                 Unit* caster = GetAffectiveCaster();
-                if (!caster)
-                    return SPELL_FAILED_BAD_TARGETS;
-                // target provided by dummy aura
-                Aura* dummyLink = caster->GetLinkedDummyAura(m_triggeredByAuraSpell->Id);
-                if (caster->GetTypeId() != TYPEID_PLAYER ||
-                    !dummyLink || !dummyLink->GetTarget() ||
-                    dummyLink->GetTarget()->GetTypeId() == TYPEID_PLAYER)
+                if (!caster || caster->GetTypeId() != TYPEID_PLAYER ||
+                    !m_targets.getUnitTarget() ||
+                    m_targets.getUnitTarget()->GetTypeId() == TYPEID_PLAYER)
                     return SPELL_FAILED_BAD_TARGETS;
 
                 Player* plrCaster = (Player*)caster;
@@ -4709,7 +4705,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     return SPELL_FAILED_DONT_REPORT;
                 }
 
-                Creature* target = (Creature*)dummyLink->GetTarget();
+                Creature* target = (Creature*)m_targets.getUnitTarget();
 
                 if(target->isPet() || target->isCharmed())
                 {
