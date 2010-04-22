@@ -434,7 +434,6 @@ bool IsPositiveTarget(uint32 targetA, uint32 targetB)
         case TARGET_IN_FRONT_OF_CASTER:
         case TARGET_ALL_ENEMY_IN_AREA_CHANNELED:
         case TARGET_CURRENT_ENEMY_COORDINATES:
-        case TARGET_SINGLE_ENEMY:
         case TARGET_IN_FRONT_OF_CASTER_30:
             return false;
         case TARGET_CASTER_COORDINATES:
@@ -471,7 +470,6 @@ bool IsExplicitNegativeTarget(uint32 targetA)
     {
         case TARGET_CHAIN_DAMAGE:
         case TARGET_CURRENT_ENEMY_COORDINATES:
-        case TARGET_SINGLE_ENEMY:
             return true;
         default:
             break;
@@ -518,7 +516,10 @@ bool IsPositiveEffect(uint32 spellId, SpellEffectIndex effIndex)
         case SPELL_EFFECT_HEAL_PCT:
         case SPELL_EFFECT_ENERGIZE_PCT:
             return true;
-
+        case SPELL_EFFECT_SCHOOL_DAMAGE:
+            if (spellproto->EffectImplicitTargetA[effIndex] == TARGET_SINGLE_ENEMY)
+                return false;
+            break;
             // non-positive aura use
         case SPELL_EFFECT_APPLY_AURA:
         case SPELL_EFFECT_APPLY_AREA_AURA_FRIEND:
@@ -572,29 +573,6 @@ bool IsPositiveEffect(uint32 spellId, SpellEffectIndex effIndex)
                     break;
                 case SPELL_AURA_ADD_TARGET_TRIGGER:
                     return true;
-                case SPELL_AURA_PERIODIC_TRIGGER_SPELL:
-                    if (spellId != spellproto->EffectTriggerSpell[effIndex])
-                    {
-                        uint32 spellTriggeredId = spellproto->EffectTriggerSpell[effIndex];
-                        SpellEntry const *spellTriggeredProto = sSpellStore.LookupEntry(spellTriggeredId);
-
-                        if (spellTriggeredProto)
-                        {
-                            // non-positive targets of main spell return early
-                            for(int i = 0; i < MAX_EFFECT_INDEX; ++i)
-                            {
-                                // if non-positive trigger cast targeted to positive target this main cast is non-positive
-                                // this will place this spell auras as debuffs
-                                if (IsPositiveTarget(spellTriggeredProto->EffectImplicitTargetA[effIndex],spellTriggeredProto->EffectImplicitTargetB[effIndex]) &&
-                                    !IsPositiveEffect(spellTriggeredId,SpellEffectIndex(i)))
-                                    return false;
-                            }
-                        }
-                    }
-                    //Vortex
-                    if(spellproto->Id == 56266)
-                        return false;
-                    break;
                 case SPELL_AURA_PROC_TRIGGER_SPELL:
                     // many positive auras have negative triggered spells at damage for example and this not make it negative (it can be canceled for example)
                     break;

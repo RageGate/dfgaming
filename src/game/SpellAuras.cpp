@@ -1601,10 +1601,9 @@ void Aura::HandleAddTargetTrigger(bool apply, bool /*Real*/)
 void Aura::TriggerSpell()
 {
     const uint64& casterGUID = GetCasterGUID();
-    Unit* caster = GetCaster();
     Unit* target = GetTriggerTarget();
 
-    if(!casterGUID || !caster || !target)
+    if(!casterGUID || !target)
         return;
 
     // generic casting code with custom spells and target/caster customs
@@ -2346,11 +2345,12 @@ void Aura::TriggerSpell()
 
     // All ok cast by default case
     if(triggeredSpellInfo)
-        caster->CastSpell(target, triggeredSpellInfo, true, NULL, this, casterGUID);
+        m_target->CastSpell(target, triggeredSpellInfo, true, NULL, this, casterGUID);
     else
     {
-        if(target->GetTypeId() != TYPEID_UNIT || !Script->EffectDummyCreature(caster, GetId(), GetEffIndex(), (Creature*)target))
-            sLog.outError("Aura::TriggerSpell: Spell %u have 0 in EffectTriggered[%d], not handled custom case?",GetId(),GetEffIndex());
+        if (Unit* caster = GetCaster())
+            if(target->GetTypeId() != TYPEID_UNIT || !Script->EffectDummyCreature(caster, GetId(), GetEffIndex(), (Creature*)target))
+                sLog.outError("Aura::TriggerSpell: Spell %u have 0 in EffectTriggered[%d], not handled custom case?",GetId(),GetEffIndex());
     }
 }
 
@@ -2366,7 +2366,7 @@ void Aura::TriggerSpellWithValue()
     uint32 trigger_spell_id = GetSpellProto()->EffectTriggerSpell[m_effIndex];
     int32  basepoints0 = this->GetModifier()->m_amount;
 
-    target->CastCustomSpell(target, trigger_spell_id, &basepoints0, NULL, NULL, true, NULL, this, casterGUID);
+    m_target->CastCustomSpell(target, trigger_spell_id, &basepoints0, NULL, NULL, true, NULL, this, casterGUID);
 }
 
 /*********************************************************/
