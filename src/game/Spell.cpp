@@ -1899,15 +1899,9 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
             if(m_spellInfo->Effect[effIndex] != SPELL_EFFECT_DUEL)
                 targetUnitMap.push_back(m_caster);
             break;
-        case TARGET_PERIODIC_TRIGGER_AURA:
+        case TARGET_SINGLE_ENEMY:
         {
-            Unit* pTarget;
-            // search for dummy aura link, that contains the target
-            Aura* pAura = NULL;
-            if(m_triggeredByAuraSpell)
-                pAura = m_caster->GetLinkedDummyAura(m_triggeredByAuraSpell->Id);
-            pTarget = pAura ? pAura->GetTarget() : m_targets.getUnitTarget();
-            if(Unit* pUnitTarget = m_caster->SelectMagnetTarget(pTarget, m_spellInfo))
+            if(Unit* pUnitTarget = m_caster->SelectMagnetTarget(m_targets.getUnitTarget(), m_spellInfo))
             {
                 m_targets.setUnitTarget(pUnitTarget);
                 targetUnitMap.push_back(pUnitTarget);
@@ -4692,13 +4686,9 @@ SpellCastResult Spell::CheckCast(bool strict)
             {
                 // Spell can be triggered, we need to check original caster prior to caster
                 Unit* caster = GetAffectiveCaster();
-                if (!caster)
-                    return SPELL_FAILED_BAD_TARGETS;
-                // target provided by dummy aura
-                Aura* dummyLink = caster->GetLinkedDummyAura(m_triggeredByAuraSpell->Id);
-                if (caster->GetTypeId() != TYPEID_PLAYER ||
-                    !dummyLink || !dummyLink->GetTarget() ||
-                    dummyLink->GetTarget()->GetTypeId() == TYPEID_PLAYER)
+                if (!caster || caster->GetTypeId() != TYPEID_PLAYER ||
+                    !m_targets.getUnitTarget() ||
+                    m_targets.getUnitTarget()->GetTypeId() == TYPEID_PLAYER)
                     return SPELL_FAILED_BAD_TARGETS;
 
                 Player* plrCaster = (Player*)caster;
@@ -4709,7 +4699,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     return SPELL_FAILED_DONT_REPORT;
                 }
 
-                Creature* target = (Creature*)dummyLink->GetTarget();
+                Creature* target = (Creature*)m_targets.getUnitTarget();
 
                 if(target->isPet() || target->isCharmed())
                 {
@@ -6572,4 +6562,18 @@ void Spell::FillRaidOrPartyHealthPriorityTargets(UnitList &targetUnitMap, Unit* 
 WorldObject* Spell::GetCastingObject() const
 {
     return m_caster->IsInWorld() && !m_originalCasterGUID.IsEmpty() && m_caster->GetObjectGuid() != m_originalCasterGUID ? m_caster->GetMap()->GetWorldObject(m_originalCasterGUID) : m_caster;
+}
+
+ObjectGuid Spell::GetTargetForPeriodicTriggerAura() const
+{
+    // dummy aura provides target
+    for (uint8 i = 0; i<MAX_EFFECT_INDEX; i++)
+        if (m_spellInfo->Effect[i] == SPELL_EFFECT_APPLY_AURA && m_spellInfo->EffectApplyAuraName[i] == SPELL_AURA_DUMMY)
+            for(tbb::concurrent_vector<TargetInfo>::const_iterator itr = m_UniqueTargetInfo.begin(); itr != m_UniqueTargetInfo.end(); ++itr)
+            {
+                if(itr->effectMask & (1 << i))
+                    return (*itr).targetGUID;
+            }
+
+    return ObjectGuid(0);
 }

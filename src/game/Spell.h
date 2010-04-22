@@ -500,6 +500,8 @@ class Spell
         void CastTriggerSpells();
 
         void CleanupTargetList();
+
+        ObjectGuid GetTargetForPeriodicTriggerAura() const;
     protected:
 
         void SendLoot(uint64 guid, LootType loottype);
