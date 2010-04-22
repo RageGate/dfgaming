@@ -27,216 +27,222 @@ void IRCClient::Handle_IRC(std::string sData)
     sLog.outDebug(sData.c_str());
     // If first 5 chars are ERROR then something is wrong
     // either link is being closed, nickserv ghost command, etc...
-    if(sData.substr(0, 5) == "ERROR")
+    try
     {
-        Disconnect();
-        return;
-    }
-    if(sData.substr(0, 4) == "PING")
-    {
-        // if the first 4 characters contain PING
-        // the server is checking if we are still alive
-        // sen back PONG back plus whatever the server send with it
-        SendIRC("PONG " + sData.substr(4, sData.size() - 4));
-    }
-    else
-    {
-        // if the first line contains : its an irc message
-        // such as private messages channel join etc.
-        if(sData.substr(0, 1) == ":")
+        if(sData.substr(0, 5) == "ERROR")
         {
-            // find the spaces in the receieved line
-            size_t p1 = sData.find(" ");
-            size_t p2 = sData.find(" ", p1 + 1);
-            // because the irc protocol uses simple spaces
-            // to seperate data we can easy pick them out
-            // since we know the position of the spaces
-            std::string USR = sData.substr(1, p1 - 1);
-            std::string CMD = sData.substr(p1 + 1, p2 - p1 - 1);
-            // trasform the commands to lowercase to make sure they always match
-            std::transform(CMD.begin(), CMD.end(), CMD.begin(), towlower);
-            // Extract the username from the first part
-            std::string szUser = GetUser(USR);
-            // if we receieved the internet connect code
-            // we know for sure that were in and we can
-            // authenticate ourself.
-            if(CMD == sIRC._ICC)
+            Disconnect();
+            return;
+        }
+        if(sData.substr(0, 4) == "PING")
+        {
+            // if the first 4 characters contain PING
+            // the server is checking if we are still alive
+            // sen back PONG back plus whatever the server send with it
+            SendIRC("PONG " + sData.substr(4, sData.size() - 4));
+        }
+        else
+        {
+            // if the first line contains : its an irc message
+            // such as private messages channel join etc.
+            if(sData.substr(0, 1) == ":")
             {
-                // _Auth is defined in mangosd.conf (irc.auth)
-                // 0 do not authenticate
-                // 1 use nickserv
-                // 2 use quakenet
-                // aditionally you can provide you own authentication method here
-                switch(sIRC._Auth)
+                // find the spaces in the receieved line
+                size_t p1 = sData.find(" ");
+                size_t p2 = sData.find(" ", p1 + 1);
+                // because the irc protocol uses simple spaces
+                // to seperate data we can easy pick them out
+                // since we know the position of the spaces
+                std::string USR = sData.substr(1, p1 - 1);
+                std::string CMD = sData.substr(p1 + 1, p2 - p1 - 1);
+                // trasform the commands to lowercase to make sure they always match
+                std::transform(CMD.begin(), CMD.end(), CMD.begin(), towlower);
+                // Extract the username from the first part
+                std::string szUser = GetUser(USR);
+                // if we receieved the internet connect code
+                // we know for sure that were in and we can
+                // authenticate ourself.
+                if(CMD == sIRC._ICC)
                 {
-                    case 1:
-                        SendIRC("PRIVMSG nickserv :IDENTIFY " + sIRC._Pass);
-                        break;
-                    case 2:
-                        SendIRC("PRIVMSG nickserv :IDENTIFY " + sIRC._Auth_Nick + " " + sIRC._Pass);
-                        break;
-                    case 3:
-                        SendIRC("PRIVMSG Q@CServe.quakenet.org :AUTH " + sIRC._Nick + " " + sIRC._Pass);
-                        break;
-					case 4:
-                        SendIRC("PRIVMSG Q@CServe.quakenet.org :AUTH " + sIRC._Auth_Nick + " " + sIRC._Pass);
-                        break;
-				}
-                // if we join a default channel leave this now.
-                if(sIRC._ldefc==1)
-                    SendIRC("PART #" + sIRC._defchan);
-                // Loop thru the channel array and send a command to join them on IRC.
-                for(int i=1;i < sIRC._chan_count + 1;i++)
-                {
-                    SendIRC("JOIN #" + sIRC._irc_chan[i]);
-                }
-            }
-            // someone joined the channel this could be the bot or another user
-            if(CMD == "join")
-            {
-                size_t p = sData.find(":", p1);
-                std::string CHAN = sData.substr(p + 1, sData.size() - p - 2);
-                // if the user is us it means we join the channel
-                if ((szUser == sIRC._Nick) )
-                {
-                    // its us that joined the channel
-                    Send_IRC_Channel(CHAN, MakeMsg(MakeMsg(sIRC.JoinMsg, "$Ver", sIRC._Mver.c_str()), "$Trigger", sIRC._cmd_prefx.c_str()), true);
-                }
-                else
-                {
-                    // if the user is not us its someone else that joins
-                    // so we construct a message and send this to the clients.
-                    // MangChat now uses Send_WoW_Channel to send to the client
-                    // this makes MangChat handle the packets instead of previously the world.
-                    if((sIRC.BOTMASK & 2) != 0)
-                        Send_WoW_Channel(GetWoWChannel(CHAN).c_str(), IRCcol2WoW(MakeMsg(MakeMsg(GetChatLine(JOIN_IRC), "$Name", szUser), "$Channel", GetWoWChannel(CHAN))));
-                }
-            }
-            // someone on irc left or quit the channel
-            if(CMD == "part" || CMD == "quit")
-            {
-                size_t p3 = sData.find(" ", p2 + 1);
-                std::string CHAN = sData.substr(p2 + 1, p3 - p2 - 1);
-                // Logout IRC Nick From MangChat If User Leaves Or Quits IRC.
-                if(Command.IsLoggedIn(szUser))
-                {
-                    _CDATA CDATA;
-                    CDATA.USER      = szUser;
-                    Command.Handle_Logout(&CDATA);
-                }
-                // Construct a message and inform the clients on the same channel.
-				if((sIRC.BOTMASK & 2) != 0)
-                    Send_WoW_Channel(GetWoWChannel(CHAN).c_str(), IRCcol2WoW(MakeMsg(MakeMsg(GetChatLine(LEAVE_IRC), "$Name", szUser), "$Channel", GetWoWChannel(CHAN))));
-            }
-            // someone changed their nick
-			if (CMD == "nick" && (sIRC.BOTMASK & 128) != 0)
-            {
-                MakeMsg(MakeMsg(GetChatLine(CHANGE_NICK), "$Name", szUser), "$NewName", sData.substr(sData.find(":", p2) + 1));
-				// If the user is logged in and changes their nick
-				// then we want to either log them out or update
-				// their nick in the bot. I chose to update the bots user list.
-				if(Command.IsLoggedIn(szUser))
-				{
-                    std::string NewNick = sData.substr(sData.find(":", p2) + 1);
-					// On freenode I noticed the server sends an extra character
-					// at the end of the string, so we need to erase the last
-					// character of the string. if you have a problem with getting
-					// the last letter of your nick erased, then remove the - 1.
-					NewNick.erase(NewNick.length() - 1, 1);
-
-					for(std::list<_client*>::iterator i=Command._CLIENTS.begin(); i!=Command._CLIENTS.end();i++)
+                    // _Auth is defined in mangosd.conf (irc.auth)
+                    // 0 do not authenticate
+                    // 1 use nickserv
+                    // 2 use quakenet
+                    // aditionally you can provide you own authentication method here
+                    switch(sIRC._Auth)
                     {
-                        if((*i)->Name == szUser)
-                        {
-					        (*i)->Name     = NewNick;
-					        sIRC.Send_IRC_Channel(NewNick.c_str(), "I Noticed You Changed Your Nick, I Have Updated My Internal Database Accordingly.", true, "NOTICE");
+                        case 1:
+                            SendIRC("PRIVMSG nickserv :IDENTIFY " + sIRC._Pass);
+                            break;
+                        case 2:
+                            SendIRC("PRIVMSG nickserv :IDENTIFY " + sIRC._Auth_Nick + " " + sIRC._Pass);
+                            break;
+                        case 3:
+                            SendIRC("PRIVMSG Q@CServe.quakenet.org :AUTH " + sIRC._Nick + " " + sIRC._Pass);
+                            break;
+					    case 4:
+                            SendIRC("PRIVMSG Q@CServe.quakenet.org :AUTH " + sIRC._Auth_Nick + " " + sIRC._Pass);
+                            break;
+				    }
+                    // if we join a default channel leave this now.
+                    if(sIRC._ldefc==1)
+                        SendIRC("PART #" + sIRC._defchan);
+                    // Loop thru the channel array and send a command to join them on IRC.
+                    for(int i=1;i < sIRC._chan_count + 1;i++)
+                    {
+                        SendIRC("JOIN #" + sIRC._irc_chan[i]);
+                    }
+                }
+                // someone joined the channel this could be the bot or another user
+                if(CMD == "join")
+                {
+                    size_t p = sData.find(":", p1);
+                    std::string CHAN = sData.substr(p + 1, sData.size() - p - 2);
+                    // if the user is us it means we join the channel
+                    if ((szUser == sIRC._Nick) )
+                    {
+                        // its us that joined the channel
+                        Send_IRC_Channel(CHAN, MakeMsg(MakeMsg(sIRC.JoinMsg, "$Ver", sIRC._Mver.c_str()), "$Trigger", sIRC._cmd_prefx.c_str()), true);
+                    }
+                    else
+                    {
+                        // if the user is not us its someone else that joins
+                        // so we construct a message and send this to the clients.
+                        // MangChat now uses Send_WoW_Channel to send to the client
+                        // this makes MangChat handle the packets instead of previously the world.
+                        if((sIRC.BOTMASK & 2) != 0)
+                            Send_WoW_Channel(GetWoWChannel(CHAN).c_str(), IRCcol2WoW(MakeMsg(MakeMsg(GetChatLine(JOIN_IRC), "$Name", szUser), "$Channel", GetWoWChannel(CHAN))));
+                    }
+                }
+                // someone on irc left or quit the channel
+                if(CMD == "part" || CMD == "quit")
+                {
+                    size_t p3 = sData.find(" ", p2 + 1);
+                    std::string CHAN = sData.substr(p2 + 1, p3 - p2 - 1);
+                    // Logout IRC Nick From MangChat If User Leaves Or Quits IRC.
+                    if(Command.IsLoggedIn(szUser))
+                    {
+                        _CDATA CDATA;
+                        CDATA.USER      = szUser;
+                        Command.Handle_Logout(&CDATA);
+                    }
+                    // Construct a message and inform the clients on the same channel.
+				    if((sIRC.BOTMASK & 2) != 0)
+                        Send_WoW_Channel(GetWoWChannel(CHAN).c_str(), IRCcol2WoW(MakeMsg(MakeMsg(GetChatLine(LEAVE_IRC), "$Name", szUser), "$Channel", GetWoWChannel(CHAN))));
+                }
+                // someone changed their nick
+			    if (CMD == "nick" && (sIRC.BOTMASK & 128) != 0)
+                {
+                    MakeMsg(MakeMsg(GetChatLine(CHANGE_NICK), "$Name", szUser), "$NewName", sData.substr(sData.find(":", p2) + 1));
+				    // If the user is logged in and changes their nick
+				    // then we want to either log them out or update
+				    // their nick in the bot. I chose to update the bots user list.
+				    if(Command.IsLoggedIn(szUser))
+				    {
+                        std::string NewNick = sData.substr(sData.find(":", p2) + 1);
+					    // On freenode I noticed the server sends an extra character
+					    // at the end of the string, so we need to erase the last
+					    // character of the string. if you have a problem with getting
+					    // the last letter of your nick erased, then remove the - 1.
+					    NewNick.erase(NewNick.length() - 1, 1);
 
-							// Figure why not output to the logfile, makes tracing problems easier.
-							sIRC.iLog.WriteLog(" %s : %s Changed Nick To: %s", sIRC.iLog.GetLogDateTimeStr().c_str(), szUser.c_str(), NewNick.c_str());
+					    for(std::list<_client*>::iterator i=Command._CLIENTS.begin(); i!=Command._CLIENTS.end();i++)
+                        {
+                            if((*i)->Name == szUser)
+                            {
+					            (*i)->Name     = NewNick;
+					            sIRC.Send_IRC_Channel(NewNick.c_str(), "I Noticed You Changed Your Nick, I Have Updated My Internal Database Accordingly.", true, "NOTICE");
+
+							    // Figure why not output to the logfile, makes tracing problems easier.
+							    sIRC.iLog.WriteLog(" %s : %s Changed Nick To: %s", sIRC.iLog.GetLogDateTimeStr().c_str(), szUser.c_str(), NewNick.c_str());
+                            }
+                        }
+				    }
+
+                }
+                // someone was kicked from irc
+                if (CMD == "kick")
+                {
+                    // extract the details
+                    size_t p3 = sData.find(" ", p2 + 1);
+                    size_t p4 = sData.find(" ", p3 + 1);
+                    size_t p5 = sData.find(":", p4);
+                    std::string CHAN = sData.substr(p2 + 1, p3 - p2 - 1);
+                    std::string WHO = sData.substr(p3 + 1, p4 - p3 - 1);
+                    std::string BY = sData.substr(p4 + 1, sData.size() - p4 - 1);
+                    // if the one kicked was us
+                    if(WHO == sIRC._Nick)
+                    {
+                        // and autojoin is enabled
+                        // return to the channel
+                        if(sIRC._autojoinkick == 1)
+                        {
+                            SendIRC("JOIN " + CHAN);
+                            Send_IRC_Channel(CHAN, sIRC.kikmsg, true);
                         }
                     }
-				}
-
-            }
-            // someone was kicked from irc
-            if (CMD == "kick")
-            {
-                // extract the details
-                size_t p3 = sData.find(" ", p2 + 1);
-                size_t p4 = sData.find(" ", p3 + 1);
-                size_t p5 = sData.find(":", p4);
-                std::string CHAN = sData.substr(p2 + 1, p3 - p2 - 1);
-                std::string WHO = sData.substr(p3 + 1, p4 - p3 - 1);
-                std::string BY = sData.substr(p4 + 1, sData.size() - p4 - 1);
-                // if the one kicked was us
-                if(WHO == sIRC._Nick)
-                {
-                    // and autojoin is enabled
-                    // return to the channel
-                    if(sIRC._autojoinkick == 1)
+                    else
                     {
-                        SendIRC("JOIN " + CHAN);
-                        Send_IRC_Channel(CHAN, sIRC.kikmsg, true);
+                        // if it is not us who was kicked we need to inform the clients someone
+                        // was removed from the channel
+                        // construct a message and send it to the players.
+                        Send_WoW_Channel(GetWoWChannel(CHAN).c_str(), "<IRC>[" + WHO + "]: Was Kicked From " + CHAN + " By: " + szUser);
                     }
                 }
-                else
+                // a private chat message was receieved.
+                if(CMD == "privmsg" || CMD == "notice")
                 {
-                    // if it is not us who was kicked we need to inform the clients someone
-                    // was removed from the channel
-                    // construct a message and send it to the players.
-                    Send_WoW_Channel(GetWoWChannel(CHAN).c_str(), "<IRC>[" + WHO + "]: Was Kicked From " + CHAN + " By: " + szUser);
-                }
-            }
-            // a private chat message was receieved.
-            if(CMD == "privmsg" || CMD == "notice")
-            {
-                // extract the values
-                size_t p = sData.find(" ", p2 + 1);
-                std::string FROM = sData.substr(p2 + 1, p - p2 - 1);
-                std::string CHAT = sData.substr(p + 2, sData.size() - p - 3);
-                // if this is our username it means we recieved a PM
-                if(FROM == sIRC._Nick)
-                {
-                    if(CHAT.find("\001VERSION\001") < CHAT.size())
+                    // extract the values
+                    size_t p = sData.find(" ", p2 + 1);
+                    std::string FROM = sData.substr(p2 + 1, p - p2 - 1);
+                    std::string CHAT = sData.substr(p + 2, sData.size() - p - 3);
+                    // if this is our username it means we recieved a PM
+                    if(FROM == sIRC._Nick)
                     {
-                        Send_IRC_Channel(szUser, MakeMsg("\001VERSION MangChat %s ©2008 |Death|\001", "%s" , sIRC._Mver.c_str()), true, "PRIVMSG");
+                        if(CHAT.find("\001VERSION\001") < CHAT.size())
+                        {
+                            Send_IRC_Channel(szUser, MakeMsg("\001VERSION MangChat %s ©2008 |Death|\001", "%s" , sIRC._Mver.c_str()), true, "PRIVMSG");
+                        }
+                        // a pm is required for certain commands
+                        // such as login. to validate the command
+                        // we send it to the command class wich handles
+                        // evrything else.
+                        Command.IsValid(szUser, FROM, CHAT, CMD);
                     }
-                    // a pm is required for certain commands
-                    // such as login. to validate the command
-                    // we send it to the command class wich handles
-                    // evrything else.
-                    Command.IsValid(szUser, FROM, CHAT, CMD);
+                    else
+                    {
+                        // if our name is not in it, it means we receieved chat on one of the channels
+                        // magchat is in. the first thing we do is check if it is a command or not
+                        if(!Command.IsValid(szUser, FROM, CHAT, CMD))
+					    {
+						    Send_WoW_Channel(GetWoWChannel(FROM).c_str(), IRCcol2WoW(MakeMsg(MakeMsg(GetChatLine(IRC_WOW), "$Name", szUser), "$Msg", CHAT)));
+					    }
+                        // if we indeed receieved a command we do not want to display this to the players
+                        // so only incanse the isvalid command returns false it will be sent to all player.
+                        // the isvalid function will automaitcly process the command on true.
+                    }
                 }
-                else
+                if(CMD == "mode")
                 {
-                    // if our name is not in it, it means we receieved chat on one of the channels
-                    // magchat is in. the first thing we do is check if it is a command or not
-                    if(!Command.IsValid(szUser, FROM, CHAT, CMD))
-					{
-						Send_WoW_Channel(GetWoWChannel(FROM).c_str(), IRCcol2WoW(MakeMsg(MakeMsg(GetChatLine(IRC_WOW), "$Name", szUser), "$Msg", CHAT)));
-					}
-                    // if we indeed receieved a command we do not want to display this to the players
-                    // so only incanse the isvalid command returns false it will be sent to all player.
-                    // the isvalid function will automaitcly process the command on true.
-                }
-            }
-            if(CMD == "mode")
-            {
-                // extract the mode details
-                size_t p3 = sData.find(" ", p2 + 1);
-                size_t p4 = sData.find(" ", p3 + 1);
-                size_t p5 = sData.find(" ", p4 + 1);
-                std::string CHAN = sData.substr(p2 + 1, p3 - p2 - 1);
-                std::string MODE = sData.substr(p3 + 1, p4 - p3 - 1);
-                std::string NICK = sData.substr(p4 + 1, p5 - p4 - 1);
-				bool _AmiOp;
-				_AmiOp = false;
-				//A mode was changed on us
-				if(NICK.c_str() == sIRC._Nick)
-					_AmiOp = true;
+                    // extract the mode details
+                    size_t p3 = sData.find(" ", p2 + 1);
+                    size_t p4 = sData.find(" ", p3 + 1);
+                    size_t p5 = sData.find(" ", p4 + 1);
+                    std::string CHAN = sData.substr(p2 + 1, p3 - p2 - 1);
+                    std::string MODE = sData.substr(p3 + 1, p4 - p3 - 1);
+                    std::string NICK = sData.substr(p4 + 1, p5 - p4 - 1);
+				    bool _AmiOp;
+				    _AmiOp = false;
+				    //A mode was changed on us
+				    if(NICK.c_str() == sIRC._Nick)
+					    _AmiOp = true;
 
-			}
+			    }
+            }
         }
+    }
+    catch(std::out_of_range& e)
+    {
     }
 }
 
