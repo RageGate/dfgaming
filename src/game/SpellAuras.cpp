@@ -561,14 +561,9 @@ PersistentAreaAura::~PersistentAreaAura()
 SingleEnemyTargetAura::SingleEnemyTargetAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 *currentBasePoints, Unit *target,
 Unit *caster, Item* castItem, Spell* createdBySpell) : Aura(spellproto, eff, currentBasePoints, target, caster, castItem)
 {
-    if (caster)
-    {
-        m_casters_target_guid = createdBySpell->GetTargetForPeriodicTriggerAura().GetRawValue();
-        if (!m_casters_target_guid)
+    m_casters_target_guid = createdBySpell ? createdBySpell->GetTargetForPeriodicTriggerAura().GetRawValue() : 0;
+    if (!m_casters_target_guid)
             m_casters_target_guid = target->GetGUID();
-    }
-    else
-        m_casters_target_guid = 0;
 }
 
 
