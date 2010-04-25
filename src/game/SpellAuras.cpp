@@ -6455,6 +6455,7 @@ void Aura::HandleSpellSpecificBoosts(bool apply)
                             break;
                         }
                     }
+                    break;
                 }
                 else
                     return;
