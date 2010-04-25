@@ -566,4 +566,3 @@ void WorldSession::HandleSpellClick( WorldPacket & recv_data )
         }
     }
 }
-
