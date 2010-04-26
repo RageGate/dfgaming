@@ -83,7 +83,7 @@ enum MangosStrings
     LANG_USING_WORLD_DB                 = 57,
     LANG_USING_SCRIPT_LIB               = 58,
     LANG_USING_EVENT_AI                 = 59,
-    LANG_RA_BUSY                        = 60,
+    //LANG_RA_BUSY                      = 60, not used
     LANG_RA_USER                        = 61,
     LANG_RA_PASS                        = 62,
     // Room for more level 0              63-99 not used
@@ -480,7 +480,7 @@ enum MangosStrings
     LANG_CREATURE_ENTRY_LIST_CHAT       = 514,
     LANG_CREATURE_LIST_CHAT             = 515,
     LANG_GO_ENTRY_LIST_CHAT             = 516,
-    LANG_GO_LIST_CHAT                   = 517,
+    LANG_GO_MIXED_LIST_CHAT             = 517,
     LANG_ITEMSET_LIST_CHAT              = 518,
     LANG_TELE_LIST                      = 519,
     LANG_SPELL_LIST                     = 520,
@@ -781,7 +781,18 @@ enum MangosStrings
     LANG_ACCOUNT_LIST_LINE              = 1013,
     LANG_ACCOUNT_LIST_EMPTY             = 1014,
     LANG_QUIT_WRONG_USE_ERROR           = 1015,
-    // Room for more level 4              1016-1099 not used
+    LANG_CHARACTER_DELETED_LIST_HEADER  = 1016,
+    LANG_CHARACTER_DELETED_LIST_LINE_CONSOLE = 1017,
+    LANG_CHARACTER_DELETED_LIST_BAR     = 1018,
+    LANG_CHARACTER_DELETED_LIST_EMPTY   = 1019,
+    LANG_CHARACTER_DELETED_RESTORE      = 1020,
+    LANG_CHARACTER_DELETED_DELETE       = 1021,
+    LANG_CHARACTER_DELETED_ERR_RENAME   = 1022,
+    LANG_CHARACTER_DELETED_SKIP_ACCOUNT = 1023,
+    LANG_CHARACTER_DELETED_SKIP_FULL    = 1024,
+    LANG_CHARACTER_DELETED_SKIP_NAME    = 1025,
+    LANG_CHARACTER_DELETED_LIST_LINE_CHAT = 1026,
+    // Room for more level 4              1027-1099 not used
 
     // Level 3 (continue)
     LANG_ACCOUNT_SETADDON               = 1100,
@@ -819,7 +830,14 @@ enum MangosStrings
     LANG_MOVEGENS_FOLLOW_PLAYER         = 1132,
     LANG_MOVEGENS_FOLLOW_CREATURE       = 1133,
     LANG_MOVEGENS_FOLLOW_NULL           = 1134,
-    // Room for more level 3              1135-1199 not used
+    LANG_LIST_TALENTS_TITLE             = 1135,
+    LANG_LIST_TALENTS_COUNT             = 1136,
+    LANG_GO_LIST_CHAT                   = 1137,
+    LANG_ACCOUNT_CHARACTERS_LIST_BAR    = 1138,
+    LANG_ACCOUNT_CHARACTERS_LIST_HEADER = 1139,
+    LANG_ACCOUNT_CHARACTERS_LIST_LINE_CONSOLE = 1140,
+    LANG_ACCOUNT_CHARACTERS_LIST_LINE_CHAT = 1141,
+    // Room for more level 3              1142-1199 not used
 
     // Debug commands
     LANG_CINEMATIC_NOT_EXIST            = 1200,

@@ -26,7 +26,7 @@
 #include "Log.h"
 #include "World.h"
 #include "ObjectMgr.h"
-#include "ObjectDefines.h"
+#include "ObjectGuid.h"
 #include "Player.h"
 #include "UpdateMask.h"
 #include "NPCHandler.h"
@@ -39,7 +39,7 @@ void WorldSession::SendNameQueryOpcode(Player *p)
         return;
                                                             // guess size
     WorldPacket data( SMSG_NAME_QUERY_RESPONSE, (8+1+1+1+1+1+10) );
-    data.append(p->GetPackGUID());                          // player guid
+    data << p->GetPackGUID();                               // player guid
     data << uint8(0);                                       // added in 3.1; if > 1, then end of packet
     data << p->GetName();                                   // played name
     data << uint8(0);                                       // realm name for cross realm BG usage
@@ -293,14 +293,14 @@ void WorldSession::HandleCorpseQueryOpcode(WorldPacket & /*recv_data*/)
         // search entrance map for proper show entrance
         if(MapEntry const* corpseMapEntry = sMapStore.LookupEntry(mapid))
         {
-            if(corpseMapEntry->IsDungeon() && corpseMapEntry->entrance_map >= 0)
+            if(corpseMapEntry->IsDungeon() && corpseMapEntry->ghost_entrance_map >= 0)
             {
                 // if corpse map have entrance
-                if(Map const* entranceMap = sMapMgr.CreateBaseMap(corpseMapEntry->entrance_map))
+                if(Map const* entranceMap = sMapMgr.CreateBaseMap(corpseMapEntry->ghost_entrance_map))
                 {
-                    mapid = corpseMapEntry->entrance_map;
-                    x = corpseMapEntry->entrance_x;
-                    y = corpseMapEntry->entrance_y;
+                    mapid = corpseMapEntry->ghost_entrance_map;
+                    x = corpseMapEntry->ghost_entrance_x;
+                    y = corpseMapEntry->ghost_entrance_y;
                     z = entranceMap->GetHeight(x, y, MAX_HEIGHT);
                 }
             }
@@ -458,7 +458,7 @@ void WorldSession::HandleCorpseMapPositionQuery( WorldPacket & recv_data )
     uint32 unk;
     recv_data >> unk;
 
-    WorldPacket data(CMSG_CORPSE_MAP_POSITION_QUERY_RESPONSE, 4+4+4+4);
+    WorldPacket data(SMSG_CORPSE_MAP_POSITION_QUERY_RESPONSE, 4+4+4+4);
     data << float(0);
     data << float(0);
     data << float(0);
@@ -520,14 +520,13 @@ void WorldSession::HandleQuestPOIQuery(WorldPacket& recv_data)
                 data << uint32(questId);                    // quest ID
                 data << uint32(POI->size());                // POI count
 
-                int index = 0;
                 for(QuestPOIVector::const_iterator itr = POI->begin(); itr != POI->end(); ++itr)
                 {
-                    data << uint32(index);                  // POI index
+                    data << uint32(itr->PoiId);             // POI index
                     data << int32(itr->ObjectiveIndex);     // objective index
                     data << uint32(itr->MapId);             // mapid
-                    data << uint32(itr->Unk1);              // unknown
-                    data << uint32(itr->Unk2);              // unknown
+                    data << uint32(itr->MapAreaId);         // world map area id
+                    data << uint32(itr->FloorId);           // floor id
                     data << uint32(itr->Unk3);              // unknown
                     data << uint32(itr->Unk4);              // unknown
                     data << uint32(itr->points.size());     // POI points count
@@ -537,7 +536,6 @@ void WorldSession::HandleQuestPOIQuery(WorldPacket& recv_data)
                         data << int32(itr2->x);             // POI point x
                         data << int32(itr2->y);             // POI point y
                     }
-                    ++index;
                 }
             }
             else
@@ -553,7 +551,6 @@ void WorldSession::HandleQuestPOIQuery(WorldPacket& recv_data)
         }
     }
 
-    data.hexlike();
     SendPacket(&data);
 }
 

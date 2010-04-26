@@ -71,12 +71,15 @@ class ChatHandler
         int ParseCommands(const char* text);
 
         bool isValidChatMessage(const char* msg);
+        bool HasSentErrorMessage() { return sentErrorMessage;}
     protected:
         explicit ChatHandler() : m_session(NULL) {}      // for CLI subclass
 
         bool hasStringAbbr(const char* name, const char* part);
 
         // function with different implementation for chat/console
+        virtual uint32 GetAccountId() const;
+        virtual AccountTypes GetAccessLevel() const;
         virtual bool isAvailable(ChatCommand const& cmd) const;
         virtual std::string GetNameLink() const { return GetNameLink(m_session->GetPlayer()); }
         virtual bool needReportToTarget(Player* chr) const;
@@ -96,6 +99,7 @@ class ChatHandler
         ChatCommand* getCommandTable();
 
         bool HandleAccountCommand(const char* args);
+        bool HandleAccountCharactersCommand(const char* args);
         bool HandleAccountCreateCommand(const char* args);
         bool HandleAccountDeleteCommand(const char* args);
         bool HandleAccountLockCommand(const char* args);
@@ -123,7 +127,11 @@ class ChatHandler
         bool HandleCastTargetCommand(const char *args);
 
         bool HandleCharacterCustomizeCommand(const char * args);
-        bool HandleCharacterDeleteCommand(const char* args);
+        bool HandleCharacterDeletedDeleteCommand(const char* args);
+        bool HandleCharacterDeletedListCommand(const char* args);
+        bool HandleCharacterDeletedRestoreCommand(const char* args);
+        bool HandleCharacterDeletedOldCommand(const char* args);
+        bool HandleCharacterEraseCommand(const char* args);
         bool HandleCharacterLevelCommand(const char* args);
         bool HandleCharacterRenameCommand(const char * args);
         bool HandleCharacterReputationCommand(const char* args);
@@ -224,6 +232,7 @@ class ChatHandler
         bool HandleListCreatureCommand(const char* args);
         bool HandleListItemCommand(const char* args);
         bool HandleListObjectCommand(const char* args);
+        bool HandleListTalentsCommand(const char * args);
 
         bool HandleLookupAreaCommand(const char* args);
         bool HandleLookupCreatureCommand(const char* args);
@@ -399,6 +408,7 @@ class ChatHandler
         bool HandleResetAllCommand(const char * args);
         bool HandleResetHonorCommand(const char * args);
         bool HandleResetLevelCommand(const char * args);
+        bool HandleResetSpecsCommand(const char * args);
         bool HandleResetSpellsCommand(const char * args);
         bool HandleResetStatsCommand(const char * args);
         bool HandleResetTalentsCommand(const char * args);
@@ -529,6 +539,8 @@ class ChatHandler
         std::string playerLink(std::string const& name) const { return m_session ? "|cffffffff|Hplayer:"+name+"|h["+name+"]|h|r" : name; }
         std::string GetNameLink(Player* chr) const { return playerLink(chr->GetName()); }
 
+        uint32 extractAccountId(char* args, std::string* accountName = NULL, Player** targetIfNullArg = NULL);
+
         GameObject* GetObjectGlobalyWithGuidOrNearWithDbGuid(uint32 lowguid,uint32 entry);
 
         // Utility methods for commands
@@ -540,6 +552,25 @@ class ChatHandler
         bool HandleUnBanHelper(BanMode mode,char const* args);
         void HandleCharacterLevel(Player* player, uint64 player_guid, uint32 oldlevel, uint32 newlevel);
         void HandleLearnSkillRecipesHelper(Player* player,uint32 skill_id);
+        void ShowSpellListHelper(Player* target, SpellEntry const* spellInfo, LocaleConstant loc);
+
+        /**
+         * Stores informations about a deleted character
+         */
+        struct DeletedInfo
+        {
+            uint32      lowguid;                            ///< the low GUID from the character
+            std::string name;                               ///< the character name
+            uint32      accountId;                          ///< the account id
+            std::string accountName;                        ///< the account name
+            time_t      deleteDate;                         ///< the date at which the character has been deleted
+        };
+
+        typedef std::list<DeletedInfo> DeletedInfoList;
+        bool GetDeletedCharacterInfoList(DeletedInfoList& foundList, std::string searchString = "");
+        std::string GenerateDeletedCharacterGUIDsWhereStr(DeletedInfoList::const_iterator& itr, DeletedInfoList::const_iterator const& itr_end);
+        void HandleCharacterDeletedListHelper(DeletedInfoList const& foundList);
+        void HandleCharacterDeletedRestoreHelper(DeletedInfo const& delInfo);
 
         void SetSentErrorMessage(bool val){ sentErrorMessage = val;};
     private:
@@ -553,11 +584,14 @@ class ChatHandler
 class CliHandler : public ChatHandler
 {
     public:
-        typedef void Print(char const*);
-        explicit CliHandler(Print* zprint) : m_print(zprint) {}
+        typedef void Print(void*, char const*);
+        explicit CliHandler(uint32 accountId, AccountTypes accessLevel, void* callbackArg, Print* zprint)
+            : m_accountId(accountId), m_loginAccessLevel(accessLevel), m_callbackArg(callbackArg), m_print(zprint) {}
 
         // overwrite functions
         const char *GetMangosString(int32 entry) const;
+        uint32 GetAccountId() const;
+        AccountTypes GetAccessLevel() const;
         bool isAvailable(ChatCommand const& cmd) const;
         void SendSysMessage(const char *str);
         std::string GetNameLink() const;
@@ -566,6 +600,9 @@ class CliHandler : public ChatHandler
         int GetSessionDbLocaleIndex() const;
 
     private:
+        uint32 m_accountId;
+        AccountTypes m_loginAccessLevel;
+        void* m_callbackArg;
         Print* m_print;
 };
 

@@ -157,7 +157,7 @@ InstanceSave::InstanceSave(uint16 MapId, uint32 InstanceId, Difficulty difficult
 InstanceSave::~InstanceSave()
 {
     // the players and groups must be unbound before deleting the save
-    assert(m_playerList.empty() && m_groupList.empty());
+    ASSERT(m_playerList.empty() && m_groupList.empty());
 }
 
 /*
@@ -171,7 +171,7 @@ void InstanceSave::SaveToDB()
     Map *map = sMapMgr.FindMap(GetMapId(),m_instanceid);
     if(map)
     {
-        assert(map->IsDungeon());
+        ASSERT(map->IsDungeon());
         InstanceData *iData = ((InstanceMap *)map)->GetInstanceData();
         if(iData && iData->Save())
         {
@@ -225,7 +225,7 @@ bool InstanceSave::UnloadIfEmpty()
 void InstanceSaveManager::_DelHelper(DatabaseType &db, const char *fields, const char *table, const char *queryTail,...)
 {
     Tokens fieldTokens = StrSplit(fields, ", ");
-    assert(fieldTokens.size() != 0);
+    ASSERT(fieldTokens.size() != 0);
 
     va_list ap;
     char szQueryTail [MAX_QUERY_LEN];
@@ -476,6 +476,8 @@ void InstanceSaveManager::LoadResetTimes()
 
         // the reset_delay must be at least one day
         uint32 period =  uint32(mapDiff->resetTime / DAY * sWorld.getConfig(CONFIG_FLOAT_RATE_INSTANCE_RESET_TIME)) * DAY;
+        if (period < DAY)
+            period = DAY;
 
         time_t t = GetResetTimeFor(mapid,difficulty);
         if(!t)
