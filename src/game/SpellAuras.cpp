@@ -7429,6 +7429,18 @@ void Aura::PeriodicTick()
             {
                 pdamage = amount;
 
+                // Burn - SWP Brutallus
+                if (m_spellProto->Id == 46394)
+                {
+                    uint32 ticks = GetAuraTicks();
+                    uint32 threashold[] = {10,21,32,43,54};
+                    for (uint8 i = 0; i<5; i++)
+                        if (ticks > threashold[i])
+                            pdamage *=2;
+                        else
+                            break;
+                }
+
                 // SpellDamageBonus for magic spells
                 if(GetSpellProto()->DmgClass == SPELL_DAMAGE_CLASS_NONE || GetSpellProto()->DmgClass == SPELL_DAMAGE_CLASS_MAGIC)
                     pdamage = pCaster->SpellDamageBonus(m_target, GetSpellProto(), pdamage, DOT, GetStackAmount());
