@@ -932,13 +932,13 @@ bool Pet::InitStatsForLevel(uint32 petlevel, Unit* owner)
                     statBonus[STAT_STAMINA] = owner->GetStat(STAT_STAMINA) * 0.3f;
                     statBonus[STAT_INTELLECT] = owner->GetStat(STAT_INTELLECT) * 0.3f;
                     armorBonus = owner->GetArmor() * 0.35f;
-                    bonusDamage = owner->SpellBaseDamageBonus(SPELL_SCHOOL_MASK_FROST) * 0.4f;
+                    bonusDamage = owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_FROST) * 0.4f;
                     break;
                 }
                 // priest's Shadowfiend
                 case 19668:
                 {
-                    apBonus = owner->SpellBaseDamageBonus(SPELL_SCHOOL_MASK_SHADOW) * 0.565f;
+                    apBonus = owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_SHADOW) * 0.565f;
                     break;
                 }
                 // Feral Spirit Wolves
