@@ -7210,9 +7210,10 @@ void Player::_ApplyWeaponDependentAuraCritMod(Item *item, WeaponAttackType attac
 void Player::_ApplyWeaponDependentAuraDamageMod(Item *item, WeaponAttackType attackType, Aura* aura, bool apply)
 {
     Modifier const* modifier = aura->GetModifier();
+    SpellSchoolMask weaponSchoolMask = GetSchoolMaskForAttackType(attackType);
 
-    // generic not weapon specific case processes in aura code
-    if(aura->GetSpellProto()->EquippedItemClass == -1)
+    // basic school check
+    if (!(weaponSchoolMask & modifier->m_miscvalue))
         return;
 
     UnitMods unitMod = UNIT_MOD_END;
@@ -7235,28 +7236,41 @@ void Player::_ApplyWeaponDependentAuraDamageMod(Item *item, WeaponAttackType att
     // check item requirements
     if (!item->IsBroken() && item->IsFitToSpellRequirements(aura->GetSpellProto()))
     {
-        // apply to weapon if school mask fits, note: In comparison to similar checks, we do NOT check SCHOOL_MASK_NORMAL for
-        // weapon-dependent auras. This seems to be the most clean way, to make auras like the old "Wand Specializaion" work.
-        if (GetSchoolMaskForAttackType(attackType) & modifier->m_miscvalue)
+        // specific case
+        if (aura->GetSpellProto()->EquippedItemClass != -1)
             HandleStatModifier(unitMod, unitModType, float(modifier->m_amount),apply);
-
-        // send info to client, TODO: PLAYER_FIELD_MOD_DAMAGE_DONE_PCT will always show the percent mod for ALL weapons in the
-        // character menu at the client, which is not the correct behaviour from my information
-        ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT, modifier->m_amount/100.0f, apply);
+        // generic case requires additional school check, out of experience
+        else if (SPELL_SCHOOL_MASK_NORMAL & modifier->m_miscvalue)
+            HandleStatModifier(unitMod, unitModType, float(modifier->m_amount),apply);
 
         // aura affects all damage
         if (aura->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE)
         {
-            // we need to prevent double apply in case multiple weapons fullfill the requirements
-            // because this is hard to check in this place, we use a workaround: only main hand weapon
+            // TODO: Fix the (practical irrelevant) case of having multiple weapons equipped (offhand, ranged)
             if (attackType != BASE_ATTACK)
                 return;
 
-            // apply to other weapons, if school fits
-            for (uint8 i = OFF_ATTACK; i < MAX_ATTACK; i++)
-                if (GetSchoolMaskForAttackType(WeaponAttackType(i)) & modifier->m_miscvalue)
-                    HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + i), unitModType, float(modifier->m_amount), apply);
+            // send info to client
+            for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
+                if (modifier->m_miscvalue & (1 << i))
+                {
+                    if (unitModType == TOTAL_PCT)
+                        ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT + i, modifier->m_amount/100.0f, apply);
+                    else
+                    {
+                        if(aura->IsPositive())
+                            ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + i, modifier->m_amount, apply);
+                       else
+                            ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_NEG + i, modifier->m_amount, apply);
+                    }
+                }
+
+            return;
         }
+
+        // send info to client, TODO: PLAYER_FIELD_MOD_DAMAGE_DONE_PCT will always show the percent mod for ALL weapons in the
+        // character menu at the client, which is not the correct behaviour from my information
+        ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT, modifier->m_amount/100.0f, apply);
     }
 }
 
