@@ -3140,18 +3140,17 @@ void Spell::EffectHeal(SpellEffectIndex /*eff_idx*/)
                 sLog.outError("Target (GUID: %u TypeId: %u) has aurastate AURA_STATE_SWIFTMEND but no matching aura.", unitTarget->GetGUIDLow(), unitTarget->GetTypeId());
                 return;
             }
-            int idx = 0;
-            while(idx < 3)
-            {
-                if(targetAura->GetSpellProto()->EffectApplyAuraName[idx] == SPELL_AURA_PERIODIC_HEAL)
-                    break;
-                idx++;
-            }
 
-            int32 tickheal = caster->SpellHealingBonusDone(unitTarget, targetAura->GetSpellProto(), targetAura->GetModifier()->m_amount, DOT);
+            int32 tickheal = targetAura->GetModifier()->m_amount;
             tickheal = unitTarget->SpellHealingBonusTaken(caster, targetAura->GetSpellProto(), tickheal, DOT);
 
-            int32 tickcount = GetSpellDuration(targetAura->GetSpellProto()) / targetAura->GetSpellProto()->EffectAmplitude[idx];
+            int32 tickcount;
+            // Rejuvenation: 12 seconds
+            if (targetAura->GetSpellProto()->SpellFamilyFlags & UI64LIT(0x0000000000000010))
+                tickcount = 12000 / targetAura->GetModifier()->periodictime;
+            // Regrowth: 18 seconds
+            else
+                tickcount = 18000 / targetAura->GetModifier()->periodictime;
 
             // Glyph of Swiftmend
             if (!caster->HasAura(54824))
