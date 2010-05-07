@@ -13161,6 +13161,7 @@ bool InitTriggerAuraData()
 
     isNonTriggerAura[SPELL_AURA_MOD_POWER_REGEN]=true;
     isNonTriggerAura[SPELL_AURA_REDUCE_PUSHBACK]=true;
+    isNonTriggerAura[SPELL_AURA_ADD_PCT_MODIFIER]=true;
 
     return true;
 }
