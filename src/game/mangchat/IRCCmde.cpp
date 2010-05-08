@@ -495,7 +495,7 @@ void IRCCmd::Info_Server(_CDATA *CD)
     sprintf(maxClientsNum, "%u", sWorld.GetMaxActiveSessionCount());
     std::string str = secsToTimeString(sWorld.GetUptime());
     Send_IRCA(ChanOrPM(CD), "\x2 Number Of Players Online:\x3\x31\x30 " + (std::string)clientsNum + "\xF |\x2 Max Since Last Restart:\x3\x31\x30 "+(std::string)maxClientsNum+"\xF |\x2 UpTime:\x3\x31\x30 "+str, true, CD->TYPE);
-    Send_IRCA(ChanOrPM(CD), "\x2" +(std::string)_DISTRIBUTION +" based on MaNGOS ["+ (std::string)REVISION_NR+"]\x3\x31\x30 ", true, CD->TYPE);
+    Send_IRCA(ChanOrPM(CD), "\x2 " +(std::string)_DISTRIBUTION +" based on MaNGOS ["+ (std::string)REVISION_NR+"]\x3\x31\x30 ", true, CD->TYPE);
 }
 
 void IRCCmd::Item_Player(_CDATA *CD)
