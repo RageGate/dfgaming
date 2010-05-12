@@ -1514,6 +1514,33 @@ Network.KickOnBadPacket = 0
 #        Include items that can be looted or fished for.
 #    Default 1
 #
+#
+#    AuctionHouseBot.Items.ItemLevel.*
+#        Prevent seller from listing items below/above this item level
+#    Default 0 (Disabled)
+#
+#    AuctionHouseBot.Items.ReqLevel.*
+#        Prevent seller from listing items below/above this required level
+#    Default 0 (Disabled)
+#
+#    AuctionHouseBot.Items.ReqSkill.*
+#        Prevent seller from listing items below/above this skill level
+#    Default 0 (Disabled)
+#
+#
+#    AuctionHouseBot.Tradegoods.ItemLevel.*
+#        Prevent seller from listing tradegoods below/above this item level
+#    Default 0 (Disabled)
+#
+#    AuctionHouseBot.Tradegoods.ReqLevel.*
+#        Prevent seller from listing tradegoods below/above this required level
+#    Default 0 (Disabled)
+#
+#    AuctionHouseBot.Tradegoods.ReqSkill.*
+#        Prevent seller from listing tradegoods below/above this skill level
+#    Default 0 (Disabled)
+#
+#
 #    AuctionHouseBot.OtherItems
 #        Include misc. items.
 #    Default 0
@@ -1551,8 +1578,24 @@ AuctionHouseBot.EnableSeller = 0
 AuctionHouseBot.EnableBuyer = 0
 AuctionHouseBot.Account = 0
 AuctionHouseBot.GUID = 0
+
 AuctionHouseBot.VendorItems = 0
 AuctionHouseBot.LootItems = 1
+
+AuctionHouseBot.Items.ItemLevel.Min = 0
+AuctionHouseBot.Items.ItemLevel.Max = 0
+AuctionHouseBot.Items.ReqLevel.Min = 0
+AuctionHouseBot.Items.ReqLevel.Max = 0
+AuctionHouseBot.Items.ReqSkill.Min = 0
+AuctionHouseBot.Items.ReqSkill.Max = 0
+
+AuctionHouseBot.Tradegoods.ItemLevel.Min = 0
+AuctionHouseBot.Tradegoods.ItemLevel.Max = 0
+AuctionHouseBot.Tradegoods.ReqLevel.Min = 0
+AuctionHouseBot.Tradegoods.ReqLevel.Max = 0
+AuctionHouseBot.Tradegoods.ReqSkill.Min = 0
+AuctionHouseBot.Tradegoods.ReqSkill.Max = 0
+
 AuctionHouseBot.OtherItems = 0
 AuctionHouseBot.No_Bind = 1
 AuctionHouseBot.Bind_When_Picked_Up = 0
