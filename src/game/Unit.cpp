@@ -4352,6 +4352,23 @@ void Unit::RemoveSingleAuraDueToSpellByDispel(uint32 spellId, uint64 casterGUID,
             }
         }
     }
+    // Lifebloom
+    else if (spellEntry->SpellFamilyName == SPELLFAMILY_DRUID && spellEntry->SpellFamilyFlags & UI64LIT(0x1000000000))
+    {
+        if (Aura* hot = GetAura(SPELL_AURA_DUMMY, SPELLFAMILY_DRUID, UI64LIT(0x1000000000), 0x00000000, casterGUID))
+        {
+            if (Unit* caster = hot->GetCaster())
+            {
+                // final heal
+                int32 healamount = hot->GetModifier()->m_amount/hot->GetStackAmount();
+                CastCustomSpell(this, 33778, &(healamount), NULL, NULL, true, NULL, hot, casterGUID);
+
+                // mana
+                int32 returnmana = (spellEntry->ManaCostPercentage * caster->GetCreateMana() / 100) / 2;
+                caster->CastCustomSpell(caster, 64372, &returnmana, NULL, NULL, true, NULL, hot, casterGUID);
+            }
+        }
+    }
 
     RemoveSingleSpellAurasByCasterSpell(spellId, casterGUID, AURA_REMOVE_BY_DISPEL);
 }
