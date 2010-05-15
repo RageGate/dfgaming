@@ -1447,6 +1447,14 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
 
                     break;
                 }
+                case SPELLFAMILY_PRIEST:
+                {
+                    // Last Stand and Weakened Soul (multi-family check)
+                    if( spellInfo_1->Id == 12976 && spellInfo_2->Id == 6788 )
+                        return false;
+
+                    break;
+                }
                 case SPELLFAMILY_DRUID:
                 {
                     // Scroll of Stamina and Leader of the Pack (multi-family check)
@@ -1632,6 +1640,9 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                     (spellInfo_2->SpellIconID == 566 && spellInfo_1->SpellIconID == 2820))
                     return false;
             }
+            // Weakened Soul and Last Stand (multi-family check)
+            if (spellInfo_1->Id == 6788 && spellInfo_2->Id == 12976)
+                return false;
             break;
         case SPELLFAMILY_DRUID:
             if( spellInfo_2->SpellFamilyName == SPELLFAMILY_DRUID )
