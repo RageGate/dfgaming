@@ -24,7 +24,7 @@ CREATE TABLE `db_version` (
   `version` varchar(120) default NULL,
   `creature_ai_version` varchar(120) default NULL,
   `cache_id` int(10) default '0',
-  `required_9826_01_mangos_spell_script_target` bit(1) default NULL
+  `required_9899_01_mangos_spell_bonus_data` bit(1) default NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Used DB version notes';
 
 --
@@ -632,6 +632,9 @@ INSERT INTO `command` VALUES
 ('list object',3,'Syntax: .list object #gameobject_id [#max_count]\r\n\r\nOutput gameobjects with gameobject id #gameobject_id found in world. Output gameobject guids and coordinates sorted by distance from character. Will be output maximum #max_count gameobject. If #max_count not provided use 10 as default value.'),
 ('list talents',3,'Syntax: .list talents\r\n\r\nShow list all really known (as learned spells) talent rank spells for selected player or self.'),
 ('loadscripts',3,'Syntax: .loadscripts $scriptlibraryname\r\n\r\nUnload current and load the script library $scriptlibraryname or reload current if $scriptlibraryname omitted, in case you changed it while the server was running.'),
+('lookup account email',2,'Syntax: .lookup account email $emailpart [#limit] \r\n\r\n Searchs accounts, which email including $emailpart with optional parametr #limit of results. If #limit not provided expected 100.'),
+('lookup account ip',2,'Syntax: lookup account ip $ippart [#limit] \r\n\r\n Searchs accounts, which last used ip inluding $ippart (textual) with optional parametr #$limit of results. If #limit not provided expected 100.'),
+('lookup account name',2,'Syntax: .lookup account name $accountpart [#limit] \r\n\r\n Searchs accounts, which username including $accountpart with optional parametr #limit of results. If #limit not provided expected 100.'),
 ('lookup area',1,'Syntax: .lookup area $namepart\r\n\r\nLooks up an area by $namepart, and returns all matches with their area ID\'s.'),
 ('lookup creature',3,'Syntax: .lookup creature $namepart\r\n\r\nLooks up a creature by $namepart, and returns all matches with their creature ID\'s.'),
 ('lookup event',2,'Syntax: .lookup event $name\r\nAttempts to find the ID of the event with the provided $name.'),
@@ -639,9 +642,9 @@ INSERT INTO `command` VALUES
 ('lookup item',3,'Syntax: .lookup item $itemname\r\n\r\nLooks up an item by $itemname, and returns all matches with their Item ID\'s.'),
 ('lookup itemset',3,'Syntax: .lookup itemset $itemname\r\n\r\nLooks up an item set by $itemname, and returns all matches with their Item set ID\'s.'),
 ('lookup object',3,'Syntax: .lookup object $objname\r\n\r\nLooks up an gameobject by $objname, and returns all matches with their Gameobject ID\'s.'),
-('lookup player account',2,'Syntax: .lookup player account $account ($limit) \r\n\r\n Searchs players, which account username is $account with optional parametr $limit of results.'),
-('lookup player ip',2,'Syntax: .lookup player ip $ip ($limit) \r\n\r\n Searchs players, which account ast_ip is $ip with optional parametr $limit of results.'),
-('lookup player email',2,'Syntax: .lookup player email $email ($limit) \r\n\r\n Searchs players, which account email is $email with optional parametr $limit of results.'),
+('lookup player account',2,'Syntax: .lookup player account $accountpart [#limit] \r\n\r\n Searchs players, which account username including $accountpart with optional parametr #limit of results. If #limit not provided expected 100.'),
+('lookup player email',2,'Syntax: .lookup player email $emailpart [#limit] \r\n\r\n Searchs players, which account email including $emailpart with optional parametr #limit of results. If #limit not provided expected 100.'),
+('lookup player ip',2,'Syntax: .lookup player ip $ippart [#limit] \r\n\r\n Searchs players, which account last used ip inluding $ippart (textual) with optional parametr #limit of results. If #limit not provided expected 100.'),
 ('lookup quest',3,'Syntax: .lookup quest $namepart\r\n\r\nLooks up a quest by $namepart, and returns all matches with their quest ID\'s.'),
 ('lookup skill',3,'Syntax: .lookup skill $$namepart\r\n\r\nLooks up a skill by $namepart, and returns all matches with their skill ID\'s.'),
 ('lookup spell',3,'Syntax: .lookup spell $namepart\r\n\r\nLooks up a spell by $namepart, and returns all matches with their spell ID\'s.'),
@@ -981,6 +984,7 @@ CREATE TABLE `creature_movement` (
   `position_y` float NOT NULL default '0',
   `position_z` float NOT NULL default '0',
   `waittime` int(10) unsigned NOT NULL default '0',
+  `script_id` int(10) unsigned NOT NULL default '0',
   `textid1` int(11) NOT NULL default '0',
   `textid2` int(11) NOT NULL default '0',
   `textid3` int(11) NOT NULL default '0',
@@ -1002,6 +1006,36 @@ CREATE TABLE `creature_movement` (
 LOCK TABLES `creature_movement` WRITE;
 /*!40000 ALTER TABLE `creature_movement` DISABLE KEYS */;
 /*!40000 ALTER TABLE `creature_movement` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `creature_movement_scripts`
+--
+
+DROP TABLE IF EXISTS `creature_movement_scripts`;
+CREATE TABLE `creature_movement_scripts` (
+  `id` mediumint(8) unsigned NOT NULL default '0',
+  `delay` int(10) unsigned NOT NULL default '0',
+  `command` mediumint(8) unsigned NOT NULL default '0',
+  `datalong` mediumint(8) unsigned NOT NULL default '0',
+  `datalong2` int(10) unsigned NOT NULL default '0',
+  `datalong3` int(10) unsigned NOT NULL default '0',
+  `datalong4` int(10) unsigned NOT NULL default '0',
+  `data_flags` tinyint(3) unsigned NOT NULL default '0',
+  `dataint` int(11) NOT NULL default '0',
+  `x` float NOT NULL default '0',
+  `y` float NOT NULL default '0',
+  `z` float NOT NULL default '0',
+  `o` float NOT NULL default '0'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+--
+-- Dumping data for table `creature_movement_scripts`
+--
+
+LOCK TABLES `creature_movement_scripts` WRITE;
+/*!40000 ALTER TABLE `creature_movement_scripts` DISABLE KEYS */;
+/*!40000 ALTER TABLE `creature_movement_scripts` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -1366,6 +1400,9 @@ CREATE TABLE `event_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
+  `datalong3` int(10) unsigned NOT NULL default '0',
+  `datalong4` int(10) unsigned NOT NULL default '0',
+  `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
@@ -1843,6 +1880,9 @@ CREATE TABLE `gameobject_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
+  `datalong3` int(10) unsigned NOT NULL default '0',
+  `datalong4` int(10) unsigned NOT NULL default '0',
+  `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
@@ -2013,6 +2053,9 @@ CREATE TABLE `gossip_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
+  `datalong3` int(10) unsigned NOT NULL default '0',
+  `datalong4` int(10) unsigned NOT NULL default '0',
+  `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
@@ -3576,10 +3619,9 @@ INSERT INTO `mangos_string` VALUES
 (1007,'Account %s NOT created (probably sql file format was updated)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1008,'Account %s NOT created (unknown error)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1009,'Player %s (Guid: %u) Account %s (Id: %u) deleted.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(1010,'|    Account    |       Character      |       IP        | GM | Expansion |',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(1011,'|<Error>        | %20s |<Error>          |<Er>| <Error>   |',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(1012,'===========================================================================',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(1013,'|%15s| %20s | %15s |%4d| %9d |',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(1010,'| ID         |    Account    |       Character      |       IP        | GM | Expansion |',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(1012,'========================================================================================',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(1013,'| %10u |%15s| %20s | %15s |%4d| %9d |',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1014,'No online players.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1015,'Used not fully typed quit command, need type it fully (quit), or command used not in RA command line.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1016, '| GUID       | Name                 | Account                      | Delete Date         |',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -3635,6 +3677,7 @@ INSERT INTO `mangos_string` VALUES
 (1139, '| GUID       | Name                 | Race            | Class           | Level |',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1140, '| %10u | %20s | %15s | %15s | %5u |',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1141, '%u - |cffffffff|Hplayer:%s|h[%s]|h|r %s %s %u',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(1142,'%u - %s (Online:%s IP:%s GM:%u Expansion:%u)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1200,'You try to view cinemitic %u but it doesn\'t exist.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1201,'You try to view movie %u but it doesn\'t exist.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `mangos_string` ENABLE KEYS */;
@@ -13716,6 +13759,9 @@ CREATE TABLE `quest_end_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
+  `datalong3` int(10) unsigned NOT NULL default '0',
+  `datalong4` int(10) unsigned NOT NULL default '0',
+  `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
@@ -13791,6 +13837,9 @@ CREATE TABLE `quest_start_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
+  `datalong3` int(10) unsigned NOT NULL default '0',
+  `datalong4` int(10) unsigned NOT NULL default '0',
+  `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
@@ -14165,6 +14214,7 @@ INSERT INTO `spell_bonus_data` VALUES
 (50401, 0,      0,       0,     'Death Knight - Razor Frost'),
 (47476, 0,      0,       0.06,  'Death Knight - Strangulate'),
 (50536, 0,      0,       0.013, 'Death Knight - Unholy Blight Triggered'),
+(48743, 0,      0,       0,     'Death Knight - Death Pact'),
 /* Druid */
 (5185,  1.6104, 0,       0,     'Druid - Healing Touch'),
 (339,   0,      0.1,     0,     'Druid - Entangling Roots'),
@@ -14175,36 +14225,26 @@ INSERT INTO `spell_bonus_data` VALUES
 (8921,  0.1515, 0.13,    0,     'Druid - Moonfire'),
 (50464, 0.6611, 0,       0,     'Druid - Nourish'),
 (8936,  0.539,  0.188,   0,     'Druid - Regrowth'),
-(774,   0,      0.37604, 0,     'Druid - Rejuvenation'),
 (50288, 0.05,   0,       0,     'Druid - Starfall'),
 (50294, 0.012,  0,       0,     'Druid - Starfall AOE'),
-(2912,  1,      0,       0,     'Druid - Starfire'),
 (18562, 0,      0,       0,     'Druid - Swiftmend'),
 (44203, 0.538,  0,       0,     'Druid - Tranquility Triggered'),
-(61391, 0.193,  0,       0,     'Druid - Typhoon'),
 (48438, 0,      0.11505, 0,     'Druid - Wild Growth'),
 (5176,  0.5714, 0,       0,     'Druid - Wrath'),
 /* Generic */
 (54757, 0,      0,       0,     'Generic - Pyro Rocket'),
 /* Mage */
 (44425, 0.714286,0,      0,     'Mage - Arcane Barrage'),
-(30451, 0.7143, 0,       0,     'Mage - Arcane Blast'),
-(1449,  0.2128, 0,       0,     'Mage - Arcane Explosion'),
 (7268,  0.2857, 0,       0,     'Mage - Arcane Missiles Triggered Spell'),
 (42208, 0.1437, 0,       0,     'Mage - Blizzard Triggered'),
-(2136,  0.4286, 0,       0,     'Mage - Fire Blast'),
 (133,   1,      0,       0,     'Mage - Fire Ball'),
 (2120,  0.2357, 0.122,   0,     'Mage - Flamestrike'),
-(122,   0.193,  0,       0,     'Mage - Frost Nova'),
 (116,   0.8143, 0,       0,     'Mage - Frost Bolt'),
 (44614, 0.8571, 0,       0,     'Mage - Frostfire Bolt'),
-(11426, 0.8053, 0,       0,     'Mage - Ice Barrier'),
 (30455, 0.1429, 0,       0,     'Mage - Ice Lance'),
-(44457, 0.4,    0.2,     0,     'Mage - Living Bomb'),
 (1463,  0.8053, 0,       0,     'Mage - Mana Shield'),
 (34913, 0,      0,       0,     'Mage - Molten Armor Triggered'),
 (11366, 1.15,   0.05,    0,     'Mage - Pyroblast'),
-(2948,  0.4286, 0,       0,     'Mage - Scorch'),
 /* Paladin */
 (26573, 0,      0.04,    0.04,  'Paladin - Consecration'),
 (879,   0.15,   0,       0.15,  'Paladin - Exorcism'),
@@ -14212,7 +14252,6 @@ INSERT INTO `spell_bonus_data` VALUES
 (19750, 1,      0,       0,     'Paladin - Flash of Light'),
 (53595, 0,      0,       0,     'Paladin - Hammer of the Righteous'),
 (635,   1.66,   0,       0,     'Paladin - Holy Light'),
-(25912, 0.4286, 0,       0,     'Paladin - Holy Shock Triggered Hurt'),
 (20925, 0.09,   0,       0.056, 'Paladin - Holy Shield'),
 (2812,  0.07,   0,       0.07,  'Paladin - Holy Wrath'),
 (54158, 0.25,   0,       0,     'Paladin - Judgement'),
@@ -14221,34 +14260,24 @@ INSERT INTO `spell_bonus_data` VALUES
 (20267, 0.1,    0,       0.1,   'Paladin - Judgement of Light Proc'),
 (31804, 0,      0,       0,     'Paladin - Judgement of Vengeance'),
 (20424, 0,      0,       0,     'Paladin - Seal of Command Proc'),
-(53739, 0,      0.00156, 0.003, 'Paladin - Seal of Corruption (full stack proc)'),
+(53739, 0,      0,       0.003, 'Paladin - Seal of Corruption (full stack proc)'),
 (25742, 0.07,   0,       0.039, 'Paladin - Seal of Righteousness Dummy Proc'),
-(42463, 0,      0.00156, 0.003, 'Paladin - Seal of Vengeance (full stack proc)'),
+(42463, 0,      0,       0.003, 'Paladin - Seal of Vengeance (full stack proc)'),
 (53600, 0,      0,       0,     'Paladin - Shield of Righteousness'),
 /* Priest */
-(32546, 0.8068, 0,       0,     'Priest - Binding Heal'),
 (27813, 0,      0,       0,     'Priest - Blessed Recovery'),
-(34861, 0.402,  0,       0,     'Priest - Circle of Healing'),
-(19236, 0.8068, 0,       0,     'Priest - Desperate Prayer'),
 (2944,  0,      0.1849,  0,     'Priest - Devouring Plague'),
 (63544, 0,      0,       0,     'Priest - Empowered Renew Triggered'),
 (14914, 0.5711, 0.024,   0,     'Priest - Holy Fire'),
 (15237, 0.1606, 0,       0,     'Priest - Holy Nova Damage'),
-(2061,  0.8068, 0,       0,     'Priest - Flash Heal'),
-(2060,  1.6135, 0,       0,     'Priest - Greater Heal'),
 (23455, 0.3035, 0,       0,     'Priest - Holy Nova Heal'),
 (63675, 0,      0,       0,     'Priest - Improved Devouring Plague Triggered'),
 (8129,  0,      0,       0,     'Priest - Mana Burn'),
 (58381, 0.257143,0,      0,     'Priest - Mind Flay Triggered'),
-(49821, 0.14286,0,       0,     'Priest - Mind Sear Trigger'),
+(49821, 0.2857, 0,       0,     'Priest - Mind Sear Trigger'),
 (47666, 0.229,  0,       0,     'Priest - Penance dmg effect'),
 (47750, 0.537,  0,       0,     'Priest - Penance heal effect'),
-(17,    0.8068, 0,       0,     'Priest - Power Word: Shield'),
-(33110, 0.8068, 0,       0,     'Priest - Prayer of Mending Heal Proc'),
 (33619, 0,      0,       0,     'Priest - Reflective Shield'),
-(139,   0,      0.376,   0,     'Priest - Renew'),
-(32379, 0.4296, 0,       0,     'Priest - Shadow Word: Death'),
-(589,   0,      0.1829,  0,     'Priest - Shadow Word: Pain'),
 (34433, 0.65,   0,       0,     'Priest - Shadowfiend'),
 (585,   0.714,  0,       0,     'Priest - Smite'),
 (34914, 0,      0.4,     0,     'Priest - Vampiric Touch'),
@@ -14256,8 +14285,6 @@ INSERT INTO `spell_bonus_data` VALUES
 /* Shaman */
 (974,   0.4762, 0,       0,     'Shaman - Earth Shield'),
 (379,   0,      0,       0,     'Shaman - Earth Shield Triggered'),
-(1064,  1.34,   0,       0,     'Shaman - Chain Heal'),
-(421,   0.57,   0,       0,     'Shaman - Chain Lightning'),
 (8042,  0.3858, 0,       0,     'Shaman - Earth Shock'),
 (8050,  0.2142, 0.1,     0,     'Shaman - Flame Shock'),
 (8026,  0.1,    0,       0,     'Shaman - Flametongue Weapon Proc'),
@@ -14265,8 +14292,6 @@ INSERT INTO `spell_bonus_data` VALUES
 (8034,  0.1,    0,       0,     'Shaman - Frostbrand Attack Rank 1'),
 (52042, 0.045,  0,       0,     'Shaman - Healing Stream Totem Triggered Heal'),
 (331,   1.6106, 0,       0,     'Shaman - Healing Wave'),
-(51505, 0.5714, 0,       0,     'Shaman - Lava Burst'),
-(8004,  0.8082, 0,       0,     'Shaman - Lesser Healing Wave'),
 (403,   0.7143, 0,       0,     'Shaman - Lightning Bolt'),
 (26364, 0.33,   0,       0,     'Shaman - Lightning Shield Proc'),
 (8188,  0.1,    0,       0,     'Shaman - Magma Totam Passive'),
@@ -18763,6 +18788,9 @@ CREATE TABLE `spell_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
+  `datalong3` int(10) unsigned NOT NULL default '0',
+  `datalong4` int(10) unsigned NOT NULL default '0',
+  `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',

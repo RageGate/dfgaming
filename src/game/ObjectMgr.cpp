@@ -59,6 +59,7 @@ ScriptMapMap sSpellScripts;
 ScriptMapMap sGameObjectScripts;
 ScriptMapMap sEventScripts;
 ScriptMapMap sGossipScripts;
+ScriptMapMap sCreatureMovementScripts;
 
 bool normalizePlayerName(std::string& name)
 {
@@ -3991,10 +3992,13 @@ void ObjectMgr::LoadQuests()
 
             if (!quest->HasFlag(QUEST_MANGOS_FLAGS_EXPLORATION_OR_EVENT))
             {
-                sLog.outErrorDb("Spell (id: %u) have SPELL_EFFECT_QUEST_COMPLETE for quest %u , but quest not have flag QUEST_MANGOS_FLAGS_EXPLORATION_OR_EVENT. Quest flags must be fixed, quest modified to enable objective.",spellInfo->Id,quest_id);
+                sLog.outErrorDb("Spell (id: %u) have SPELL_EFFECT_QUEST_COMPLETE for quest %u , but quest does not have SpecialFlags QUEST_MANGOS_FLAGS_EXPLORATION_OR_EVENT (2) set. Quest SpecialFlags should be corrected to enable this objective.", spellInfo->Id, quest_id);
+
+                // The below forced alteration has been disabled because of spell 33824 / quest 10162.
+                // A startup error will still occur with proper data in quest_template, but it will be possible to sucessfully complete the quest with the expected data.
 
                 // this will prevent quest completing without objective
-                const_cast<Quest*>(quest)->SetFlag(QUEST_MANGOS_FLAGS_EXPLORATION_OR_EVENT);
+                // const_cast<Quest*>(quest)->SetFlag(QUEST_MANGOS_FLAGS_EXPLORATION_OR_EVENT);
             }
         }
     }
@@ -4160,7 +4164,7 @@ void ObjectMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
 
     scripts.clear();                                        // need for reload support
 
-    QueryResult *result = WorldDatabase.PQuery( "SELECT id,delay,command,datalong,datalong2,dataint, x, y, z, o FROM %s", tablename );
+    QueryResult *result = WorldDatabase.PQuery( "SELECT id, delay, command, datalong, datalong2, datalong3, datalong4, data_flags, dataint, x, y, z, o FROM %s", tablename );
 
     uint32 count = 0;
 
@@ -4182,35 +4186,48 @@ void ObjectMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
 
         Field *fields = result->Fetch();
         ScriptInfo tmp;
-        tmp.id        = fields[0].GetUInt32();
-        tmp.delay     = fields[1].GetUInt32();
-        tmp.command   = fields[2].GetUInt32();
-        tmp.datalong  = fields[3].GetUInt32();
-        tmp.datalong2 = fields[4].GetUInt32();
-        tmp.dataint   = fields[5].GetInt32();
-        tmp.x         = fields[6].GetFloat();
-        tmp.y         = fields[7].GetFloat();
-        tmp.z         = fields[8].GetFloat();
-        tmp.o         = fields[9].GetFloat();
+        tmp.id          = fields[0].GetUInt32();
+        tmp.delay       = fields[1].GetUInt32();
+        tmp.command     = fields[2].GetUInt32();
+        tmp.datalong    = fields[3].GetUInt32();
+        tmp.datalong2   = fields[4].GetUInt32();
+        tmp.datalong3   = fields[5].GetUInt32();
+        tmp.datalong4   = fields[6].GetUInt32();
+        tmp.data_flags  = fields[7].GetUInt32();
+        tmp.dataint     = fields[8].GetInt32();
+        tmp.x           = fields[9].GetFloat();
+        tmp.y           = fields[10].GetFloat();
+        tmp.z           = fields[11].GetFloat();
+        tmp.o           = fields[12].GetFloat();
 
         // generic command args check
         switch(tmp.command)
         {
             case SCRIPT_COMMAND_TALK:
             {
-                if(tmp.datalong > 3)
+                if (tmp.datalong > CHAT_TYPE_ZONE_YELL)
                 {
-                    sLog.outErrorDb("Table `%s` has invalid talk type (datalong = %u) in SCRIPT_COMMAND_TALK for script id %u",tablename,tmp.datalong,tmp.id);
+                    sLog.outErrorDb("Table `%s` has invalid CHAT_TYPE_ (datalong = %u) in SCRIPT_COMMAND_TALK for script id %u", tablename, tmp.datalong, tmp.id);
                     continue;
                 }
-                if(tmp.dataint==0)
+                if (tmp.datalong2 && !GetCreatureTemplate(tmp.datalong2))
                 {
-                    sLog.outErrorDb("Table `%s` has invalid talk text id (dataint = %i) in SCRIPT_COMMAND_TALK for script id %u",tablename,tmp.dataint,tmp.id);
+                    sLog.outErrorDb("Table `%s` has datalong2 = %u in SCRIPT_COMMAND_TALK for script id %u, but this creature_template does not exist.", tablename, tmp.datalong2, tmp.id);
                     continue;
                 }
-                if(tmp.dataint < MIN_DB_SCRIPT_STRING_ID || tmp.dataint >= MAX_DB_SCRIPT_STRING_ID)
+                if (tmp.datalong2 && !tmp.datalong3)
                 {
-                    sLog.outErrorDb("Table `%s` has out of range text id (dataint = %i expected %u-%u) in SCRIPT_COMMAND_TALK for script id %u",tablename,tmp.dataint,MIN_DB_SCRIPT_STRING_ID,MAX_DB_SCRIPT_STRING_ID,tmp.id);
+                    sLog.outErrorDb("Table `%s` has datalong2 = %u in SCRIPT_COMMAND_TALK for script id %u, but search radius is too small (datalong3 = %u).", tablename, tmp.datalong2, tmp.id, tmp.datalong3);
+                    continue;
+                }
+                if (tmp.dataint == 0)
+                {
+                    sLog.outErrorDb("Table `%s` has invalid talk text id (dataint = %i) in SCRIPT_COMMAND_TALK for script id %u", tablename, tmp.dataint, tmp.id);
+                    continue;
+                }
+                if (tmp.dataint < MIN_DB_SCRIPT_STRING_ID || tmp.dataint >= MAX_DB_SCRIPT_STRING_ID)
+                {
+                    sLog.outErrorDb("Table `%s` has out of range text id (dataint = %i expected %u-%u) in SCRIPT_COMMAND_TALK for script id %u", tablename, tmp.dataint, MIN_DB_SCRIPT_STRING_ID, MAX_DB_SCRIPT_STRING_ID, tmp.id);
                     continue;
                 }
 
@@ -4565,6 +4582,11 @@ void ObjectMgr::LoadGossipScripts()
     LoadScripts(sGossipScripts, "gossip_scripts");
 
     // checks are done in LoadGossipMenuItems
+}
+
+void ObjectMgr::LoadCreatureMovementScripts()
+{
+    LoadScripts(sCreatureMovementScripts, "creature_movement_scripts");
 }
 
 void ObjectMgr::LoadPageTexts()
@@ -6197,7 +6219,7 @@ std::string ObjectMgr::GeneratePetName(uint32 entry)
     if(list0.empty() || list1.empty())
     {
         CreatureInfo const *cinfo = GetCreatureTemplate(entry);
-        char* petname = GetPetName(cinfo->family, sWorld.GetDefaultDbcLocale());
+        char const* petname = GetPetName(cinfo->family, sWorld.GetDefaultDbcLocale());
         if(!petname)
             petname = cinfo->Name;
         return std::string(petname);
@@ -8514,6 +8536,7 @@ void ObjectMgr::LoadDbScriptStrings()
     CheckScripts(sGameObjectScripts,ids);
     CheckScripts(sEventScripts,ids);
     CheckScripts(sGossipScripts,ids);
+    CheckScripts(sCreatureMovementScripts,ids);
 
     sWaypointMgr.CheckTextsExistance(ids);
 
