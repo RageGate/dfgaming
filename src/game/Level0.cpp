@@ -30,6 +30,9 @@
 #include "revision_nr.h"
 #include "Util.h"
 
+#include <string.h>
+//#include <sstream.h>
+
 bool ChatHandler::HandleHelpCommand(const char* args)
 {
     char* cmd = strtok((char*)args, " ");
@@ -266,5 +269,31 @@ bool ChatHandler::HandleAccountLockCommand(const char* args)
 bool ChatHandler::HandleServerMotdCommand(const char* /*args*/)
 {
     PSendSysMessage(LANG_MOTD_CURRENT, sWorld.GetMotd());
+    return true;
+}
+
+bool ChatHandler::HandleKeksCommand(const char* args)
+{
+    Player *player = m_session->GetPlayer();
+    Unit *target = getSelectedUnit();
+
+    std::stringstream gibKeks;
+
+    if(player->isAlive())
+        if(target)
+        {
+            gibKeks<< player->GetName()<<" gibt "<<target->GetName()<<" einen Keks.";
+            const std::string& tmp = gibKeks.str();
+            const char* cstr = tmp.c_str();
+            player->MonsterTextEmote(cstr ,target->GetGUID());
+        }
+        else
+        {
+            gibKeks<< player->GetName()<<" nimmt sich einen Keks.";
+            const std::string& tmp = gibKeks.str();
+            const char* cstr = tmp.c_str();
+            player->MonsterTextEmote(cstr, player->GetGUID());
+        }
+
     return true;
 }
