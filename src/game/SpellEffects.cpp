@@ -6303,7 +6303,7 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
             {
                 case 53209:                                 // Chimera Shot
                 {
-                    if (!unitTarget)
+                    if (!unitTarget || m_caster->GetTypeId() != TYPEID_PLAYER)
                         return;
 
                     uint32 spellId = 0;
@@ -6356,8 +6356,12 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                         }
 
                         // Scorpid Sting - Attempts to Disarm the target for 10 sec. This effect cannot occur more than once per 1 minute.
-                        if (familyFlag & UI64LIT(0x0000000000008000))
+                        // we have set and check cooldown explicitly (triggered spell cast)
+                        if (familyFlag & UI64LIT(0x0000000000008000) && !((Player*)m_caster)->HasSpellCooldown(53359))
+                        {
                             spellId = 53359;                // Chimera Shot - Scorpid
+                           ((Player*)m_caster)->AddSpellCooldown(spellId,0,time(NULL)+60);
+                        }
                         // ?? nothing say in spell desc (possibly need addition check)
                         //if ((familyFlag & UI64LIT(0x0000010000000000)) || // dot
                         //    (familyFlag & UI64LIT(0x0000100000000000)))   // stun
