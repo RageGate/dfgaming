@@ -4726,13 +4726,21 @@ void Aura::HandleModMechanicImmunity(bool apply, bool /*Real*/)
         uint32 mechanic = 1 << (misc-1);
 
         //immune movement impairment and loss of control
-        if(GetId()==42292 || GetId()==59752 || GetId()==53490)
+        if(GetId()==42292 || GetId()==59752 || GetId()==53490 || GetId() == 19574 || GetId() == 34471)
             mechanic=IMMUNE_TO_MOVEMENT_IMPAIRMENT_AND_LOSS_CONTROL_MASK;
 
         m_target->RemoveAurasAtMechanicImmunity(mechanic,GetId());
     }
 
-    m_target->ApplySpellImmune(GetId(),IMMUNITY_MECHANIC,misc,apply);
+    // The Beast Within and Bestial Wrath Workaround
+    if(GetId() == 19574 || GetId() == 34471)
+    {
+        for (uint32  mechanic = MECHANIC_CHARM; mechanic < MAX_MECHANIC; mechanic++)
+            if ((1 << (mechanic -1)) & IMMUNE_TO_MOVEMENT_IMPAIRMENT_AND_LOSS_CONTROL_MASK)
+                m_target->ApplySpellImmune(GetId(),IMMUNITY_MECHANIC,mechanic,apply);
+    }
+    else
+        m_target->ApplySpellImmune(GetId(),IMMUNITY_MECHANIC,misc,apply);
 
     // Demonic Circle
     if (GetSpellProto()->SpellFamilyName == SPELLFAMILY_WARLOCK && GetSpellProto()->SpellIconID == 3221)
