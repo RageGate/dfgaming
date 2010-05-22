@@ -7969,7 +7969,7 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
 
                     loot->generateMoneyLoot(creature->GetCreatureInfo()->mingold,creature->GetCreatureInfo()->maxgold);
 
-                    if (Group* group = recipient->GetGroup())
+                    if (Group* group = creature->GetGroupLootRecipient())
                     {
                         group->UpdateLooterGuid(creature,true);
 
@@ -7977,13 +7977,13 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
                         {
                             case GROUP_LOOT:
                                 // GroupLoot delete items over threshold (threshold even not implemented), and roll them. Items with quality<threshold, round robin
-                                group->GroupLoot(recipient->GetObjectGuid(), loot, creature);
+                                group->GroupLoot(creature, loot);
                                 break;
                             case NEED_BEFORE_GREED:
-                                group->NeedBeforeGreed(recipient->GetObjectGuid(), loot, creature);
+                                group->NeedBeforeGreed(creature, loot);
                                 break;
                             case MASTER_LOOT:
-                                group->MasterLoot(recipient->GetObjectGuid(), loot, creature);
+                                group->MasterLoot(creature, loot);
                                 break;
                             default:
                                 break;
@@ -7994,15 +7994,23 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
                 // possible only if creature->lootForBody && loot->empty() at spell cast check
                 if (loot_type == LOOT_SKINNING)
                 {
-                    loot->clear();
-                    loot->FillLoot(creature->GetCreatureInfo()->SkinLootId, LootTemplates_Skinning, this, false);
+                    if (!creature->lootForSkin)
+                    {
+                        creature->lootForSkin = true;
+                        loot->clear();
+                        loot->FillLoot(creature->GetCreatureInfo()->SkinLootId, LootTemplates_Skinning, this, false);
+
+                        // let reopen skinning loot if will closed.
+                        if (!loot->empty())
+                            creature->SetUInt32Value(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
+                    }
                 }
                 // set group rights only for loot_type != LOOT_SKINNING
                 else
                 {
-                    if(Group* group = GetGroup())
+                    if(Group* group = creature->GetGroupLootRecipient())
                     {
-                        if (group == recipient->GetGroup())
+                        if (group == GetGroup())
                         {
                             if (group->GetLootMethod() == FREE_FOR_ALL)
                                 permission = ALL_PERMISSION;
@@ -12691,9 +12699,11 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
     if (pMenuItemBounds.first == pMenuItemBounds.second && menuId == GetDefaultGossipMenuForSource(pSource))
         pMenuItemBounds = sObjectMgr.GetGossipMenuItemsMapBounds(0);
 
+    bool canTalkToCredit = true;
+
     for(GossipMenuItemsMap::const_iterator itr = pMenuItemBounds.first; itr != pMenuItemBounds.second; ++itr)
     {
-        bool bCanTalk = true;
+        bool hasMenuItem = true;
 
         if (itr->second.cond_1 && !sObjectMgr.IsPlayerMeetToCondition(this, itr->second.cond_1))
             continue;
@@ -12715,16 +12725,20 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
 
             switch(itr->second.option_id)
             {
+                case GOSSIP_OPTION_GOSSIP:
+                    if (itr->second.action_menu_id)         // has sub menu, so do not "talk" with this NPC yet
+                        canTalkToCredit = false;
+                    break;
                 case GOSSIP_OPTION_QUESTGIVER:
                     PrepareQuestMenu(pSource->GetGUID());
-                    bCanTalk = false;
+                    hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_ARMORER:
-                    bCanTalk = false;                       // added in special mode
+                    hasMenuItem = false;                    // added in special mode
                     break;
                 case GOSSIP_OPTION_SPIRITHEALER:
                     if (!isDead())
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_VENDOR:
                 {
@@ -12732,25 +12746,25 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
                     if (!vItems || vItems->Empty())
                     {
                         sLog.outErrorDb("Creature %u (Entry: %u) have UNIT_NPC_FLAG_VENDOR but have empty trading item list.", pCreature->GetGUIDLow(), pCreature->GetEntry());
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     }
                     break;
                 }
                 case GOSSIP_OPTION_TRAINER:
                     if (!pCreature->isCanTrainingOf(this, false))
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_LEARNDUALSPEC:
                     if(!(GetSpecsCount() == 1 && pCreature->isCanTrainingAndResetTalentsOf(this) && !(getLevel() < 40)))
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_UNLEARNTALENTS:
                     if (!pCreature->isCanTrainingAndResetTalentsOf(this))
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_UNLEARNPETSKILLS:
                     if (!GetPet() || GetPet()->getPetType() != HUNTER_PET || GetPet()->m_spells.size() <= 1 || pCreature->GetCreatureInfo()->trainer_type != TRAINER_TYPE_PETS || pCreature->GetCreatureInfo()->trainer_class != CLASS_HUNTER)
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_TAXIVENDOR:
                     if (GetSession()->SendLearnNewTaxiNode(pCreature))
@@ -12758,13 +12772,12 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
                     break;
                 case GOSSIP_OPTION_BATTLEFIELD:
                     if (!pCreature->isCanInteractWithBattleMaster(this, false))
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_STABLEPET:
                     if (getClass() != CLASS_HUNTER)
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     break;
-                case GOSSIP_OPTION_GOSSIP:
                 case GOSSIP_OPTION_SPIRITGUIDE:
                 case GOSSIP_OPTION_INNKEEPER:
                 case GOSSIP_OPTION_BANKER:
@@ -12774,7 +12787,7 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
                     break;                                  // no checks
                 default:
                     sLog.outErrorDb("Creature entry %u have unknown gossip option %u for menu %u", pCreature->GetEntry(), itr->second.option_id, itr->second.menu_id);
-                    bCanTalk = false;
+                    hasMenuItem = false;
                     break;
             }
         }
@@ -12782,24 +12795,26 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
         {
             GameObject *pGo = (GameObject*)pSource;
 
+            canTalkToCredit = false;
+
             switch(itr->second.option_id)
             {
                 case GOSSIP_OPTION_QUESTGIVER:
                     if (pGo->GetGoType() == GAMEOBJECT_TYPE_QUESTGIVER)
                         PrepareQuestMenu(pSource->GetGUID());
-                    bCanTalk = false;
+                    hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_GOSSIP:
                     if (pGo->GetGoType() != GAMEOBJECT_TYPE_QUESTGIVER && pGo->GetGoType() != GAMEOBJECT_TYPE_GOOBER)
-                        bCanTalk = false;
+                        hasMenuItem = false;
                     break;
                 default:
-                    bCanTalk = false;
+                    hasMenuItem = false;
                     break;
             }
         }
 
-        if (bCanTalk)
+        if (hasMenuItem)
         {
             std::string strOptionText = itr->second.option_text;
             std::string strBoxText = itr->second.box_text;
@@ -12823,6 +12838,12 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
             pMenu->GetGossipMenu().AddMenuItem(itr->second.option_icon, strOptionText, 0, itr->second.option_id, strBoxText, itr->second.box_money, itr->second.box_coded);
             pMenu->GetGossipMenu().AddGossipMenuItemData(itr->second.action_menu_id, itr->second.action_poi_id, itr->second.action_script_id);
         }
+    }
+
+    if (canTalkToCredit)
+    {
+        if (pSource->HasFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP))
+            TalkedToCreature(((Creature*)pSource)->GetEntry(), ((Creature*)pSource)->GetGUID());
     }
 
     // some gossips aren't handled in normal way ... so we need to do it this way .. TODO: handle it in normal way ;-)
@@ -14410,38 +14431,40 @@ void Player::KilledMonsterCredit( uint32 entry, ObjectGuid guid )
             continue;
 
         Quest const* qInfo = sObjectMgr.GetQuestTemplate(questid);
-        if( !qInfo )
+        if (!qInfo)
             continue;
         // just if !ingroup || !noraidgroup || raidgroup
         QuestStatusData& q_status = mQuestStatus[questid];
-        if( q_status.m_status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->isRaidGroup() || qInfo->GetType() == QUEST_TYPE_RAID))
+        if (q_status.m_status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->isRaidGroup() || qInfo->IsAllowedInRaid()))
         {
-            if( qInfo->HasFlag( QUEST_MANGOS_FLAGS_KILL_OR_CAST) )
+            if (qInfo->HasFlag( QUEST_MANGOS_FLAGS_KILL_OR_CAST))
             {
                 for (int j = 0; j < QUEST_OBJECTIVES_COUNT; ++j)
                 {
                     // skip GO activate objective or none
-                    if(qInfo->ReqCreatureOrGOId[j] <=0)
+                    if (qInfo->ReqCreatureOrGOId[j] <=0)
                         continue;
 
                     // skip Cast at creature objective
-                    if(qInfo->ReqSpell[j] !=0 )
+                    if (qInfo->ReqSpell[j] !=0 )
                         continue;
 
                     uint32 reqkill = qInfo->ReqCreatureOrGOId[j];
 
-                    if ( reqkill == entry )
+                    if (reqkill == entry)
                     {
                         uint32 reqkillcount = qInfo->ReqCreatureOrGOCount[j];
                         uint32 curkillcount = q_status.m_creatureOrGOcount[j];
-                        if ( curkillcount < reqkillcount )
+                        if (curkillcount < reqkillcount)
                         {
                             q_status.m_creatureOrGOcount[j] = curkillcount + addkillcount;
-                            if (q_status.uState != QUEST_NEW) q_status.uState = QUEST_CHANGED;
+                            if (q_status.uState != QUEST_NEW)
+                                q_status.uState = QUEST_CHANGED;
 
                             SendQuestUpdateAddCreatureOrGo( qInfo, guid, j, curkillcount, addkillcount);
                         }
-                        if ( CanCompleteQuest( questid ) )
+
+                        if (CanCompleteQuest( questid ))
                             CompleteQuest( questid );
 
                         // same objective target can be in many active quests, but not in 2 objectives for single quest (code optimization).
@@ -14657,8 +14680,7 @@ bool Player::HasQuestForItem( uint32 itemid ) const
                 continue;
 
             // hide quest if player is in raid-group and quest is no raid quest
-            if (GetGroup() && GetGroup()->isRaidGroup() && qinfo->GetType() != QUEST_TYPE_RAID
-                && !InBattleGround())
+            if (GetGroup() && GetGroup()->isRaidGroup() && qinfo->IsAllowedInRaid() && !InBattleGround())
                 continue;
 
             // There should be no mixed ReqItem/ReqSource drop
@@ -15650,18 +15672,20 @@ bool Player::isAllowedToLoot(Creature* creature)
     {
         if (recipient == this)
             return true;
-        if( Group* otherGroup = recipient->GetGroup())
+
+        if (Group* otherGroup = recipient->GetGroup())
         {
             Group* thisGroup = GetGroup();
-            if(!thisGroup)
+            if (!thisGroup)
                 return false;
+
             return thisGroup == otherGroup;
         }
         return false;
     }
     else
         // prevent other players from looting if the recipient got disconnected
-        return !creature->hasLootRecipient();
+        return !creature->HasLootRecipient();
 }
 
 void Player::_LoadActions(QueryResult *result)
@@ -20046,7 +20070,7 @@ bool Player::HasQuestForGO(int32 GOId) const
             if(!qinfo)
                 continue;
 
-            if(GetGroup() && GetGroup()->isRaidGroup() && qinfo->GetType() != QUEST_TYPE_RAID)
+            if(GetGroup() && GetGroup()->isRaidGroup() && qinfo->IsAllowedInRaid())
                 continue;
 
             for (int j = 0; j < QUEST_OBJECTIVES_COUNT; ++j)
@@ -20342,99 +20366,28 @@ bool Player::isHonorOrXPTarget(Unit* pVictim) const
     return true;
 }
 
-bool Player::RewardPlayerAndGroupAtKill(Unit* pVictim)
+bool Player::RewardSinglePlayerAtKill(Unit* pVictim)
 {
     bool PvP = pVictim->isCharmedOwnedByPlayerOrPlayer();
+    uint32 xp = PvP ? 0 : MaNGOS::XP::Gain(this, pVictim);
 
-    // prepare data for near group iteration (PvP and !PvP cases)
-    uint32 xp = 0;
-    bool honored_kill = false;
+    // honor can be in PvP and !PvP (racial leader) cases
+    bool honored_kill = RewardHonor(pVictim,1);
 
-    if(Group *pGroup = GetGroup())
+    // xp and reputation only in !PvP case
+    if(!PvP)
     {
-        uint32 count = 0;
-        uint32 sum_level = 0;
-        Player* member_with_max_level = NULL;
-        Player* not_gray_member_with_max_level = NULL;
+        RewardReputation(pVictim,1);
+        GiveXP(xp, pVictim);
 
-        pGroup->GetDataForXPAtKill(pVictim,count,sum_level,member_with_max_level,not_gray_member_with_max_level);
+        if(Pet* pet = GetPet())
+            pet->GivePetXP(xp);
 
-        if(member_with_max_level)
-        {
-            /// not get Xp in PvP or no not gray players in group
-            xp = (PvP || !not_gray_member_with_max_level) ? 0 : MaNGOS::XP::Gain(not_gray_member_with_max_level, pVictim);
-
-            /// skip in check PvP case (for speed, not used)
-            bool is_raid = PvP ? false : sMapStore.LookupEntry(GetMapId())->IsRaid() && pGroup->isRaidGroup();
-            bool is_dungeon = PvP ? false : sMapStore.LookupEntry(GetMapId())->IsDungeon();
-            float group_rate = MaNGOS::XP::xp_in_group_rate(count,is_raid);
-
-            for(GroupReference *itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
-            {
-                Player* pGroupGuy = itr->getSource();
-                if(!pGroupGuy)
-                    continue;
-
-                if(!pGroupGuy->IsAtGroupRewardDistance(pVictim))
-                    continue;                               // member (alive or dead) or his corpse at req. distance
-
-                // honor can be in PvP and !PvP (racial leader) cases (for alive)
-                if(pGroupGuy->isAlive() && pGroupGuy->RewardHonor(pVictim,count) && pGroupGuy==this)
-                    honored_kill = true;
-
-                // xp and reputation only in !PvP case
-                if(!PvP)
-                {
-                    float rate = group_rate * float(pGroupGuy->getLevel()) / sum_level;
-
-                    // if is in dungeon then all receive full reputation at kill
-                    // rewarded any alive/dead/near_corpse group member
-                    pGroupGuy->RewardReputation(pVictim,is_dungeon ? 1.0f : rate);
-
-                    // XP updated only for alive group member
-                    if(pGroupGuy->isAlive() && not_gray_member_with_max_level &&
-                       pGroupGuy->getLevel() <= not_gray_member_with_max_level->getLevel())
-                    {
-                        uint32 itr_xp = (member_with_max_level == not_gray_member_with_max_level) ? uint32(xp*rate) : uint32((xp*rate/2)+1);
-
-                        pGroupGuy->GiveXP(itr_xp, pVictim);
-                        if(Pet* pet = pGroupGuy->GetPet())
-                            pet->GivePetXP(itr_xp/2);
-                    }
-
-                    // quest objectives updated only for alive group member or dead but with not released body
-                    if(pGroupGuy->isAlive()|| !pGroupGuy->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
-                    {
-                        // normal creature (not pet/etc) can be only in !PvP case
-                        if(pVictim->GetTypeId()==TYPEID_UNIT)
-                            pGroupGuy->KilledMonster(((Creature*)pVictim)->GetCreatureInfo(), pVictim->GetObjectGuid());
-                    }
-                }
-            }
-        }
+        // normal creature (not pet/etc) can be only in !PvP case
+        if(pVictim->GetTypeId()==TYPEID_UNIT)
+            KilledMonster(((Creature*)pVictim)->GetCreatureInfo(), pVictim->GetObjectGuid());
     }
-    else                                                    // if (!pGroup)
-    {
-        xp = PvP ? 0 : MaNGOS::XP::Gain(this, pVictim);
 
-        // honor can be in PvP and !PvP (racial leader) cases
-        if(RewardHonor(pVictim,1))
-            honored_kill = true;
-
-        // xp and reputation only in !PvP case
-        if(!PvP)
-        {
-            RewardReputation(pVictim,1);
-            GiveXP(xp, pVictim);
-
-            if(Pet* pet = GetPet())
-                pet->GivePetXP(xp);
-
-            // normal creature (not pet/etc) can be only in !PvP case
-            if(pVictim->GetTypeId()==TYPEID_UNIT)
-                KilledMonster(((Creature*)pVictim)->GetCreatureInfo(), pVictim->GetObjectGuid());
-        }
-    }
     return xp || honored_kill;
 }
 
