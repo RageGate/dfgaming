@@ -24,7 +24,7 @@
 #endif
 
 #ifndef _DISTRIBUTION
-#define _DISTRIBUTION "OVcore [047]"
+#define _DISTRIBUTION "OVcore [048]"
 #endif
 
 #include "Platform/Define.h"
