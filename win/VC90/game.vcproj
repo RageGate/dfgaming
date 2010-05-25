@@ -1543,6 +1543,14 @@
 			Name="Tool"
 			>
 			<File
+				RelativePath="..\..\src\game\CharacterDatabaseCleaner.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\CharacterDatabaseCleaner.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\game\Language.h"
 				>
 			</File>
