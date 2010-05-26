@@ -446,7 +446,7 @@ m_isRemovedOnShapeLost(true), m_in_use(0), m_deleted(false)
             m_maxduration = 1;
     }
 
-    DEBUG_LOG("Aura: construct Spellid : %u, Aura : %u Duration : %d Target : %d Damage : %d", m_spellProto->Id, m_spellProto->EffectApplyAuraName[eff], m_maxduration, m_spellProto->EffectImplicitTargetA[eff],damage);
+    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Aura: construct Spellid : %u, Aura : %u Duration : %d Target : %d Damage : %d", m_spellProto->Id, m_spellProto->EffectApplyAuraName[eff], m_maxduration, m_spellProto->EffectImplicitTargetA[eff],damage);
 
     SetModifier(AuraType(m_spellProto->EffectApplyAuraName[eff]), damage, m_spellProto->EffectAmplitude[eff], m_spellProto->EffectMiscValue[eff]);
 
@@ -2634,6 +2634,21 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 m_target->CastSpell(m_target, 47287, true, NULL, this);
                 return;
             }
+            case 51870:                                     // Collect Hair Sample
+            {
+                if (Unit* pCaster = GetCaster())
+                {
+                    if (m_removeMode == AURA_REMOVE_BY_DEFAULT)
+                        pCaster->CastSpell(m_target, 51872, true, NULL, this);
+                }
+                return;
+            }
+            case 58426:                                     // Overkill
+            {
+                // remove regeneration buff
+                m_target->RemoveAurasDueToSpell(58427);
+                return;
+            }
             case 58600:                                     // Restricted Flight Area
             {
                 // Remove Flight Auras
@@ -4253,10 +4268,7 @@ void Aura::HandleModStealth(bool apply, bool Real)
                     }
                     // Overkill
                     else if ((*i)->GetId() == 58426 && GetSpellProto()->SpellFamilyFlags & UI64LIT(0x0000000000400000))
-                    {
-                        m_target->RemoveAurasDueToSpell(58428);
                         m_target->CastSpell(m_target, 58427, true);
-                    }
                 }
             }
         }
@@ -4293,7 +4305,11 @@ void Aura::HandleModStealth(bool apply, bool Real)
                     m_target->CastSpell(m_target, 31666, true);
                 // Overkill
                 else if ((*i)->GetId() == 58426 && GetSpellProto()->SpellFamilyFlags & UI64LIT(0x0000000000400000))
-                    m_target->CastSpell(m_target, 58428, true);
+                    if (Aura* overkill = m_target->GetAura(58427, EFFECT_INDEX_0))
+                    {
+                        overkill->SetTemporary();
+                        overkill->SetAuraDuration(20000);
+                    }
             }
         }
     }
@@ -4710,13 +4726,21 @@ void Aura::HandleModMechanicImmunity(bool apply, bool /*Real*/)
         uint32 mechanic = 1 << (misc-1);
 
         //immune movement impairment and loss of control
-        if(GetId()==42292 || GetId()==59752 || GetId()==53490)
+        if(GetId()==42292 || GetId()==59752 || GetId()==53490 || GetId() == 19574 || GetId() == 34471)
             mechanic=IMMUNE_TO_MOVEMENT_IMPAIRMENT_AND_LOSS_CONTROL_MASK;
 
         m_target->RemoveAurasAtMechanicImmunity(mechanic,GetId());
     }
 
-    m_target->ApplySpellImmune(GetId(),IMMUNITY_MECHANIC,misc,apply);
+    // The Beast Within and Bestial Wrath Workaround
+    if(GetId() == 19574 || GetId() == 34471)
+    {
+        for (uint32  mechanic = MECHANIC_CHARM; mechanic < MAX_MECHANIC; mechanic++)
+            if ((1 << (mechanic -1)) & IMMUNE_TO_MOVEMENT_IMPAIRMENT_AND_LOSS_CONTROL_MASK)
+                m_target->ApplySpellImmune(GetId(),IMMUNITY_MECHANIC,mechanic,apply);
+    }
+    else
+        m_target->ApplySpellImmune(GetId(),IMMUNITY_MECHANIC,misc,apply);
 
     // Demonic Circle
     if (GetSpellProto()->SpellFamilyName == SPELLFAMILY_WARLOCK && GetSpellProto()->SpellIconID == 3221)
@@ -6085,7 +6109,7 @@ void Aura::HandleModDamageDone(bool apply, bool Real)
 
 void Aura::HandleModDamagePercentDone(bool apply, bool Real)
 {
-    DEBUG_LOG("AURA MOD DAMAGE type:%u negative:%u", m_modifier.m_miscvalue, m_positive ? 0 : 1);
+    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "AURA MOD DAMAGE type:%u negative:%u", m_modifier.m_miscvalue, m_positive ? 0 : 1);
 
     // apply for already equipped weapon
     if(Real && m_target->GetTypeId() == TYPEID_PLAYER)
@@ -6138,7 +6162,7 @@ void Aura::HandleModOffhandDamagePercent(bool apply, bool Real)
     if(!Real)
         return;
 
-    DEBUG_LOG("AURA MOD OFFHAND DAMAGE");
+    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "AURA MOD OFFHAND DAMAGE");
 
     m_target->HandleStatModifier(UNIT_MOD_DAMAGE_OFFHAND, TOTAL_PCT, float(m_modifier.m_amount), apply);
 }
@@ -6759,15 +6783,6 @@ void Aura::HandleSpellSpecificBoosts(bool apply)
         {
             switch (GetId())
             {
-                case 19574:                                 // Bestial Wrath - immunity
-                case 34471:                                 // The Beast Within - immunity
-                {
-                    spellId1 = 24395;
-                    spellId2 = 24396;
-                    spellId3 = 24397;
-                    spellId4 = 26592;
-                    break;
-                }
                 case 34027:                                 // Kill Command, owner aura (spellmods)
                 {
                     if (apply)
@@ -6787,19 +6802,6 @@ void Aura::HandleSpellSpecificBoosts(bool apply)
 
             // Freezing Trap Effect
             if (m_spellProto->SpellFamilyFlags & UI64LIT(0x0000000000000008))
-            {
-                if(!apply)
-                {
-                    // Glyph of Freezing Trap
-                    if (Unit *caster = GetCaster())
-                        if (caster->HasAura(56845))
-                            m_target->CastSpell(m_target, 61394, true, NULL, this, GetCasterGUID());
-                }
-                else
-                    return;
-            }
-            // Freezing Trap Effect
-            else if (m_spellProto->SpellFamilyFlags & UI64LIT(0x0000000000000008))
             {
                 if(!apply)
                 {
@@ -7682,6 +7684,8 @@ void Aura::PeriodicTick()
 
             DETAIL_FILTER_LOG(LOG_FILTER_PERIODIC_AFFECTS, "PeriodicTick: %u (TypeId: %u) health leech of %u (TypeId: %u) for %u dmg inflicted by %u abs is %u",
                 GUID_LOPART(GetCasterGUID()), GuidHigh2TypeId(GUID_HIPART(GetCasterGUID())), m_target->GetGUIDLow(), m_target->GetTypeId(), pdamage, GetId(),absorb);
+
+            pCaster->DealDamageMods(m_target, pdamage, &absorb);
 
             pCaster->SendSpellNonMeleeDamageLog(m_target, GetId(), pdamage, GetSpellSchoolMask(GetSpellProto()), absorb, resist, false, 0, isCrit);
 
