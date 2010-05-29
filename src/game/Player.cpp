@@ -1629,7 +1629,7 @@ bool Player::ToggleAFK()
     bool state = HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_AFK);
 
     // afk player not allowed in battleground
-    if(state && InBattleGround())
+    if (state && InBattleGround() && !InArena())
         LeaveBattleground();
 
     return state;
@@ -12699,7 +12699,7 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
     if (pMenuItemBounds.first == pMenuItemBounds.second && menuId == GetDefaultGossipMenuForSource(pSource))
         pMenuItemBounds = sObjectMgr.GetGossipMenuItemsMapBounds(0);
 
-    bool canTalkToCredit = true;
+    bool canTalkToCredit = pSource->GetTypeId() == TYPEID_UNIT;
 
     for(GossipMenuItemsMap::const_iterator itr = pMenuItemBounds.first; itr != pMenuItemBounds.second; ++itr)
     {
@@ -12795,8 +12795,6 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
         {
             GameObject *pGo = (GameObject*)pSource;
 
-            canTalkToCredit = false;
-
             switch(itr->second.option_id)
             {
                 case GOSSIP_OPTION_QUESTGIVER:
@@ -12843,7 +12841,7 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
     if (canTalkToCredit)
     {
         if (pSource->HasFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP))
-            TalkedToCreature(((Creature*)pSource)->GetEntry(), ((Creature*)pSource)->GetGUID());
+            TalkedToCreature(pSource->GetEntry(), pSource->GetGUID());
     }
 
     // some gossips aren't handled in normal way ... so we need to do it this way .. TODO: handle it in normal way ;-)
@@ -18649,12 +18647,12 @@ bool Player::BuyItemFromVendorSlot(uint64 vendorguid, uint32 vendorslot, uint32 
         return false;
     }
 
-    if (crItem->ExtendedCost)
+    if (uint32 extendedCostId = crItem->GetExtendedCostId())
     {
-        ItemExtendedCostEntry const* iece = sItemExtendedCostStore.LookupEntry(crItem->ExtendedCost);
+        ItemExtendedCostEntry const* iece = sItemExtendedCostStore.LookupEntry(extendedCostId);
         if (!iece)
         {
-            sLog.outError("Item %u have wrong ExtendedCost field value %u", pProto->ItemId, crItem->ExtendedCost);
+            sLog.outError("Item %u have wrong ExtendedCost field value %u", pProto->ItemId, extendedCostId);
             return false;
         }
 
@@ -18691,10 +18689,11 @@ bool Player::BuyItemFromVendorSlot(uint64 vendorguid, uint32 vendorslot, uint32 
         }
     }
 
-    uint32 price  = pProto->BuyPrice * count;
+    uint32 price  = crItem->IsExcludeMoneyPrice() ? 0 : pProto->BuyPrice * count;
 
     // reputation discount
-    price = uint32(floor(price * GetReputationPriceDiscount(pCreature)));
+    if (price)
+        price = uint32(floor(price * GetReputationPriceDiscount(pCreature)));
 
     if (GetMoney() < price)
     {
@@ -18713,9 +18712,9 @@ bool Player::BuyItemFromVendorSlot(uint64 vendorguid, uint32 vendorslot, uint32 
         }
 
         ModifyMoney( -(int32)price );
-        if (crItem->ExtendedCost)                            // case for new honor system
+        if (uint32 extendedCostId = crItem->GetExtendedCostId())
         {
-            ItemExtendedCostEntry const* iece = sItemExtendedCostStore.LookupEntry(crItem->ExtendedCost);
+            ItemExtendedCostEntry const* iece = sItemExtendedCostStore.LookupEntry(extendedCostId);
             if (iece->reqhonorpoints)
                 ModifyHonorPoints( - int32(iece->reqhonorpoints * count));
             if (iece->reqarenapoints)
@@ -18758,9 +18757,9 @@ bool Player::BuyItemFromVendorSlot(uint64 vendorguid, uint32 vendorslot, uint32 
         }
 
         ModifyMoney( -(int32)price );
-        if (crItem->ExtendedCost)                            // case for new honor system
+        if (uint32 extendedCostId = crItem->GetExtendedCostId())
         {
-            ItemExtendedCostEntry const* iece = sItemExtendedCostStore.LookupEntry(crItem->ExtendedCost);
+            ItemExtendedCostEntry const* iece = sItemExtendedCostStore.LookupEntry(extendedCostId);
             if (iece->reqhonorpoints)
                 ModifyHonorPoints( - int32(iece->reqhonorpoints));
             if (iece->reqarenapoints)
@@ -20671,8 +20670,8 @@ void Player::SetOriginalGroup(Group *group, int8 subgroup)
 
 void Player::UpdateUnderwaterState( Map* m, float x, float y, float z )
 {
-    LiquidData liquid_status;
-    ZLiquidStatus res = m->getLiquidStatus(x, y, z, MAP_ALL_LIQUIDS, &liquid_status);
+    GridMapLiquidData liquid_status;
+    GridMapLiquidStatus res = m->getLiquidStatus(x, y, z, MAP_ALL_LIQUIDS, &liquid_status);
     if (!res)
     {
         m_MirrorTimerFlags &= ~(UNDERWATER_INWATER|UNDERWATER_INLAVA|UNDERWATER_INSLIME|UNDERWATER_INDARKWATER);

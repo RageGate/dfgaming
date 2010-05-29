@@ -1695,6 +1695,17 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
 
                     return;
                 }
+                case 57908:                                 // Stain Cloth
+                {
+                    // nothing do more
+                    finish();
+
+                    m_caster->CastSpell(m_caster, 57915, false, m_CastItem);
+
+                    // cast item deleted
+                    ClearCastItem();
+                    break;
+                }
                 case 58418:                                 // Portal to Orgrimmar
                 case 58420:                                 // Portal to Stormwind
                     return;                                 // implemented in EffectScript[0]
@@ -2435,7 +2446,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
             {
                 if (m_caster->IsFriendlyTo(unitTarget))
                 {
-                    if (unitTarget->GetCreatureType() != CREATURE_TYPE_UNDEAD)
+                    if (!unitTarget || unitTarget->GetCreatureType() != CREATURE_TYPE_UNDEAD)
                         return;
 
                     int32 bp = int32(damage * 1.5f);
@@ -3766,10 +3777,7 @@ void Spell::EffectSummonChangeItem(SpellEffectIndex eff_idx)
             player->DestroyItem(m_CastItem->GetBagSlot(), m_CastItem->GetSlot(), true);
 
             // prevent crash at access and unexpected charges counting with item update queue corrupt
-            if (m_CastItem==m_targets.getItemTarget())
-                m_targets.setItemTarget(NULL);
-
-            m_CastItem = NULL;
+            ClearCastItem();
 
             player->StoreItem( dest, pNewItem, true);
             return;
@@ -3784,10 +3792,7 @@ void Spell::EffectSummonChangeItem(SpellEffectIndex eff_idx)
             player->DestroyItem(m_CastItem->GetBagSlot(), m_CastItem->GetSlot(), true);
 
             // prevent crash at access and unexpected charges counting with item update queue corrupt
-            if (m_CastItem==m_targets.getItemTarget())
-                m_targets.setItemTarget(NULL);
-
-            m_CastItem = NULL;
+            ClearCastItem();
 
             player->BankItem( dest, pNewItem, true);
             return;
@@ -3802,10 +3807,7 @@ void Spell::EffectSummonChangeItem(SpellEffectIndex eff_idx)
             player->DestroyItem(m_CastItem->GetBagSlot(), m_CastItem->GetSlot(), true);
 
             // prevent crash at access and unexpected charges counting with item update queue corrupt
-            if (m_CastItem==m_targets.getItemTarget())
-                m_targets.setItemTarget(NULL);
-
-            m_CastItem = NULL;
+            ClearCastItem();
 
             player->EquipItem( dest, pNewItem, true);
             player->AutoUnequipOffhandIfNeed();
@@ -5684,6 +5686,24 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->RemoveAurasAtMechanicImmunity(IMMUNE_TO_ROOT_AND_SNARE_MASK,30918,true);
                     break;
                 }
+                case 41055:                                 // Copy Weapon
+                {
+                    if (m_caster->GetTypeId() != TYPEID_UNIT || !unitTarget || unitTarget->GetTypeId() != TYPEID_PLAYER)
+                        return;
+
+                    if (Item* pItem = ((Player*)unitTarget)->GetWeaponForAttack(BASE_ATTACK))
+                    {
+                        if (const ItemEntry *dbcitem = sItemStore.LookupEntry(pItem->GetProto()->ItemId))
+                        {
+                            m_caster->SetUInt32Value(UNIT_VIRTUAL_ITEM_SLOT_ID + 0, dbcitem->ID);
+
+                            // Unclear what this spell should do
+                            unitTarget->CastSpell(m_caster, m_spellInfo->CalculateSimpleValue(eff_idx), true);
+                        }
+                    }
+
+                    return;
+                }
                 case 41126:                                 // Flame Crash
                 {
                     if (!unitTarget)
@@ -5691,6 +5711,15 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
 
                     unitTarget->CastSpell(unitTarget, 41131, true);
                     break;
+                }
+                case 43365:                                 // The Cleansing: Shrine Cast
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+
+                    // Script Effect Player Cast Mirror Image
+                    m_caster->CastSpell(m_caster, 50217, true);
+                    return;
                 }
                 case 44455:                                 // Character Script Effect Reverse Cast
                 {
@@ -5781,6 +5810,23 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
 
                     unitTarget->CastSpell(unitTarget, 46394, true);
                     break;
+                }
+                case 45206:                                 // Copy Off-hand Weapon
+                {
+                    if (m_caster->GetTypeId() != TYPEID_UNIT || !unitTarget || unitTarget->GetTypeId() != TYPEID_PLAYER)
+                        return;
+
+                    if (Item* pItem = ((Player*)unitTarget)->GetWeaponForAttack(OFF_ATTACK))
+                    {
+                        if (const ItemEntry *dbcitem = sItemStore.LookupEntry(pItem->GetProto()->ItemId))
+                        {
+                            m_caster->SetUInt32Value(UNIT_VIRTUAL_ITEM_SLOT_ID + 1, dbcitem->ID);
+
+                            // Unclear what this spell should do
+                            unitTarget->CastSpell(m_caster, m_spellInfo->CalculateSimpleValue(eff_idx), true);
+                        }
+                    }
+                    return;
                 }
                 case 45668:                                 // Ultra-Advanced Proto-Typical Shortening Blaster
                 {
@@ -5898,6 +5944,60 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     // Torture the Torturer: High Executor's Branding Iron Impact
                     unitTarget->CastSpell(unitTarget, 48614, true);
                     return;
+                case 50217:                                 // The Cleansing: Script Effect Player Cast Mirror Image
+                {
+                    // Summon Your Inner Turmoil
+                    m_caster->CastSpell(m_caster, 50167, true);
+
+                    // Spell 50218 has TARGET_SCRIPT, but other wild summons near may exist, and then target can become wrong
+                    // Only way to make this safe is to get the actual summoned by m_caster
+
+                    // Your Inner Turmoil's Mirror Image Aura
+                    m_caster->CastSpell(m_caster, 50218, true);
+
+                    return;
+                }
+                case 50218:                                 // The Cleansing: Your Inner Turmoil's Mirror Image Aura
+                {
+                    if (!m_originalCaster || m_originalCaster->GetTypeId() != TYPEID_PLAYER || !unitTarget)
+                        return;
+
+                    // determine if and what weapons can be copied
+                    switch(eff_idx)
+                    {
+                        case EFFECT_INDEX_1:
+                            if (((Player*)m_originalCaster)->GetWeaponForAttack(BASE_ATTACK))
+                                unitTarget->CastSpell(m_originalCaster, m_spellInfo->CalculateSimpleValue(eff_idx), true);
+
+                            return;
+                        case EFFECT_INDEX_2:
+                            if (((Player*)m_originalCaster)->GetWeaponForAttack(OFF_ATTACK))
+                                unitTarget->CastSpell(m_originalCaster, m_spellInfo->CalculateSimpleValue(eff_idx), true);
+
+                            return;
+                        default:
+                            return;
+                    }
+                    return;
+                }
+                case 50238:                                 // The Cleansing: Your Inner Turmoil's On Death Cast on Master
+                {
+                    if (m_caster->GetTypeId() != TYPEID_UNIT)
+                        return;
+
+                    if (((Creature*)m_caster)->isTemporarySummon())
+                    {
+                        TemporarySummon* pSummon = (TemporarySummon*)m_caster;
+
+                        if (pSummon->GetSummonerGuid().IsPlayer())
+                        {
+                            if (Player* pSummoner = sObjectMgr.GetPlayer(pSummon->GetSummonerGuid()))
+                                pSummoner->CastSpell(pSummoner, m_spellInfo->CalculateSimpleValue(eff_idx), true);
+                        }
+                    }
+
+                    return;
+                }
                 case 51770:                                 // Emblazon Runeblade
                 {
                     Unit* caster = GetAffectiveCaster();
@@ -6050,6 +6150,31 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->RemoveAurasDueToSpell(m_spellInfo->CalculateSimpleValue(eff_idx));
                     break;
                 }
+                case 57337:                                 // Great Feast
+                {
+                    if (!unitTarget)
+                        return;
+
+                    unitTarget->CastSpell(unitTarget, 58067, true);
+                    break;
+                }
+                case 57397:                                 // Fish Feast
+                {
+                    if (!unitTarget)
+                        return;
+
+                    unitTarget->CastSpell(unitTarget, 57292, true);
+                    break;
+                }
+                case 58466:                                 // Gigantic Feast
+                case 58475:                                 // Small Feast
+                {
+                    if (!unitTarget)
+                        return;
+
+                    unitTarget->CastSpell(unitTarget, 57085, true);
+                    break;
+                }
                 case 58418:                                 // Portal to Orgrimmar
                 case 58420:                                 // Portal to Stormwind
                 {
@@ -6126,6 +6251,15 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                         ((Player*)m_caster)->learnSpell(discoveredSpell, false);
 
                     return;
+                }
+                case 66477:                                 // Bountiful Feast
+                {
+                    if (!unitTarget)
+                        return;
+
+                    unitTarget->CastSpell(unitTarget, 65422, true);
+                    unitTarget->CastSpell(unitTarget, 66622, true);
+                    break;
                 }
                 case 69377:                                 // Fortitude
                 {
