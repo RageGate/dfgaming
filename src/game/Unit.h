@@ -1637,6 +1637,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void addHatedBy(HostileReference* pHostileReference) { m_HostileRefManager.insertFirst(pHostileReference); };
         void removeHatedBy(HostileReference* /*pHostileReference*/ ) { /* nothing to do yet */ }
         HostileRefManager& getHostileRefManager() { return m_HostileRefManager; }
+        void RemoveUnitFromHostileRefManager(Unit* p_unit)
 
         uint32 GetVisibleAura(uint8 slot)
         {

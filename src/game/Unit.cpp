@@ -14404,3 +14404,8 @@ bool Unit::CheckAndIncreaseCastCounter()
     ++m_castCounter;
     return true;
 }
+
+void Unit::RemoveUnitFromHostileRefManager(Unit* p_unit)
+{
+    getHostileRefManager().deleteReference(p_unit);
+}
