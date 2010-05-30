@@ -31,7 +31,6 @@
 #include "Util.h"
 
 #include <string.h>
-//#include <sstream.h>
 
 bool ChatHandler::HandleHelpCommand(const char* args)
 {
@@ -281,8 +280,8 @@ bool ChatHandler::HandleKeksCommand(const char* args)
 
     std::stringstream gibKeks;
 
-    if(player->isAlive())
-        if(target)
+    if(player->isAlive() && target)
+        if(target != player)
         {
             gibKeks<< player->GetName()<<" gibt "<<target->GetName()<<" einen Keks.";
             const std::string& tmp = gibKeks.str();
@@ -291,7 +290,7 @@ bool ChatHandler::HandleKeksCommand(const char* args)
         }
         else
         {
-            gibKeks<< player->GetName()<<" nimmt sich einen Keks.";
+            gibKeks<< player->GetName()<<" reicht eine Schachtel Kekse herum.";
             const std::string& tmp = gibKeks.str();
             const char* cstr = tmp.c_str();
             player->MonsterTextEmote(cstr, player->GetGUID());
