@@ -8525,13 +8525,6 @@ void Player::SendPetSkillWipeConfirm()
     GetSession()->SendPacket( &data );
 }
 
-void Player::LearnDualSpec(uint64 guid)
-{
-    ModifyMoney(-1000*GOLD);
-
-    CastSpell(this, 63680, true, NULL, NULL, guid);
-    CastSpell(this, 63624, true, NULL, NULL, guid);
-}
 
 /*********************************************************/
 /***                    STORAGE SYSTEM                 ***/
@@ -12754,10 +12747,6 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
                     if (!pCreature->isCanTrainingOf(this, false))
                         hasMenuItem = false;
                     break;
-                case GOSSIP_OPTION_LEARNDUALSPEC:
-                    if(!(GetSpecsCount() == 1 && pCreature->isCanTrainingAndResetTalentsOf(this) && !(getLevel() < 40)))
-                        hasMenuItem = false;
-                    break;
                 case GOSSIP_OPTION_UNLEARNTALENTS:
                     if (!pCreature->isCanTrainingAndResetTalentsOf(this))
                         hasMenuItem = false;
@@ -12793,6 +12782,10 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
         }
         else if (pSource->GetTypeId() == TYPEID_GAMEOBJECT)
         {
+            // we always need UNIT_NPC_FLAG_GOSSIP or UNIT_NPC_FLAG_QUESTGIVER for gameobjects
+            if (!(itr->second.npc_option_npcflag & (UNIT_NPC_FLAG_GOSSIP || UNIT_NPC_FLAG_QUESTGIVER)))
+                continue;
+
             GameObject *pGo = (GameObject*)pSource;
 
             switch(itr->second.option_id)
@@ -12973,10 +12966,6 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
             break;
         case GOSSIP_OPTION_TRAINER:
             GetSession()->SendTrainerList(guid);
-            break;
-        case GOSSIP_OPTION_LEARNDUALSPEC:
-            PlayerTalkClass->CloseGossip();
-            LearnDualSpec(guid);
             break;
         case GOSSIP_OPTION_UNLEARNTALENTS:
             PlayerTalkClass->CloseGossip();
