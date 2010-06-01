@@ -2801,17 +2801,38 @@ void Map::ScriptsProcess()
                     break;
                 }
 
-                Object* cmdTarget = step.script->datalong2 & 0x01 ? source : target;
+                Object* cmdTarget;
+                std::stringstream targetString;
+                if (step.script->datalong2 & 0x01)
+                {
+                    cmdTarget = source;
+                    targetString << "source";
+                }
+                else if (step.script->datalong2 & 0x02)
+                {
+                    cmdTarget = target;
+                    targetString << "target";
+                }
+                else if (step.script->datalong2 & 0x04 && target->isType(TYPEMASK_UNIT))
+                {
+                    cmdTarget = ((Unit*)source)->GetPet();
+                    targetString << "source's pet";
+                }
+                else if (step.script->datalong2 & 0x08 && target->isType(TYPEMASK_UNIT))
+                {
+                    cmdTarget = ((Unit*)target)->GetPet();
+                    targetString << "targets's pet";
+                }
 
                 if (!cmdTarget)
                 {
-                    sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) call for NULL %s.", step.script->id, step.script->datalong2 & 0x01 ? "source" : "target");
+                    sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) call for NULL %s.", targetString.str());
                     break;
                 }
 
                 if (!cmdTarget->isType(TYPEMASK_UNIT))
                 {
-                    sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) %s isn't unit (TypeId: %u), skipping.", step.script->id, step.script->datalong2 & 0x01 ? "source" : "target",cmdTarget->GetTypeId());
+                    sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) %s isn't unit (TypeId: %u), skipping.", targetString.str(),cmdTarget->GetTypeId());
                     break;
                 }
 

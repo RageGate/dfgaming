@@ -4406,7 +4406,7 @@ void ObjectMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
                         tablename,tmp.datalong,tmp.id);
                     continue;
                 }
-                if(tmp.datalong2 & ~0x3)                    // 2 bits
+                if(tmp.datalong2 & ~0xF)                    // 4 bits
                 {
                     sLog.outErrorDb("Table `%s` using unknown flags in datalong2 (%u)i n SCRIPT_COMMAND_CAST_SPELL for script id %u",
                         tablename,tmp.datalong2,tmp.id);

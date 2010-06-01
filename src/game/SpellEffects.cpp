@@ -133,7 +133,7 @@ pEffect SpellEffects[TOTAL_SPELL_EFFECTS]=
     &Spell::EffectPull,                                     // 70 SPELL_EFFECT_PULL                     one spell: Distract Move
     &Spell::EffectPickPocket,                               // 71 SPELL_EFFECT_PICKPOCKET
     &Spell::EffectAddFarsight,                              // 72 SPELL_EFFECT_ADD_FARSIGHT
-    &Spell::EffectNULL,                                     // 73 SPELL_EFFECT_UNTRAIN_TALENTS          one spell: Trainer: Untrain Talents
+    &Spell::EffectUntrainTalents,                           // 73 SPELL_EFFECT_UNTRAIN_TALENTS          one spell: Trainer: Untrain Talents
     &Spell::EffectApplyGlyph,                               // 74 SPELL_EFFECT_APPLY_GLYPH
     &Spell::EffectHealMechanical,                           // 75 SPELL_EFFECT_HEAL_MECHANICAL          one spell: Mechanical Patch Kit
     &Spell::EffectSummonObjectWild,                         // 76 SPELL_EFFECT_SUMMON_OBJECT_WILD
@@ -8085,6 +8085,30 @@ void Spell::EffectActivateSpec(SpellEffectIndex /*eff_idx*/)
     uint32 spec = damage-1;
 
     ((Player*)unitTarget)->ActivateSpec(spec);
+}
+
+void Spell::EffectUntrainTalents(SpellEffectIndex /*eff_idx*/)
+{
+    if (!unitTarget)
+        return;
+
+    Player* pTarget = unitTarget->GetCharmerOrOwnerPlayerOrPlayerItself();
+    if (!pTarget)
+        return;
+
+    if(unitTarget->GetTypeId() == TYPEID_PLAYER && ((Player*)unitTarget)->resetTalents())
+    {
+        pTarget->SendTalentsInfoData(false);
+        //ChatHandler(target).SendSysMessage(LANG_RESET_TALENTS);
+        //if (!m_session || m_session->GetPlayer() != target)
+        //    PSendSysMessage(LANG_RESET_TALENTS_ONLINE,GetNameLink(target).c_str());
+    }
+    else if (unitTarget->GetTypeId() == TYPEID_UNIT && ((Creature*)unitTarget)->isPet() &&
+        ((Pet*)unitTarget)->IsPermanentPetFor(pTarget) && ((Pet*)unitTarget)->resetTalents(true))
+    {
+        pTarget->SendTalentsInfoData(true);
+    }
+
 }
 
 void Spell::EffectBind(SpellEffectIndex eff_idx)
