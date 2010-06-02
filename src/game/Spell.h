@@ -364,6 +364,7 @@ class Spell
         void EffectPlayMusic(SpellEffectIndex eff_idx);
         void EffectSpecCount(SpellEffectIndex eff_idx);
         void EffectActivateSpec(SpellEffectIndex eff_idx);
+        void EffectUntrainTalents(SpellEffectIndex eff_idx);
 
         Spell( Unit* caster, SpellEntry const *info, bool triggered, ObjectGuid originalCasterGUID = ObjectGuid(), Spell** triggeringContainer = NULL );
         ~Spell();
@@ -505,6 +506,7 @@ class Spell
 
         void CleanupTargetList();
         ObjectGuid GetTargetForPeriodicTriggerAura() const;
+        void ClearCastItem();
 
         static void SelectMountByAreaAndSkill(Unit* target, uint32 spellId75, uint32 spellId150, uint32 spellId225, uint32 spellId300, uint32 spellIdSpecial);
 
@@ -568,16 +570,17 @@ class Spell
         GameObject* focusObject;
 
         // Damage and healing in effects need just calculate
-        int32 m_damage;           // Damge   in effects count here
-        int32 m_healing;          // Healing in effects count here
-        int32 m_healthLeech;      // Health leech in effects for all targets count here
+        int32 m_damage;                                     // Damage   in effects count here
+        int32 m_healing;                                    // Healing in effects count here
+        int32 m_healthLeech;                                // Health leech in effects for all targets count here
 
         //******************************************
         // Spell trigger system
         //******************************************
-        bool   m_canTrigger;                  // Can start trigger (m_IsTriggeredSpell can`t use for this)
-        uint32 m_procAttacker;                // Attacker trigger flags
-        uint32 m_procVictim;                  // Victim   trigger flags
+        bool   m_canTrigger;                                // Can start trigger (m_IsTriggeredSpell can`t use for this)
+        uint8  m_negativeEffectMask;                        // Use for avoid sent negative spell procs for additional positive effects only targets
+        uint32 m_procAttacker;                              // Attacker trigger flags
+        uint32 m_procVictim;                                // Victim   trigger flags
         void   prepareDataForTriggerSystem();
 
         //*****************************************

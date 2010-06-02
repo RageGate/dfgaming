@@ -300,11 +300,7 @@ void SpellCastTargets::write( ByteBuffer& data ) const
 
     if( m_targetMask & TARGET_FLAG_DEST_LOCATION )
     {
-        if(m_unitTarget)
-            data << m_unitTarget->GetPackGUID();
-        else
-            data << uint8(0);
-
+        data << uint8(0);                                   // no known cases with target pguid
         data << m_destX << m_destY << m_destZ;
     }
 
@@ -758,7 +754,15 @@ void Spell::prepareDataForTriggerSystem()
             }
             break;
     }
-    // Hunter traps spells: Immolation Trap Effect, Frost Trap (triggering spell!!),
+
+    // some negative spells have positive effects to another or same targets
+    // avoid triggering negative hit for only positive targets
+    m_negativeEffectMask = 0x0;
+    for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        if (!IsPositiveEffect(m_spellInfo->Id, SpellEffectIndex(i)))
+            m_negativeEffectMask |= (1<<i);
+
+       // Hunter traps spells: Immolation Trap Effect, Frost Trap (triggering spell!!),
     // Freezing Trap Effect(+ Freezing Arrow Effect), Explosive Trap Effect, Snake Trap Effect
     if (m_spellInfo->SpellFamilyName == SPELLFAMILY_HUNTER && (m_spellInfo->SpellFamilyFlags & UI64LIT(0x0000200000002008) || m_spellInfo->SpellFamilyFlags2 & 0x00064000))
         m_procAttacker |= PROC_FLAG_ON_TRAP_ACTIVATION;
@@ -966,6 +970,14 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
     uint32 procVictim   = m_procVictim;
     uint32 procEx       = PROC_EX_NONE;
 
+    // drop proc flags in case target not affected negative effects in negative spell
+    // for example caster bonus or animation
+    if (((procAttacker | procVictim) & NEGATIVE_TRIGGER_MASK) && !(target->effectMask & m_negativeEffectMask))
+    {
+        procAttacker = PROC_FLAG_NONE;
+        procVictim   = PROC_FLAG_NONE;
+    }
+
     if (m_spellInfo->speed > 0)
     {
         // mark effects that were already handled in Spell::HandleDelayedSpellLaunch on spell launch as processed
@@ -1088,8 +1100,8 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
             }
         }
     }
-    // Passive spell hits/misses or active spells only misses (only triggers)
-    else
+    // Passive spell hits/misses or active spells only misses (only triggers if proc flags set)
+    else if (procAttacker || procVictim)
     {
         // Fill base damage struct (unitTarget - is real spell target)
         SpellNonMeleeDamage damageInfo(caster, unitTarget, m_spellInfo->Id, m_spellSchoolMask);
@@ -1476,6 +1488,8 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 case 33711:                                 // Murmur's Touch
                 case 38794:                                 // Murmur's Touch (h)
                 case 45391:                                 // Summon Demonic Vapor (Felmyst)
+                case 50988:                                 // Glare of the Tribunal (Halls of Stone)
+                case 59870:                                 // Glare of the Tribunal (h) (Halls of Stone)
                     unMaxTargets = 1;
                     break;
                 case 28542:                                 // Life Drain
@@ -2919,6 +2933,13 @@ void Spell::cast(bool skipCheck)
                 AddPrecastSpell(64380);                     // Shattering Throw
             break;
         }
+        case SPELLFAMILY_DEATHKNIGHT:
+        {
+            // Chains of Ice
+            if (m_spellInfo->Id == 45524)
+                AddTriggeredSpell(55095);                   // Frost Fever
+            break;
+        }
         default:
             break;
     }
@@ -4080,10 +4101,7 @@ void Spell::TakeCastItem()
         ((Player*)m_caster)->DestroyItemCount(m_CastItem, count, true);
 
         // prevent crash at access to deleted m_targets.getItemTarget
-        if(m_CastItem == m_targets.getItemTarget())
-            m_targets.setItemTarget(NULL);
-
-        m_CastItem = NULL;
+        ClearCastItem();
     }
 }
 
@@ -6907,8 +6925,10 @@ void Spell::SelectMountByAreaAndSkill(Unit* target, uint32 spellId75, uint32 spe
 
                             // speed higher than 280 replace it
                             if (mountSpeed > 280)
+                            {
                                 target->CastSpell(target, spellIdSpecial, true);
-                            return;
+                                return;
+                            }
                         }
                     }
                 }
@@ -6924,4 +6944,12 @@ void Spell::SelectMountByAreaAndSkill(Unit* target, uint32 spellId75, uint32 spe
         target->CastSpell(target, spellId75, true);
 
     return;
+}
+
+void Spell::ClearCastItem()
+{
+    if (m_CastItem==m_targets.getItemTarget())
+        m_targets.setItemTarget(NULL);
+
+    m_CastItem = NULL;
 }
