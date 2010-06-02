@@ -3906,6 +3906,23 @@ bool ChatHandler::HandleDieCommand(const char* /*args*/)
     return true;
 }
 
+bool ChatHandler::HandleDieNameCommand(const char* args)
+{
+    Player* target;
+    if(!extractPlayerTarget((char*)args,&target))
+        return false;
+
+	if(HasLowerSecurity((Player*)target,0,false))
+        return false;
+
+    if( target->isAlive() )
+    {
+        m_session->GetPlayer()->DealDamage(target, target->GetHealth(), NULL, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, NULL, false);
+    }
+
+    return true;
+}
+
 bool ChatHandler::HandleDamageCommand(const char * args)
 {
     if (!*args)

@@ -490,6 +490,7 @@ class ChatHandler
         bool HandleGetDistanceCommand(const char* args);
         bool HandleModifyStandStateCommand(const char* args);
         bool HandleDieCommand(const char* args);
+        bool HandleDieNameCommand(const char* args);
         bool HandleDamageCommand(const char *args);
         bool HandleReviveCommand(const char* args);
         bool HandleModifyMorphCommand(const char* args);
