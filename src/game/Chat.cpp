@@ -654,7 +654,6 @@ ChatCommand * ChatHandler::getCommandTable()
         { "keks",           SEC_PLAYER,         true,  &ChatHandler::HandleKeksCommand,                "", NULL },
         { "demorph",        SEC_GAMEMASTER,     false, &ChatHandler::HandleDeMorphCommand,             "", NULL },
         { "die",            SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDieCommand,                 "", NULL },
-		{ "diename",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDieNameCommand,             "", NULL },
         { "revive",         SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleReviveCommand,              "", NULL },
         { "dismount",       SEC_PLAYER,         false, &ChatHandler::HandleDismountCommand,            "", NULL },
         { "gps",            SEC_MODERATOR,      false, &ChatHandler::HandleGPSCommand,                 "", NULL },
