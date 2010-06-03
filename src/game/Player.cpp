@@ -882,11 +882,11 @@ uint32 Player::EnvironmentalDamage(EnviromentalDamage type, uint32 damage)
     data << uint32(resist);
     SendMessageToSet(&data, true);
 
-    uint32 final_damage = DealDamage(this, damage, NULL, SELF_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, NULL, false);
-
     if(HasAuraType(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED) && type==DAMAGE_FALL)
-        final_damage = 0;
+        damage = 0;
 
+    uint32 final_damage = DealDamage(this, damage, NULL, SELF_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, NULL, false);
+    
     if(!isAlive())
     {
         if(type==DAMAGE_FALL)                               // DealDamage not apply item durability loss at self damage
