@@ -3881,16 +3881,26 @@ bool ChatHandler::HandleGetDistanceCommand(const char* args)
     return true;
 }
 
-bool ChatHandler::HandleDieCommand(const char* /*args*/)
+bool ChatHandler::HandleDieCommand(const char* args)
 {
-    Unit* target = getSelectedUnit();
 
-    if(!target || !m_session->GetPlayer()->GetSelection())
-    {
-        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
-        SetSentErrorMessage(true);
-        return false;
-    }
+	Unit* target = NULL;
+	Player* plyr = NULL;
+    extractPlayerTarget((char*)args,&plyr);
+
+	if(plyr)
+		target = plyr;
+	else
+		{
+			target = getSelectedUnit();
+
+			if(!target || !m_session->GetPlayer()->GetSelection())
+			{
+				SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+				SetSentErrorMessage(true);
+				return false;
+			}
+		}
 
     if(target->GetTypeId()==TYPEID_PLAYER)
     {
@@ -5242,17 +5252,42 @@ bool ChatHandler::HandleServerIdleShutDownCommand(const char* args)
 
 bool ChatHandler::HandleQuestAdd(const char* args)
 {
-    Player* player = getSelectedPlayer();
-    if(!player)
-    {
-        SendSysMessage(LANG_NO_CHAR_SELECTED);
-        SetSentErrorMessage(true);
-        return false;
-    }
+    Player* player; 
+	char* nameStr;
+    char* questStr;
+	// quest add <questID> <charname>
+    extractOptFirstArg((char*)args,&questStr,&nameStr);
+    if(nameStr)
+	SendSysMessage(nameStr);
+	if(questStr)
+	SendSysMessage(questStr);
+
+    uint64 target_guid;
+    std::string target_name;
+
+    extractPlayerTarget(nameStr,&player,&target_guid,&target_name);
+
+	if(!player||!questStr)
+		player = getSelectedPlayer();
+
+		if(!player)
+		{
+			SendSysMessage(LANG_NO_CHAR_SELECTED);
+			SetSentErrorMessage(true);
+			return false;
+		}
 
     // .addquest #entry'
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-    char* cId = extractKeyFromLink((char*)args,"Hquest");
+    //char* cId = extractKeyFromLink((char*)args,"Hquest");
+
+	char* cId;
+
+	if(!questStr)
+		cId = nameStr;
+	else
+		cId = questStr;
+
     if(!cId)
         return false;
 
@@ -5296,17 +5331,41 @@ bool ChatHandler::HandleQuestAdd(const char* args)
 
 bool ChatHandler::HandleQuestRemove(const char* args)
 {
-    Player* player = getSelectedPlayer();
-    if(!player)
-    {
-        SendSysMessage(LANG_NO_CHAR_SELECTED);
-        SetSentErrorMessage(true);
-        return false;
-    }
+	Player* player; 
+	char* nameStr;
+    char* questStr;
+	// quest remove <questID> <charname>
+    extractOptFirstArg((char*)args,&questStr,&nameStr);
+    if(nameStr)
+	SendSysMessage(nameStr);
+	if(questStr)
+	SendSysMessage(questStr);
+
+    uint64 target_guid;
+    std::string target_name;
+
+    extractPlayerTarget(nameStr,&player,&target_guid,&target_name);
+
+	if(!player||!questStr)
+		player = getSelectedPlayer();
+
+		if(!player)
+		{
+			SendSysMessage(LANG_NO_CHAR_SELECTED);
+			SetSentErrorMessage(true);
+			return false;
+		}
+
+	char* cId;
+
+	if(!questStr)
+		cId = nameStr;
+	else
+		cId = questStr;
 
     // .removequest #entry'
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-    char* cId = extractKeyFromLink((char*)args,"Hquest");
+    //char* cId = extractKeyFromLink((char*)args,"Hquest");
     if(!cId)
         return false;
 
@@ -5346,17 +5405,41 @@ bool ChatHandler::HandleQuestRemove(const char* args)
 
 bool ChatHandler::HandleQuestComplete(const char* args)
 {
-    Player* player = getSelectedPlayer();
-    if(!player)
-    {
-        SendSysMessage(LANG_NO_CHAR_SELECTED);
-        SetSentErrorMessage(true);
-        return false;
-    }
+	Player* player; 
+	char* nameStr;
+    char* questStr;
+	// quest complete <questID> <charname>
+    extractOptFirstArg((char*)args,&questStr,&nameStr);
+    if(nameStr)
+	SendSysMessage(nameStr);
+	if(questStr)
+	SendSysMessage(questStr);
+
+    uint64 target_guid;
+    std::string target_name;
+
+    extractPlayerTarget(nameStr,&player,&target_guid,&target_name);
+
+	if(!player||!questStr)
+		player = getSelectedPlayer();
+
+		if(!player)
+		{
+			SendSysMessage(LANG_NO_CHAR_SELECTED);
+			SetSentErrorMessage(true);
+			return false;
+		}
+
+	char* cId;
+
+	if(!questStr)
+		cId = nameStr;
+	else
+		cId = questStr;
 
     // .quest complete #entry
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-    char* cId = extractKeyFromLink((char*)args,"Hquest");
+    //char* cId = extractKeyFromLink((char*)args,"Hquest");
     if(!cId)
         return false;
 
