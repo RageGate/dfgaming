@@ -2002,8 +2002,13 @@ void Aura::TriggerSpell()
 //                    case 40867: break;
 //                    // Prismatic Shield
 //                    case 40879: break;
-//                    // Aura of Desire
-//                    case 41350: break;
+                    // Aura of Desire
+                    case 41350:
+                    {
+                        if (Aura* energyPct = m_target->GetAura(41350, EFFECT_INDEX_1) && energyPct->GetModifier()->m_amount > -100)
+                            energyPct->UpdateModifierAmount(energyPct->GetModifier()->m_amount -5);
+                        return;
+                    }
 //                    // Dementia
 //                    case 41404: break;
 //                    // Chaos Form
@@ -7524,7 +7529,7 @@ void Aura::PeriodicTick()
             if(m_target->IsImmunedToDamage(GetSpellSchoolMask(GetSpellProto())))
                 return;
 
-            // some auras remove at specific health level or more
+            // some custom stuff
             if(m_modifier.m_auraname == SPELL_AURA_PERIODIC_DAMAGE)
             {
                 switch(GetId())
@@ -7553,6 +7558,28 @@ void Aura::PeriodicTick()
                         }
                         break;
                     }
+                    // Aura of Anger - BT Reliquary of Souls
+                    case 41337:
+                    {
+                        m_modifier.m_amount += GetSpellProto()->CalculateSimpleValue(GetEffIndex());
+
+                        // increase amount of dmg pct aura - probably best way to do this here
+                        if (Aura* dmgPct = m_target->GetAura(41337, EFFECT_INDEX_1))
+                            dmgPct->UpdateModifierAmount(dmgPct->GetModifier()->m_amount+2);
+                        break;
+                    }
+                    // Burn - SWP Brutallus
+                    case 46394:
+                    {
+                        uint32 ticks = GetAuraTicks();
+                        for (uint8 i = 0; i<5; i++)
+                            if (ticks == 11*(i+1))
+                            {
+                                m_modifier.m_amount *=2;
+                                break;
+                            }
+                        break;
+                    }
                     default:
                         break;
                 }
@@ -7571,18 +7598,6 @@ void Aura::PeriodicTick()
                 pdamage = amount;
             else
                 pdamage = uint32(m_target->GetMaxHealth()*amount/100);
-
-            // Burn - SWP Brutallus
-            if (m_spellProto->Id == 46394)
-            {
-                uint32 ticks = GetAuraTicks();
-                uint32 threashold[] = {10,21,32,43,54};
-                for (uint8 i = 0; i<5; i++)
-                    if (ticks > threashold[i])
-                        pdamage *=2;
-                    else
-                        break;
-            }
 
             // SpellDamageBonus for magic spells
             if(GetSpellProto()->DmgClass == SPELL_DAMAGE_CLASS_NONE || GetSpellProto()->DmgClass == SPELL_DAMAGE_CLASS_MAGIC)
