@@ -2005,8 +2005,9 @@ void Aura::TriggerSpell()
                     // Aura of Desire
                     case 41350:
                     {
-                        if (Aura* energyPct = m_target->GetAura(41350, EFFECT_INDEX_1) && energyPct->GetModifier()->m_amount > -100)
-                            energyPct->UpdateModifierAmount(energyPct->GetModifier()->m_amount -5);
+                        if (Aura* energyPct = m_target->GetAura(41350, EFFECT_INDEX_1))
+                            if (energyPct->GetModifier()->m_amount > -100)
+                                energyPct->UpdateModifierAmount(energyPct->GetModifier()->m_amount -5);
                         return;
                     }
 //                    // Dementia
