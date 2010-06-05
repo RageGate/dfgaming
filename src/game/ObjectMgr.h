@@ -319,9 +319,10 @@ enum ConditionType
     CONDITION_NOITEM                = 16,                   // item_id      count
     CONDITION_SPELL                 = 17,                   // spell_id     0, 1 (0: has spell, 1: hasn't spell)
     CONDITION_INSTANCE_SCRIPT       = 18,                   // map_id       instance_condition_id (instance script specific enum)
+    CONDITION_PET_ACTIVE_NOT_DEAD   = 19,                   // 0            0
 };
 
-#define MAX_CONDITION                 19                    // maximum value in ConditionType enum
+#define MAX_CONDITION                 20                    // maximum value in ConditionType enum
 
 struct PlayerCondition
 {

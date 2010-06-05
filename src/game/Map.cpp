@@ -2801,44 +2801,33 @@ void Map::ScriptsProcess()
                     break;
                 }
 
-                Object* cmdTarget;
+                Object* cmdTarget = step.script->datalong2 & 0x01 ? source : target;
                 std::stringstream targetString;
-                if (step.script->datalong2 & 0x01)
+                targetString << (step.script->datalong2 & 0x01 ? "source" : "target");
+
+                // check petflag
+                if (step.script->datalong2 & 0x04 && target->isType(TYPEMASK_UNIT))
                 {
-                    cmdTarget = source;
-                    targetString << "source";
-                }
-                else if (step.script->datalong2 & 0x02)
-                {
-                    cmdTarget = target;
-                    targetString << "target";
-                }
-                else if (step.script->datalong2 & 0x04 && target->isType(TYPEMASK_UNIT))
-                {
-                    cmdTarget = ((Unit*)source)->GetPet();
-                    targetString << "source's pet";
-                }
-                else if (step.script->datalong2 & 0x08 && target->isType(TYPEMASK_UNIT))
-                {
-                    cmdTarget = ((Unit*)target)->GetPet();
-                    targetString << "targets's pet";
+                    cmdTarget = ((Unit*)cmdTarget)->GetPet();
+                    targetString << "'s pet";
                 }
 
                 if (!cmdTarget)
                 {
-                    sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) call for NULL %s.", targetString.str());
+                    sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) call for NULL %s.", step.script->id, targetString.str().c_str());
                     break;
                 }
 
                 if (!cmdTarget->isType(TYPEMASK_UNIT))
                 {
-                    sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) %s isn't unit (TypeId: %u), skipping.", targetString.str(),cmdTarget->GetTypeId());
+                    sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) %s isn't unit (TypeId: %u), skipping.", step.script->id, targetString.str().c_str(),cmdTarget->GetTypeId());
                     break;
                 }
 
                 Unit* spellTarget = (Unit*)cmdTarget;
 
                 Object* cmdSource = step.script->datalong2 & 0x02 ? target : source;
+                // maybe pet flag is also needed for source?
 
                 if (!cmdSource)
                 {

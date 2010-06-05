@@ -7462,6 +7462,8 @@ bool PlayerCondition::Meets(Player const * player) const
                 return data->CheckConditionCriteriaMeet(player, value1, value2);
             return false;
         }
+        case CONDITION_PET_ACTIVE_NOT_DEAD:
+            return (player->GetPet() && player->GetPet()->isAlive());
         default:
             return false;
     }
@@ -7686,6 +7688,7 @@ bool PlayerCondition::IsValid(ConditionType condition, uint32 value1, uint32 val
 
             break;
         }
+        case CONDITION_PET_ACTIVE_NOT_DEAD:
         case CONDITION_NONE:
             break;
     }
