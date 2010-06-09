@@ -3890,7 +3890,23 @@ bool ChatHandler::HandleDieCommand(const char* args)
 
 	Unit* target = NULL;
 	Player* plyr = NULL;
-    extractPlayerTarget((char*)args,&plyr);
+
+    if(args && *args)
+    {
+        std::string name = extractPlayerNameFromLink((char*)args);
+        if(!name.empty())
+        {
+            plyr = sObjectMgr.GetPlayer(name.c_str());
+        
+            if (!plyr)
+            {
+                SendSysMessage(LANG_PLAYER_NOT_FOUND);
+                SetSentErrorMessage(true);
+                return false;
+            }
+        }
+    }
+    //extractPlayerTarget((char*)args,&plyr);
 
 	if(plyr)
 		target = plyr;
@@ -5261,12 +5277,24 @@ bool ChatHandler::HandleQuestAdd(const char* args)
     char* questStr;
 	// quest add <questID> <charname>
     extractOptFirstArg((char*)args,&questStr,&nameStr);
-    uint64 target_guid;
-    std::string target_name;
 
-    extractPlayerTarget(nameStr,&player,&target_guid,&target_name);
+    if(nameStr && questStr)
+    {
+        std::string name = extractPlayerNameFromLink(nameStr);
+        if(!name.empty())
+        {
+            player = sObjectMgr.GetPlayer(name.c_str());
+        
+            if (!player)
+            {
+                SendSysMessage(LANG_PLAYER_NOT_FOUND);
+                SetSentErrorMessage(true);
+                return false;
+            }
+        }
+    }
 
-	if(!player||!questStr)
+	if(!questStr)
 		player = getSelectedPlayer();
 
 		if(!player)
@@ -5336,12 +5364,23 @@ bool ChatHandler::HandleQuestRemove(const char* args)
 	// quest remove <questID> <charname>
     extractOptFirstArg((char*)args,&questStr,&nameStr);
 
-    uint64 target_guid;
-    std::string target_name;
+    if(nameStr && questStr)
+    {
+        std::string name = extractPlayerNameFromLink(nameStr);
+        if(!name.empty())
+        {
+            player = sObjectMgr.GetPlayer(name.c_str());
+        
+            if (!player)
+            {
+                SendSysMessage(LANG_PLAYER_NOT_FOUND);
+                SetSentErrorMessage(true);
+                return false;
+            }
+        }
+    }
 
-    extractPlayerTarget(nameStr,&player,&target_guid,&target_name);
-
-	if(!player||!questStr)
+	if(!questStr)
 		player = getSelectedPlayer();
 
 		if(!player)
@@ -5351,7 +5390,7 @@ bool ChatHandler::HandleQuestRemove(const char* args)
 			return false;
 		}
 
-	char* cId;
+    char* cId;
 
 	if(!questStr)
 		cId = nameStr;
@@ -5406,20 +5445,31 @@ bool ChatHandler::HandleQuestComplete(const char* args)
 	// quest complete <questID> <charname>
     extractOptFirstArg((char*)args,&questStr,&nameStr);
 
-    uint64 target_guid;
-    std::string target_name;
+    if(nameStr && questStr)
+    {
+        std::string name = extractPlayerNameFromLink(nameStr);
+        if(!name.empty())
+        {
+            player = sObjectMgr.GetPlayer(name.c_str());
+        
+            if (!player)
+            {
+                SendSysMessage(LANG_PLAYER_NOT_FOUND);
+                SetSentErrorMessage(true);
+                return false;
+            }
+        }
+    }
 
-    extractPlayerTarget(nameStr,&player,&target_guid,&target_name);
-
-	if(!player||!questStr)
+	if(!questStr)
 		player = getSelectedPlayer();
 
-		if(!player)
-		{
-			SendSysMessage(LANG_NO_CHAR_SELECTED);
-			SetSentErrorMessage(true);
-			return false;
-		}
+    if(!player)
+	{
+		SendSysMessage(LANG_NO_CHAR_SELECTED);
+		SetSentErrorMessage(true);
+		return false;
+	}
 
 	char* cId;
 
