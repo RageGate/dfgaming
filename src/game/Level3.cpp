@@ -5261,11 +5261,6 @@ bool ChatHandler::HandleQuestAdd(const char* args)
     char* questStr;
 	// quest add <questID> <charname>
     extractOptFirstArg((char*)args,&questStr,&nameStr);
-    if(nameStr)
-	SendSysMessage(nameStr);
-	if(questStr)
-	SendSysMessage(questStr);
-
     uint64 target_guid;
     std::string target_name;
 
@@ -5340,10 +5335,6 @@ bool ChatHandler::HandleQuestRemove(const char* args)
     char* questStr;
 	// quest remove <questID> <charname>
     extractOptFirstArg((char*)args,&questStr,&nameStr);
-    if(nameStr)
-	SendSysMessage(nameStr);
-	if(questStr)
-	SendSysMessage(questStr);
 
     uint64 target_guid;
     std::string target_name;
@@ -5414,10 +5405,6 @@ bool ChatHandler::HandleQuestComplete(const char* args)
     char* questStr;
 	// quest complete <questID> <charname>
     extractOptFirstArg((char*)args,&questStr,&nameStr);
-    if(nameStr)
-	SendSysMessage(nameStr);
-	if(questStr)
-	SendSysMessage(questStr);
 
     uint64 target_guid;
     std::string target_name;
