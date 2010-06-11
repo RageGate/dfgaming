@@ -8064,20 +8064,32 @@ void ObjectMgr::LoadTrainerSpell()
             trainerSpell.reqLevel = spellinfo->spellLevel;
 
         // calculate learned spell for profession case when stored cast-spell
-        trainerSpell.learnedSpell = spell;
+        bool found = false;
         for(int i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if (spellinfo->Effect[i] != SPELL_EFFECT_LEARN_SPELL)
-                continue;
-            if (SpellMgr::IsProfessionOrRidingSpell(spellinfo->EffectTriggerSpell[i]))
             {
-                trainerSpell.learnedSpell = spellinfo->EffectTriggerSpell[i];
+                trainerSpell.learnedSpell[i] = 0;
+                continue;
+            }
+
+            trainerSpell.learnedSpell[i] = spellinfo->EffectTriggerSpell[i];
+            found = true;
+        }
+
+        // store spell itself in the array, if no lear spells are present
+        if (!found)
+            trainerSpell.learnedSpell[0] = spell;
+
+
+        for(int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        {
+            if(SpellMgr::IsProfessionSpell(trainerSpell.learnedSpell[i]))
+            {
+                data.trainerType = 2;
                 break;
             }
         }
-
-        if(SpellMgr::IsProfessionSpell(trainerSpell.learnedSpell))
-            data.trainerType = 2;
 
         ++count;
 

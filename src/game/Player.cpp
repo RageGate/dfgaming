@@ -4046,49 +4046,72 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
     if (!trainer_spell)
         return TRAINER_SPELL_RED;
 
-    if (!trainer_spell->learnedSpell)
+    bool found = false;
+    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
+        if (trainer_spell->learnedSpell[0])
+            found = true;
+
+    if (!found)
         return TRAINER_SPELL_RED;
 
     // known spell
-    if(HasSpell(trainer_spell->learnedSpell))
+    found = false;
+    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
+    {
+        // learnable as long as one of the spells is not known already
+        if(trainer_spell->learnedSpell[i] && !HasSpell(trainer_spell->learnedSpell[i]))
+        {
+            found = true;
+            break;
+        }
+    }
+    if (!found)
         return TRAINER_SPELL_GRAY;
 
+
+    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
+    {
+        // check chains
+        if(SpellChainNode const* spell_chain = sSpellMgr.GetSpellChainNode(trainer_spell->learnedSpell[i]))
+        {
+            // check prev.rank requirement
+            if(spell_chain->prev && !HasSpell(spell_chain->prev))
+                return TRAINER_SPELL_RED;
+
+            // check additional spell requirement
+            if(spell_chain->req && !HasSpell(spell_chain->req))
+               return TRAINER_SPELL_RED;
+        }
+    }
+
     // check race/class requirement
-    if(!IsSpellFitByClassAndRace(trainer_spell->learnedSpell))
-        return TRAINER_SPELL_RED;
+    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
+        if(!IsSpellFitByClassAndRace(trainer_spell->learnedSpell[i]))
+            return TRAINER_SPELL_RED;
 
     // check level requirement
     if(getLevel() < trainer_spell->reqLevel)
         return TRAINER_SPELL_RED;
 
-    if(SpellChainNode const* spell_chain = sSpellMgr.GetSpellChainNode(trainer_spell->learnedSpell))
-    {
-        // check prev.rank requirement
-        if(spell_chain->prev && !HasSpell(spell_chain->prev))
-            return TRAINER_SPELL_RED;
-
-        // check additional spell requirement
-        if(spell_chain->req && !HasSpell(spell_chain->req))
-            return TRAINER_SPELL_RED;
-    }
-
     // check skill requirement
     if(trainer_spell->reqSkill && GetBaseSkillValue(trainer_spell->reqSkill) < trainer_spell->reqSkillValue)
         return TRAINER_SPELL_RED;
 
-    // exist, already checked at loading
-    SpellEntry const* spell = sSpellStore.LookupEntry(trainer_spell->learnedSpell);
+    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
+    {
+        // exist, already checked at loading
+        SpellEntry const* spell = sSpellStore.LookupEntry(trainer_spell->learnedSpell[i]);
 
-    // secondary prof. or not prof. spell
-    uint32 skill = spell->EffectMiscValue[1];
+        // secondary prof. or not prof. spell
+        uint32 skill = spell->EffectMiscValue[1];
 
-    if(spell->Effect[1] != SPELL_EFFECT_SKILL || !IsPrimaryProfessionSkill(skill))
-        return TRAINER_SPELL_GREEN;
+        if(spell->Effect[1] != SPELL_EFFECT_SKILL || !IsPrimaryProfessionSkill(skill))
+            return TRAINER_SPELL_GREEN;
 
-    // check primary prof. limit
-    if(sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell->Id) && GetFreePrimaryProfessionPoints() == 0)
-        return TRAINER_SPELL_GREEN_DISABLED;
-
+        // check primary prof. limit
+        if(sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell->Id) && GetFreePrimaryProfessionPoints() == 0)
+            return TRAINER_SPELL_GREEN_DISABLED;
+    }
     return TRAINER_SPELL_GREEN;
 }
 

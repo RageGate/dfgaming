@@ -154,11 +154,28 @@ void WorldSession::SendTrainerList( uint64 guid, const std::string& strTitle )
     {
         TrainerSpell const* tSpell = &itr->second;
 
-        if(!_player->IsSpellFitByClassAndRace(tSpell->learnedSpell))
+        bool primary_prof_first_rank = false;
+        uint32 chain_node_id = 0;
+        bool skip = false;
+        for(int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        {
+            // really needed? already checked in player::GetTrainerSpellState
+            if(!_player->IsSpellFitByClassAndRace(tSpell->learnedSpell[i]))
+            {
+                skip = true;
+                break;
+            }
+            if (sSpellMgr.IsPrimaryProfessionFirstRankSpell(tSpell->learnedSpell[i]))
+                primary_prof_first_rank = true;
+
+            // take just the last one (in fact there are no cases which multiple chainnodes)!?
+            if (!chain_node_id && sSpellMgr.GetSpellChainNode(tSpell->learnedSpell[i]))
+                chain_node_id = tSpell->learnedSpell[i];
+        }
+        if (skip)
             continue;
 
-        bool primary_prof_first_rank = sSpellMgr.IsPrimaryProfessionFirstRankSpell(tSpell->learnedSpell);
-        SpellChainNode const* chain_node = sSpellMgr.GetSpellChainNode(tSpell->learnedSpell);
+        SpellChainNode const* chain_node = sSpellMgr.GetSpellChainNode(chain_node_id);
         TrainerSpellState state = _player->GetTrainerSpellState(tSpell);
 
         data << uint32(tSpell->spell);                      // learned spell (or cast-spell in profession case)
