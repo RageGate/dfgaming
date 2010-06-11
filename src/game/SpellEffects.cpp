@@ -2704,6 +2704,12 @@ void Spell::EffectTriggerSpell(SpellEffectIndex effIndex)
                 pet->CastSpell(pet, 28305, true);
             return;
         }
+        // Monstrous Strength - target workaround
+        case 54681:
+        {
+            unitTarget = m_caster;
+            break;
+        }
     }
 
     // normal case
