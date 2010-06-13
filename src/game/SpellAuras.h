@@ -305,7 +305,6 @@ class MANGOS_DLL_SPEC Aura
         bool IsPositive() { return m_positive; }
         void SetNegative() { m_positive = false; }
         void SetPositive() { m_positive = true; }
-        void SetTemporary(){ m_permanent = false; }
 
         bool IsPermanent() const { return m_permanent; }
         bool IsAreaAura() const { return m_isAreaAura; }

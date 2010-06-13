@@ -2631,12 +2631,6 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 }
                 return;
             }
-            case 58426:                                     // Overkill
-            {
-                // remove regeneration buff
-                m_target->RemoveAurasDueToSpell(58427);
-                return;
-            }
             case 58600:                                     // Restricted Flight Area
             {
                 // Remove Flight Auras
@@ -4283,7 +4277,10 @@ void Aura::HandleModStealth(bool apply, bool Real)
                     }
                     // Overkill
                     else if ((*i)->GetId() == 58426 && GetSpellProto()->SpellFamilyFlags & UI64LIT(0x0000000000400000))
-                        target->CastSpell(m_target, 58427, true);
+                    {
+                        target->RemoveAurasDueToSpell(58428);
+                        target->CastSpell(target, 58427, true);
+                    }
                 }
             }
         }
@@ -4320,11 +4317,7 @@ void Aura::HandleModStealth(bool apply, bool Real)
                     target->CastSpell(target, 31666, true);
                 // Overkill
                 else if ((*i)->GetId() == 58426 && GetSpellProto()->SpellFamilyFlags & UI64LIT(0x0000000000400000))
-                    if (Aura* overkill = target->GetAura(58427, EFFECT_INDEX_0))
-                    {
-                        overkill->SetTemporary();
-                        overkill->SetAuraDuration(20000);
-                    }
+                    target->CastSpell(m_target, 58428, true);
             }
         }
     }
