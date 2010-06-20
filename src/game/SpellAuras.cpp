@@ -1371,12 +1371,6 @@ bool Aura::modStackAmount(int32 num)
         return true; // need remove aura
     }
 
-    // reset charges when modding stack (there are spells using both)
-    m_procCharges = m_spellProto->procCharges;
-    Player* modOwner = GetCaster() ? GetCaster()->GetSpellModOwner() : NULL;
-    if(modOwner)
-        modOwner->ApplySpellMod(GetId(), SPELLMOD_CHARGES, m_procCharges);
-
     // Update stack amount
     SetStackAmount(stackAmount);
     return false;
@@ -4933,6 +4927,9 @@ void Aura::HandleAuraProcTriggerSpell(bool apply, bool Real)
         {
             case 28200:                                     // Ascendance (Talisman of Ascendance trinket)
                 SetAuraCharges(6);
+                break;
+            case 50421:                                     // Scent of Blood (Proc)
+                SetAuraCharges(1);
                 break;
             default: break;
         }
