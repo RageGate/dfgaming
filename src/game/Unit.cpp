@@ -4630,11 +4630,12 @@ void Unit::RemoveAura(AuraMap::iterator &i, AuraRemoveMode mode)
 
     // now aura removed from from list and can't be deleted by indirect call but can be referenced from callers
 
-    // Statue unsummoned at aura remove
+    // Unsummon Totems at aura remove
     Totem* statue = NULL;
-    if(IsChanneledSpell(AurSpellInfo))
-        if(Unit* caster = Aur->GetCaster())
-            if(caster->GetTypeId()==TYPEID_UNIT && ((Creature*)caster)->isTotem() && ((Totem*)caster)->GetTotemType()==TOTEM_STATUE)
+    if(Unit* caster = Aur->GetCaster())
+        if(caster->GetTypeId()==TYPEID_UNIT && ((Creature*)caster)->isTotem())
+            // either if this aura is channeled by caster or if totem looses it's own casted aura
+            if ( IsChanneledSpell(AurSpellInfo) || caster == this)
                 statue = ((Totem*)caster);
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Aura %u now is remove mode %d",Aur->GetModifier()->m_auraname, mode);
@@ -9262,7 +9263,12 @@ Unit* Unit::SelectMagnetTarget(Unit *victim, SpellEntry const *spellInfo)
         for(Unit::AuraList::const_iterator itr = magnetAuras.begin(); itr != magnetAuras.end(); ++itr)
             if(Unit* magnet = (*itr)->GetCaster())
                 if(magnet->IsWithinLOSInMap(this) && magnet->isAlive())
+                {
+                    // drop aura on next tick
+                    if ((*itr )->DropAuraCharge())
+                        (*itr)->SetAuraMaxDuration(1);
                     return magnet;
+                }
     }
     // Melee && ranged case
     else
@@ -9272,7 +9278,12 @@ Unit* Unit::SelectMagnetTarget(Unit *victim, SpellEntry const *spellInfo)
             if(Unit* magnet = (*i)->GetCaster())
                 if(magnet->isAlive() && magnet->IsWithinLOSInMap(this))
                     if(roll_chance_i((*i)->GetModifier()->m_amount))
+                    {
+                        // drop aura on next tick
+                        if ((*i)->DropAuraCharge())
+                            (*i)->SetAuraMaxDuration(1);
                         return magnet;
+                    }
     }
 
     return victim;
