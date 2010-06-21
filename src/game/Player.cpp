@@ -406,7 +406,7 @@ void TradeData::SetAccepted(bool state, bool crosssend /*= false*/)
 
 UpdateMask Player::updateVisualBits;
 
-Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputationMgr(this)
+Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputationMgr(this), m_mover(this), m_camera(this)
 {
     m_transport = 0;
 
@@ -417,6 +417,8 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
     m_objectTypeId = TYPEID_PLAYER;
 
     m_valuesCount = PLAYER_END;
+
+    m_isActiveObject = true;                                // player is always active object
 
     m_session = session;
 
@@ -479,6 +481,7 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
     m_DelayedOperations = 0;
     m_bCanDelayTeleport = false;
     m_bHasDelayedTeleport = false;
+    m_bHasBeenAliveAtDelayedTeleport = true;                // overwrite always at setup teleport data, so not used infact
     m_teleport_options = 0;
 
     m_trade = NULL;
@@ -597,7 +600,6 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
     m_summon_y = 0.0f;
     m_summon_z = 0.0f;
 
-    m_mover = this;
     m_mover_in_queve = NULL;
 
     m_miniPet = 0;
@@ -1504,9 +1506,7 @@ void Player::Update( uint32 p_time )
         }
     }
 
-    //we should execute delayed teleports only for alive(!) players
-    //because we don't want player's ghost teleported from graveyard
-    if(IsHasDelayedTeleport() && isAlive())
+    if (IsHasDelayedTeleport())
         TeleportTo(m_teleport_dest, m_teleport_options);
 }
 
@@ -1819,10 +1819,9 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
         //lets reset far teleport flag if it wasn't reset during chained teleports
         SetSemaphoreTeleportFar(false);
         //setup delayed teleport flag
-        SetDelayedTeleportFlag(IsCanDelayTeleport());
         //if teleport spell is casted in Unit::Update() func
         //then we need to delay it until update process will be finished
-        if(IsHasDelayedTeleport())
+        if (SetDelayedTeleportFlagIfCan())
         {
             SetSemaphoreTeleportNear(true);
             //lets save teleport destination for player
@@ -1838,7 +1837,7 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
                 UnsummonPetTemporaryIfAny();
         }
 
-        if(!(options & TELE_TO_NOT_LEAVE_COMBAT))
+        if (!(options & TELE_TO_NOT_LEAVE_COMBAT))
             CombatStop();
 
         // this will be used instead of the current location in SaveToDB
@@ -1875,10 +1874,9 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
             //lets reset near teleport flag if it wasn't reset during chained teleports
             SetSemaphoreTeleportNear(false);
             //setup delayed teleport flag
-            SetDelayedTeleportFlag(IsCanDelayTeleport());
             //if teleport spell is casted in Unit::Update() func
             //then we need to delay it until update process will be finished
-            if(IsHasDelayedTeleport())
+            if (SetDelayedTeleportFlagIfCan())
             {
                 SetSemaphoreTeleportFar(true);
                 //lets save teleport destination for player
@@ -1894,7 +1892,7 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
             ResetContestedPvP();
 
             // remove player from battleground on far teleport (when changing maps)
-            if(BattleGround const* bg = GetBattleGround())
+            if (BattleGround const* bg = GetBattleGround())
             {
                 // Note: at battleground join battleground id set before teleport
                 // and we already will found "current" battleground
@@ -1912,14 +1910,14 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
 
             // stop spellcasting
             // not attempt interrupt teleportation spell at caster teleport
-            if(!(options & TELE_TO_SPELL))
-                if(IsNonMeleeSpellCasted(true))
+            if (!(options & TELE_TO_SPELL))
+                if (IsNonMeleeSpellCasted(true))
                     InterruptNonMeleeSpells(true);
 
             //remove auras before removing from map...
             RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_CHANGE_MAP | AURA_INTERRUPT_FLAG_MOVE | AURA_INTERRUPT_FLAG_TURNING);
 
-            if(!GetSession()->PlayerLogout())
+            if (!GetSession()->PlayerLogout())
             {
                 // send transfer packets
                 WorldPacket data(SMSG_TRANSFER_PENDING, (4+4+4));
@@ -1953,7 +1951,7 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
             }
 
             // remove from old map now
-            if(oldmap)
+            if (oldmap)
                 oldmap->Remove(this, false);
 
             // new final coordinates
@@ -1962,7 +1960,7 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
             float final_z = z;
             float final_o = orientation;
 
-            if(m_transport)
+            if (m_transport)
             {
                 final_x += m_movementInfo.GetTransportPos()->x;
                 final_y += m_movementInfo.GetTransportPos()->y;
@@ -2280,7 +2278,7 @@ Creature* Player::GetNPCIfCanInteractWith(ObjectGuid guid, uint32 npcflagmask)
         return NULL;
 
     // not in interactive state
-    if (hasUnitState(UNIT_STAT_CAN_NOT_REACT))
+    if (hasUnitState(UNIT_STAT_CAN_NOT_REACT_OR_LOST_CONTROL))
         return NULL;
 
     // exist (we need look pets also for some interaction (quest/etc)
@@ -2334,7 +2332,7 @@ GameObject* Player::GetGameObjectIfCanInteractWith(ObjectGuid guid, uint32 gameo
         return NULL;
 
     // not in interactive state
-    if (hasUnitState(UNIT_STAT_CAN_NOT_REACT))
+    if (hasUnitState(UNIT_STAT_CAN_NOT_REACT_OR_LOST_CONTROL))
         return NULL;
 
     if (GameObject *go = GetMap()->GetGameObject(guid))
@@ -2453,7 +2451,8 @@ void Player::SetGameMaster(bool on)
         getHostileRefManager().setOnlineOfflineState(true);
     }
 
-    UpdateVisibilityForPlayer();
+    m_camera.UpdateVisibilityForOwner();
+    UpdateObjectVisibility();
 }
 
 void Player::SetGMVisible(bool on)
@@ -3116,7 +3115,7 @@ bool Player::addSpell(uint32 spell_id, bool active, bool learning, bool dependen
 
             if(active)
             {
-                if (IsPassiveSpell(spell_id) && IsNeedCastPassiveSpellAtLearn(spellInfo))
+                if (IsPassiveSpell(spellInfo) && IsNeedCastPassiveSpellAtLearn(spellInfo))
                     CastSpell (this, spell_id, true);
             }
             else if(IsInWorld())
@@ -3307,7 +3306,7 @@ bool Player::addSpell(uint32 spell_id, bool active, bool learning, bool dependen
         CastSpell(this, spell_id, true);
     }
     // also cast passive spells (including all talents without SPELL_EFFECT_LEARN_SPELL) with additional checks
-    else if (IsPassiveSpell(spell_id))
+    else if (IsPassiveSpell(spellInfo))
     {
         if (IsNeedCastPassiveSpellAtLearn(spellInfo))
             CastSpell(this, spell_id, true);
@@ -4568,8 +4567,10 @@ void Player::ResurrectPlayer(float restore_percent, bool applySickness)
     GetZoneAndAreaId(newzone,newarea);
     UpdateZone(newzone,newarea);
 
-    // update visibility
-    UpdateVisibilityForPlayer();
+    // update visibility of world around viewpoint
+    m_camera.UpdateVisibilityForOwner();
+    // update visibility of player for nearby cameras
+    UpdateObjectVisibility();
 
     if(!applySickness)
         return;
@@ -6151,42 +6152,30 @@ void Player::SaveRecallPosition()
 
 void Player::SendMessageToSet(WorldPacket *data, bool self)
 {
-    Map * _map = IsInWorld() ? GetMap() : sMapMgr.FindMap(GetMapId(), GetInstanceId());
-    if(_map)
-    {
-        _map->MessageBroadcast(this, data, self);
-        return;
-    }
+    if (Map * _map = IsInWorld() ? GetMap() : sMapMgr.FindMap(GetMapId(), GetInstanceId()))
+        _map->MessageBroadcast(this, data, false);
 
     //if player is not in world and map in not created/already destroyed
     //no need to create one, just send packet for itself!
-    if(self)
+    if (self)
         GetSession()->SendPacket(data);
 }
 
 void Player::SendMessageToSetInRange(WorldPacket *data, float dist, bool self)
 {
-    Map * _map = IsInWorld() ? GetMap() : sMapMgr.FindMap(GetMapId(), GetInstanceId());
-    if(_map)
-    {
-        _map->MessageDistBroadcast(this, data, dist, self);
-        return;
-    }
+    if (Map * _map = IsInWorld() ? GetMap() : sMapMgr.FindMap(GetMapId(), GetInstanceId()))
+        _map->MessageDistBroadcast(this, data, dist, false);
 
-    if(self)
+    if (self)
         GetSession()->SendPacket(data);
 }
 
 void Player::SendMessageToSetInRange(WorldPacket *data, float dist, bool self, bool own_team_only)
 {
-    Map * _map = IsInWorld() ? GetMap() : sMapMgr.FindMap(GetMapId(), GetInstanceId());
-    if(_map)
-    {
-        _map->MessageDistBroadcast(this, data, dist, self, own_team_only);
-        return;
-    }
+    if (Map * _map = IsInWorld() ? GetMap() : sMapMgr.FindMap(GetMapId(), GetInstanceId()))
+        _map->MessageDistBroadcast(this, data, dist, false, own_team_only);
 
-    if(self)
+    if (self)
         GetSession()->SendPacket(data);
 }
 
@@ -13733,10 +13722,6 @@ void Player::IncompleteQuest( uint32 quest_id )
 
 void Player::RewardQuest( Quest const *pQuest, uint32 reward, Object* questGiver, bool announce )
 {
-    //this THING should be here to protect code from quest, which cast on player far teleport as a reward
-    //should work fine, cause far teleport will be executed in Player::Update()
-    SetCanDelayTeleport(true);
-
     uint32 quest_id = pQuest->GetQuestId();
 
     for (int i = 0; i < QUEST_ITEM_OBJECTIVES_COUNT; ++i )
@@ -13888,9 +13873,6 @@ void Player::RewardQuest( Quest const *pQuest, uint32 reward, Object* questGiver
                 if (!HasAura(itr->second->spellId, EFFECT_INDEX_0))
                     CastSpell(this,itr->second->spellId,true);
     }
-
-    //lets remove flag for delayed teleports
-    SetCanDelayTeleport(false);
 }
 
 void Player::FailQuest(uint32 questId)
@@ -15563,7 +15545,8 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
     SetCreatorGUID(0);
 
     // reset some aura modifiers before aura apply
-    SetFarSightGUID(0);
+
+    SetUInt64Value(PLAYER_FARSIGHT, 0);
     SetUInt32Value(PLAYER_TRACK_CREATURES, 0 );
     SetUInt32Value(PLAYER_TRACK_RESOURCES, 0 );
 
@@ -17858,7 +17841,7 @@ void Player::RemoveMiniPet()
     }
 }
 
-Pet* Player::GetMiniPet()
+Pet* Player::GetMiniPet() const
 {
     if (!m_miniPet)
         return NULL;
@@ -18322,7 +18305,7 @@ void Player::HandleStealthedUnitsDetection()
     MaNGOS::UnitListSearcher<MaNGOS::AnyStealthedCheck > searcher(this,stealthedUnits, u_check);
     Cell::VisitAllObjects(this, searcher, MAX_PLAYER_STEALTH_DETECT_RANGE);
 
-    WorldObject const* viewPoint = GetViewPoint();
+    WorldObject const* viewPoint = GetCamera().GetBody();
 
     for (std::list<Unit*>::const_iterator i = stealthedUnits.begin(); i != stealthedUnits.end(); ++i)
     {
@@ -19427,17 +19410,6 @@ void Player::ReportedAfkBy(Player* reporter)
     }
 }
 
-WorldObject const* Player::GetViewPoint() const
-{
-    if(uint64 far_sight = GetFarSight())
-    {
-        WorldObject const* viewPoint = GetMap()->GetWorldObject(far_sight);
-        return viewPoint ? viewPoint : this;                // always expected not NULL
-    }
-    else
-        return this;
-}
-
 bool Player::IsVisibleInGridForPlayer( Player* pl ) const
 {
     // gamemaster in GM mode see all, including ghosts
@@ -19748,7 +19720,7 @@ void Player::SendInitialPacketsBeforeAddToMap()
     if(HasAuraType(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED) || HasAuraType(SPELL_AURA_FLY) || isInFlight())
         m_movementInfo.AddMovementFlag(MOVEFLAG_FLYING);
 
-    m_mover = this;
+    SetMover(this);
     m_mover_in_queve = NULL;
 }
 
@@ -21487,6 +21459,23 @@ void Player::UpdateAchievementCriteria( AchievementCriteriaTypes type, uint32 mi
     GetAchievementMgr().UpdateAchievementCriteria(type, miscvalue1,miscvalue2,unit,time);
 }
 
+PlayerTalent const* Player::GetKnownTalentById(int32 talentId) const
+{
+    PlayerTalentMap::const_iterator itr = m_talents[m_activeSpec].find(talentId);
+    if (itr != m_talents[m_activeSpec].end() && itr->second.state != PLAYERSPELL_REMOVED)
+        return &itr->second;
+    else
+        return NULL;
+}
+
+SpellEntry const* Player::GetKnownTalentRankById(int32 talentId) const
+{
+    if (PlayerTalent const* talent = GetKnownTalentById(talentId))
+        return sSpellStore.LookupEntry(talent->m_talentEntry->RankID[talent->currentRank]);
+    else
+        return NULL;
+}
+
 void Player::LearnTalent(uint32 talentId, uint32 talentRank)
 {
     uint32 CurTalentPoints = GetFreeTalentPoints();
@@ -21513,9 +21502,8 @@ void Player::LearnTalent(uint32 talentId, uint32 talentRank)
 
     // find current max talent rank
     uint32 curtalent_maxrank = 0;
-    PlayerTalentMap::iterator itr = m_talents[m_activeSpec].find(talentId);
-    if (itr != m_talents[m_activeSpec].end() && itr->second.state != PLAYERSPELL_REMOVED)
-        curtalent_maxrank = itr->second.currentRank + 1;
+    if (PlayerTalent const* talent = GetKnownTalentById(talentId))
+        curtalent_maxrank = talent->currentRank + 1;
 
     // we already have same or higher talent rank learned
     if(curtalent_maxrank >= (talentRank + 1))
@@ -22157,17 +22145,16 @@ void Player::ActivateSpec(uint8 specNum)
 
         // learn talent spells if they not in new spec (old spec copy)
         // and if they have different rank
-        PlayerTalentMap::iterator specIter = m_talents[m_activeSpec].find(tempIter->first);
-        if (specIter != m_talents[m_activeSpec].end() && specIter->second.state != PLAYERSPELL_REMOVED)
+        if (PlayerTalent const* cur_talent = GetKnownTalentById(tempIter->first))
         {
-            if ((*specIter).second.currentRank != talent.currentRank)
+            if (cur_talent->currentRank != talent.currentRank)
                 learnSpell(talentSpellId, false);
         }
         else
             learnSpell(talentSpellId, false);
 
         // sync states - original state is changed in addSpell that learnSpell calls
-        specIter = m_talents[m_activeSpec].find(tempIter->first);
+        PlayerTalentMap::iterator specIter = m_talents[m_activeSpec].find(tempIter->first);
         if (specIter != m_talents[m_activeSpec].end())
             (*specIter).second.state = talent.state;
         else
@@ -22188,11 +22175,20 @@ void Player::ActivateSpec(uint8 specNum)
 
     // recheck action buttons (not checked at loading/spec copy)
     ActionButtonList const& currentActionButtonList = m_actionButtons[m_activeSpec];
-    for(ActionButtonList::const_iterator itr = currentActionButtonList.begin(); itr != currentActionButtonList.end(); ++itr)
+    for(ActionButtonList::const_iterator itr = currentActionButtonList.begin(); itr != currentActionButtonList.end(); )
+    {
         if (itr->second.uState != ACTIONBUTTON_DELETED)
+        {
             // remove broken without any output (it can be not correct because talents not copied at spec creating)
             if (!IsActionButtonDataValid(itr->first,itr->second.GetAction(),itr->second.GetType(), this, false))
+            {
                 removeActionButton(m_activeSpec,itr->first);
+                itr = currentActionButtonList.begin();
+                continue;
+            }
+        }
+        ++itr;
+    }
 
     ResummonPetTemporaryUnSummonedIfAny();
 
@@ -22283,38 +22279,6 @@ void Player::BuildTeleportAckMsg( WorldPacket *data, float x, float y, float z, 
 bool Player::HasMovementFlag( MovementFlags f ) const
 {
     return m_movementInfo.HasMovementFlag(f);
-}
-
-void Player::SetFarSightGUID( uint64 guid )
-{
-    if(GetFarSight() == guid)
-        return;
-
-    SetUInt64Value(PLAYER_FARSIGHT, guid);
-
-    // need triggering load grids around new view point
-    UpdateVisibilityForPlayer();
-}
-
-void Player::UpdateVisibilityForPlayer()
-{
-    WorldObject const* viewPoint = GetViewPoint();
-    Map* m = GetMap();
-
-    CellPair p(MaNGOS::ComputeCellPair(GetPositionX(), GetPositionY()));
-    Cell cell(p);
-
-    m->UpdateObjectVisibility(this, cell, p);
-
-    if (this != viewPoint)
-    {
-        CellPair pView(MaNGOS::ComputeCellPair(viewPoint->GetPositionX(), viewPoint->GetPositionY()));
-        Cell cellView(pView);
-
-        m->UpdateObjectsVisibilityFor(this, cellView, pView);
-    }
-    else
-        m->UpdateObjectsVisibilityFor(this, cell, p);
 }
 
 void Player::ResetTimeSync()

@@ -388,12 +388,7 @@ void Unit::SendMonsterMove(float NewPosX, float NewPosY, float NewPosZ, SplineTy
             break;
     }
 
-    data << uint32(flags);
-
-    // enable me if things goes wrong or looks ugly, it is however an old hack
-    // if(flags & SPLINEFLAG_WALKMODE)
-        // moveTime *= 1.05f;
-
+    data << uint32(flags);                                  // splineflags
     data << uint32(moveTime);                               // Time in between points
     data << uint32(1);                                      // 1 single waypoint
     data << NewPosX << NewPosY << NewPosZ;                  // the single waypoint Point B
@@ -4107,7 +4102,7 @@ bool Unit::RemoveNoStackAurasDueToAura(Aura *Aur)
     SpellEffectIndex effIndex = Aur->GetEffIndex();
 
     // passive spell special case (only non stackable with ranks)
-    if(IsPassiveSpell(spellId))
+    if(IsPassiveSpell(spellProto))
     {
         if(IsPassiveSpellStackableWithRanks(spellProto))
             return true;
@@ -4130,7 +4125,7 @@ bool Unit::RemoveNoStackAurasDueToAura(Aura *Aur)
         uint32 i_spellId = i_spellProto->Id;
 
         // early checks that spellId is passive non stackable spell
-        if(IsPassiveSpell(i_spellId))
+        if(IsPassiveSpell(i_spellProto))
         {
             // passive non-stackable spells not stackable only for same caster
             if(Aur->GetCasterGUID()!=i->second->GetCasterGUID())
@@ -4623,17 +4618,31 @@ void Unit::RemoveAura(AuraMap::iterator &i, AuraRemoveMode mode)
 
     // now aura removed from from list and can't be deleted by indirect call but can be referenced from callers
 
-    // Statue unsummoned at aura remove
+    // Unsummon Totems at aura remove
     Totem* statue = NULL;
-    if(IsChanneledSpell(AurSpellInfo))
-        if(Unit* caster = Aur->GetCaster())
-            if(caster->GetTypeId()==TYPEID_UNIT && ((Creature*)caster)->isTotem() && ((Totem*)caster)->GetTotemType()==TOTEM_STATUE)
+    if(Unit* caster = Aur->GetCaster())
+        if(caster->GetTypeId()==TYPEID_UNIT && ((Creature*)caster)->isTotem())
+            // either if this aura is channeled by caster or if totem looses it's own casted aura
+            if ( IsChanneledSpell(AurSpellInfo) || caster == this)
                 statue = ((Totem*)caster);
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Aura %u now is remove mode %d",Aur->GetModifier()->m_auraname, mode);
 
     // some auras also need to apply modifier (on caster) on remove
-    if (mode != AURA_REMOVE_BY_DELETE || Aur->GetModifier()->m_auraname == SPELL_AURA_MOD_POSSESS)
+    if (mode == AURA_REMOVE_BY_DELETE)
+    {
+        switch (Aur->GetModifier()->m_auraname)
+        {
+            // need properly undo any auras with player-caster mover set (or will crash at next caster move packet)
+            case SPELL_AURA_MOD_POSSESS:
+            case SPELL_AURA_MOD_POSSESS_PET:
+            case SPELL_AURA_CONTROL_VEHICLE:
+                Aur->ApplyModifier(false,true);
+                break;
+            default: break;
+        }
+    }
+    else
         Aur->ApplyModifier(false,true);
 
     if (Aur->_RemoveAura())
@@ -7626,6 +7635,22 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, Aura* triggeredB
                 //case 48876: break;                        // Beast's Mark
                 //    trigger_spell_id = 48877; break;
                 //case 49059: break;                        // Horde, Hate Monster (Spar Buddy) (>30% Health)
+                case 49509:                                 // Scent of Blood Rank 2 (!!HACK!!)
+                {
+                    // cast the spell multiple times, to get the stack
+                    if (triggeredByAura->GetEffIndex() != EFFECT_INDEX_0)
+                        return false;
+                    CastSpell(target,trigger_spell_id,true,castItem,triggeredByAura);
+                    // no break!!
+                }
+                case 49508:                                 // Scent of Blood Rank 1 (!!HACK!!)
+                {
+                    // cast the spell multiple times, to get the stack
+                    if (triggeredByAura->GetEffIndex() != EFFECT_INDEX_0)
+                        return false;
+                    CastSpell(target,trigger_spell_id,true,castItem,triggeredByAura);
+                    break;
+                }
                 //case 50051: break;                        // Ethereal Pet Aura
                 //case 50689: break;                        // Blood Presence (Rank 1)
                 //case 50844: break;                        // Blood Mirror
@@ -8962,7 +8987,7 @@ void Unit::CombatStopWithPets(bool includingCast)
 struct IsAttackingPlayerHelper
 {
     explicit IsAttackingPlayerHelper() {}
-    bool operator()(Unit* unit) const { return unit->isAttackingPlayer(); }
+    bool operator()(Unit const* unit) const { return unit->isAttackingPlayer(); }
 };
 
 bool Unit::isAttackingPlayer() const
@@ -9028,7 +9053,7 @@ void Unit::ModifyAuraState(AuraState flag, bool apply)
                 {
                     if(itr->second.state == PLAYERSPELL_REMOVED) continue;
                     SpellEntry const *spellInfo = sSpellStore.LookupEntry(itr->first);
-                    if (!spellInfo || !IsPassiveSpell(itr->first)) continue;
+                    if (!spellInfo || !IsPassiveSpell(spellInfo)) continue;
                     if (spellInfo->CasterAuraState == flag)
                         CastSpell(this, itr->first, true, NULL);
                 }
@@ -9291,7 +9316,12 @@ Unit* Unit::SelectMagnetTarget(Unit *victim, SpellEntry const *spellInfo)
         for(Unit::AuraList::const_iterator itr = magnetAuras.begin(); itr != magnetAuras.end(); ++itr)
             if(Unit* magnet = (*itr)->GetCaster())
                 if(magnet->IsWithinLOSInMap(this) && magnet->isAlive())
+                {
+                    // drop aura on next tick
+                    if ((*itr )->DropAuraCharge())
+                        (*itr)->SetAuraMaxDuration(1);
                     return magnet;
+                }
     }
     // Melee && ranged case
     else
@@ -9301,7 +9331,12 @@ Unit* Unit::SelectMagnetTarget(Unit *victim, SpellEntry const *spellInfo)
             if(Unit* magnet = (*i)->GetCaster())
                 if(magnet->isAlive() && magnet->IsWithinLOSInMap(this))
                     if(roll_chance_i((*i)->GetModifier()->m_amount))
+                    {
+                        // drop aura on next tick
+                        if ((*i)->DropAuraCharge())
+                            (*i)->SetAuraMaxDuration(1);
                         return magnet;
+                    }
     }
 
     return victim;
@@ -9354,7 +9389,18 @@ int32 Unit::SpellBonusWithCoeffs(SpellEntry const *spellProto, int32 total, int3
 
         // apply ap bonus at done part calculation only (it flat total mod so common with taken)
         if (donePart && bonus->ap_bonus)
-            total += int32(bonus->ap_bonus * (GetTotalAttackPowerValue(BASE_ATTACK) + ap_benefit));
+        {
+            float ap_bonus = bonus->ap_bonus;
+
+            // Impurity
+            if (GetTypeId() == TYPEID_PLAYER && spellProto->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT)
+            {
+                if (SpellEntry const* spell = ((Player*)this)->GetKnownTalentRankById(2005))
+                    ap_bonus += ((spell->CalculateSimpleValue(EFFECT_INDEX_0) * ap_bonus) / 100.0f);
+            }
+
+            total += int32(ap_bonus * (GetTotalAttackPowerValue(BASE_ATTACK) + ap_benefit));
+        }
     }
     // Default calculation
     else if (benefit)
@@ -9593,7 +9639,15 @@ uint32 Unit::SpellDamageBonusDone(Unit *pVictim, SpellEntry const *spellProto, u
             break;
         }
         case SPELLFAMILY_WARLOCK:
+        {
+            // Drain Soul
+            if (spellProto->SpellFamilyFlags & UI64LIT(0x0000000000004000))	
+            {
+                if (pVictim->GetHealth() * 100 / pVictim->GetMaxHealth() <= 25) 	  	
+                    DoneTotalMod *= 4;
+            }
             break;
+        }
         case SPELLFAMILY_PRIEST:
         {
             // Glyph of Smite
@@ -11205,10 +11259,6 @@ bool Unit::isVisibleForOrDetect(Unit const* u, WorldObject const* viewPoint, boo
             return false;
     }
 
-    // always seen by far sight caster
-    if (u->GetTypeId()==TYPEID_PLAYER && ((Player*)u)->GetFarSight()==GetGUID())
-        return true;
-
     // different visible distance checks
     if (u->isInFlight())                                    // what see player in flight
     {
@@ -11407,12 +11457,41 @@ void Unit::SetVisibility(UnitVisibility x)
 
     if(IsInWorld())
     {
+        // some auras requires visible target
+        if(m_Visibility == VISIBILITY_GROUP_NO_DETECT || m_Visibility == VISIBILITY_OFF)
+        {   
+            static const AuraType auratypes[] = {SPELL_AURA_BIND_SIGHT, SPELL_AURA_FAR_SIGHT, SPELL_AURA_NONE};
+            for (AuraType const* type = &auratypes[0]; *type != SPELL_AURA_NONE; ++type)
+            {
+                AuraList& alist = m_modAuras[*type];
+                if(alist.empty())
+                    continue;
+
+                for (AuraList::iterator it = alist.begin(); it != alist.end();)
+                {
+                    Aura* aura = (*it);
+                    Unit* owner = aura->GetCaster();
+
+                    if (!owner || !isVisibleForOrDetect(owner,this,false))
+                    {
+                        alist.erase(it);
+                        RemoveAura(aura);
+                        it = alist.begin();
+                    }
+                    else
+                        ++it;
+                }
+            }
+        }
+
         Map *m = GetMap();
 
         if(GetTypeId()==TYPEID_PLAYER)
             m->PlayerRelocation((Player*)this,GetPositionX(),GetPositionY(),GetPositionZ(),GetOrientation());
         else
             m->CreatureRelocation((Creature*)this,GetPositionX(),GetPositionY(),GetPositionZ(),GetOrientation());
+
+        GetViewPoint().Event_ViewPointVisibilityChanged();
     }
 }
 
@@ -12717,6 +12796,7 @@ void Unit::RemoveFromWorld()
         RemoveAllGameObjects();
         RemoveAllDynObjects();
         CleanupDeletedAuras();
+        GetViewPoint().Event_RemovedFromWorld();
     }
 
     Object::RemoveFromWorld();
@@ -13423,9 +13503,13 @@ void Unit::StopMoving()
 {
     clearUnitState(UNIT_STAT_MOVING);
 
+    // not need send any packets if not in world
+    if (!IsInWorld())
+        return;
+
     // send explicit stop packet
     // player expected for correct work SPLINEFLAG_WALKMODE
-    SendMonsterMove(GetPositionX(), GetPositionY(), GetPositionZ(), SPLINETYPE_NORMAL, GetTypeId() == TYPEID_PLAYER ? SPLINEFLAG_WALKMODE : SPLINEFLAG_NONE, 0);
+    SendMonsterMove(GetPositionX(), GetPositionY(), GetPositionZ(), SPLINETYPE_STOP, GetTypeId() == TYPEID_PLAYER ? SPLINEFLAG_WALKMODE : SPLINEFLAG_NONE, 0);
 
     // update position and orientation for near players
     WorldPacket data;
