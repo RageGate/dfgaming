@@ -47,7 +47,7 @@ void IRCCmd::Handle_Login(_CDATA *CD)
         {
             if (!AcctIsLoggedIn(_PARAMS[0].c_str()))
             {
-                QueryResult *result = loginDatabase.PQuery("SELECT `gmlevel` FROM `account` WHERE `username`='%s' AND `sha_pass_hash`=SHA1(CONCAT(UPPER(`username`),':',UPPER('%s')));", _PARAMS[0].c_str(), _PARAMS[1].c_str());
+                QueryResult *result = LoginDatabase.PQuery("SELECT `gmlevel` FROM `account` WHERE `username`='%s' AND `sha_pass_hash`=SHA1(CONCAT(UPPER(`username`),':',UPPER('%s')));", _PARAMS[0].c_str(), _PARAMS[1].c_str());
                 if (result)
                 {
                     Field *fields = result->Fetch();
@@ -111,25 +111,25 @@ void IRCCmd::Account_Player(_CDATA *CD)
             Player* plr = sObjectMgr.GetPlayer(guid);
             if (_PARAMS[1] == "lock")
             {
-                loginDatabase.PExecute( "UPDATE `account` SET `locked` = '1' WHERE `id` = '%d'",account_id);
+                LoginDatabase.PExecute( "UPDATE `account` SET `locked` = '1' WHERE `id` = '%d'",account_id);
                 if (plr) Send_Player(plr, MakeMsg("Your Account Has Been Locked To Your Current IP By: %s", CD->USER.c_str()));
                 Send_IRCA(ChanOrPM(CD), "\00313["+GetAcctNameFromID(account_id)+"] : Account Has Been Locked To Their Current IP Address.", true, CD->TYPE);
             }
             else if (_PARAMS[1] == "unlock")
             {
-                loginDatabase.PExecute( "UPDATE `account` SET `locked` = '0' WHERE `id` = '%d'",account_id);
+                LoginDatabase.PExecute( "UPDATE `account` SET `locked` = '0' WHERE `id` = '%d'",account_id);
                 if (plr) Send_Player(plr, MakeMsg("Your Account Has Been UnLocked From The Associated IP By: %s", CD->USER.c_str()));
                 Send_IRCA(ChanOrPM(CD), "\00313["+GetAcctNameFromID(account_id)+"] : Account Has Been UnLocked From The Associated IP Address.", true, CD->TYPE);
             }
             else if (_PARAMS[1] == "mail")
             {
-                loginDatabase.PExecute( "UPDATE `account` SET `email` = '%s' WHERE `id` = '%d'",_PARAMS[2].c_str() ,account_id);
+                LoginDatabase.PExecute( "UPDATE `account` SET `email` = '%s' WHERE `id` = '%d'",_PARAMS[2].c_str() ,account_id);
                 if (plr) Send_Player(plr, MakeMsg("%s Has Changed Your EMail Adress To: %s", CD->USER.c_str(), _PARAMS[2].c_str()));
                 Send_IRCA(ChanOrPM(CD), "\00313["+GetAcctNameFromID(account_id)+"] : EMail Address Successfully Changed To: "+_PARAMS[2], true, CD->TYPE);
             }
             else if (_PARAMS[1] == "pass")
             {
-                loginDatabase.PExecute( "UPDATE `account` SET `sha_pass_hash` = SHA1(CONCAT(UPPER(`username`),':',UPPER('%s'))) WHERE `id` = '%d'",_PARAMS[2].c_str() ,account_id);
+                LoginDatabase.PExecute( "UPDATE `account` SET `sha_pass_hash` = SHA1(CONCAT(UPPER(`username`),':',UPPER('%s'))) WHERE `id` = '%d'",_PARAMS[2].c_str() ,account_id);
                 if (plr) Send_Player(plr, MakeMsg("%s Has Changed Your Password To: %s", CD->USER.c_str(), _PARAMS[2].c_str()));
                 Send_IRCA(ChanOrPM(CD), "\00313["+GetAcctNameFromID(account_id)+"] : Password Successfully Changed To: "+_PARAMS[2], true, CD->TYPE);
             }
@@ -166,7 +166,7 @@ void IRCCmd::Ban_Player(_CDATA *CD)
             _PARAMS[2] = "No Reason";
         if (ip != "")
         {
-            loginDatabase.PExecute( "INSERT IGNORE INTO `ip_banned` VALUES ('%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), '%s', '%s')", ip.c_str(), CD->USER.c_str(), _PARAMS[2].c_str());
+            LoginDatabase.PExecute( "INSERT IGNORE INTO `ip_banned` VALUES ('%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), '%s', '%s')", ip.c_str(), CD->USER.c_str(), _PARAMS[2].c_str());
             if (Player* plr = GetPlayer(_PARAMS[0]))
                 plr->GetSession()->KickPlayer();
             Send_IRCA(ChanOrPM(CD), MakeMsg("\00313[%s] : Has Had Their IP Address Banned. [%s] Reason: %s",_PARAMS[0].c_str() ,ip.c_str() , _PARAMS[2].c_str()), true, CD->TYPE);
@@ -182,7 +182,7 @@ void IRCCmd::Ban_Player(_CDATA *CD)
             _PARAMS[2] = "No Reason";
         if (acctid)
         {
-            loginDatabase.PExecute( "INSERT INTO `account_banned` VALUES ('%u', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), '%s', '%s', 1)", acctid, CD->USER.c_str(), _PARAMS[2].c_str());
+            LoginDatabase.PExecute( "INSERT INTO `account_banned` VALUES ('%u', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), '%s', '%s', 1)", acctid, CD->USER.c_str(), _PARAMS[2].c_str());
             if (Player* plr = GetPlayer(_PARAMS[0]))
                 plr->GetSession()->KickPlayer();
             Send_IRCA(ChanOrPM(CD), MakeMsg("\00313[%s] : Has Had Their Account Banned. Reason: %s",_PARAMS[0].c_str(), _PARAMS[2].c_str()), true, CD->TYPE);
@@ -195,18 +195,18 @@ void IRCCmd::Ban_Player(_CDATA *CD)
         std::string unbani = _PARAMS[0];
         if (atoi(unbani.c_str()) > 0)
         {
-            loginDatabase.PExecute( "DELETE FROM ip_banned WHERE ip = '%s'", _PARAMS[0].c_str());
+            LoginDatabase.PExecute( "DELETE FROM ip_banned WHERE ip = '%s'", _PARAMS[0].c_str());
             Send_IRCA(ChanOrPM(CD), MakeMsg("\00313[%s] : Has Been Removed From The IP Ban List.", _PARAMS[0].c_str()), true, CD->TYPE);
         }
         else
         {
-            QueryResult *result = loginDatabase.PQuery("SELECT id FROM `account` WHERE username = '%s'", _PARAMS[0].c_str());
+            QueryResult *result = LoginDatabase.PQuery("SELECT id FROM `account` WHERE username = '%s'", _PARAMS[0].c_str());
             if (result)
             {
                 Field *fields = result->Fetch();
                 std::string id = fields[0].GetCppString();
 
-                loginDatabase.PExecute( "DELETE FROM account_banned WHERE id = %s", id.c_str());
+                LoginDatabase.PExecute( "DELETE FROM account_banned WHERE id = %s", id.c_str());
                 delete result;
                 Send_IRCA(ChanOrPM(CD), MakeMsg("\00313[%s] : Has Been Removed From The Account Ban List.", _PARAMS[0].c_str()), true, CD->TYPE);
 
@@ -731,7 +731,7 @@ void IRCCmd::Lookup_Player(_CDATA *CD)
         if (acctid > 0)
         {
             std::string DateTime = "%a, %b %d, %Y - %h:%i%p";
-            QueryResult *result = loginDatabase.PQuery("SELECT id, username, gmlevel, last_ip, (SELECT banreason FROM account_banned WHERE id = %d LIMIT 1) as banned, (SELECT banreason FROM ip_banned WHERE ip = last_ip) as bannedip, DATE_FORMAT(last_login, '%s') FROM `account` WHERE id = %d", acctid, DateTime.c_str(), acctid, acctid);
+            QueryResult *result = LoginDatabase.PQuery("SELECT id, username, gmlevel, last_ip, (SELECT banreason FROM account_banned WHERE id = %d LIMIT 1) as banned, (SELECT banreason FROM ip_banned WHERE ip = last_ip) as bannedip, DATE_FORMAT(last_login, '%s') FROM `account` WHERE id = %d", acctid, DateTime.c_str(), acctid, acctid);
             if (result)
             {
                 Field *fields = result->Fetch();
@@ -774,7 +774,7 @@ void IRCCmd::Lookup_Player(_CDATA *CD)
         }
         else
         {
-            QueryResult *result = loginDatabase.PQuery("SELECT id, username FROM `account` WHERE username LIKE '%%%s%%' LIMIT 10", _PARAMS[1].c_str());
+            QueryResult *result = LoginDatabase.PQuery("SELECT id, username FROM `account` WHERE username LIKE '%%%s%%' LIMIT 10", _PARAMS[1].c_str());
             if (result)
             {
                 Field *fields = result->Fetch();
@@ -828,7 +828,7 @@ void IRCCmd::Lookup_Player(_CDATA *CD)
                 std::string totaltim = SecToDay(fields[13].GetCppString());
                 delete result;
                 std::string sqlquery = "SELECT `gmlevel` FROM `account` WHERE `id` = '" + pacct + "';";
-                QueryResult *result = loginDatabase.Query(sqlquery.c_str());
+                QueryResult *result = LoginDatabase.Query(sqlquery.c_str());
                 Field *fields2 = result->Fetch();
                 std::string pgmlvl = fields2[0].GetCppString();
                 delete result;
@@ -1473,7 +1473,7 @@ void IRCCmd::Mute_Player(_CDATA *CD)
             Player* plr = sObjectMgr.GetPlayer(guid);
             uint32 account_id = 0;
             account_id = sObjectMgr.GetPlayerAccountIdByGUID(guid);
-            loginDatabase.PExecute("UPDATE `account` SET `mutetime` = '0' WHERE `id` = '%u'", account_id );
+            LoginDatabase.PExecute("UPDATE `account` SET `mutetime` = '0' WHERE `id` = '%u'", account_id );
             Send_IRCA(ChanOrPM(CD), "\00313["+_PARAMS[0]+"] : Has Been UnMuted By: "+CD->USER+"." , true, CD->TYPE);
             if (plr)
             {
@@ -1490,7 +1490,7 @@ void IRCCmd::Mute_Player(_CDATA *CD)
             uint32 account_id = 0;
             account_id = sObjectMgr.GetPlayerAccountIdByGUID(guid);
             if (plr) plr->GetSession()->m_muteTime = mutetime;
-            loginDatabase.PExecute("UPDATE `account` SET `mutetime` = " UI64FMTD " WHERE `id` = '%u'",uint64(mutetime), account_id );
+            LoginDatabase.PExecute("UPDATE `account` SET `mutetime` = " UI64FMTD " WHERE `id` = '%u'",uint64(mutetime), account_id );
             Send_IRCA(ChanOrPM(CD), "\00313["+_PARAMS[0]+"] : Has Been Muted By: "+CD->USER+". For: "+_PARAMS[1]+" Minutes. Reason: "+_PARAMS[2] , true, CD->TYPE);
             if (plr) Send_Player(plr, MakeMsg("You Have Been Muted By: %s. For: %s Minutes. Reason: %s", CD->USER.c_str(), _PARAMS[1].c_str(), _PARAMS[2].c_str()));
         }

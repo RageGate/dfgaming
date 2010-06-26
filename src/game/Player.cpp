@@ -1710,7 +1710,7 @@ bool Player::isVIP(uint64 guid)
 {
     bool VIP = false;
     uint32 account = sObjectMgr.GetPlayerAccountIdByGUID(guid);
-    QueryResult *result = loginDatabase.PQuery("SELECT * FROM `vips` WHERE `id`='%u'", account);
+    QueryResult *result = LoginDatabase.PQuery("SELECT * FROM `vips` WHERE `id`='%u'", account);
     if(!result)
         VIP = false;
     else
@@ -16619,7 +16619,8 @@ InstancePlayerBind* Player::BindToInstance(InstanceSave *save, bool permanent, b
 
         if(bind.save != save)
         {
-            if(bind.save) bind.save->RemovePlayer(this);
+            if(bind.save)
+                bind.save->RemovePlayer(this);
             save->AddPlayer(this);
         }
 

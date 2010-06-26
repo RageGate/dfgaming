@@ -104,7 +104,7 @@ bool WorldSession::Anti__ReportCheat(const char* Reason,float Speed,const char* 
     }
     if(sWorld.GetMvAnticheatBan() & 2)
     {
-        QueryResult *result = loginDatabase.PQuery("SELECT last_ip FROM account WHERE id=%u", Acc);
+        QueryResult *result = LoginDatabase.PQuery("SELECT last_ip FROM account WHERE id=%u", Acc);
         if(result)
         {
 
@@ -255,7 +255,7 @@ void WorldSession::HandleMoveWorldportAckOpcode()
         {
             if (mapDiff->resetTime)
             {
-                if (time_t timeReset = sInstanceSaveMgr.GetResetTimeFor(mEntry->MapID,diff))
+                if (time_t timeReset = sInstanceSaveMgr.GetScheduler().GetResetTimeFor(mEntry->MapID,diff))
                 {
                     uint32 timeleft = uint32(timeReset - time(NULL));
                     GetPlayer()->SendInstanceResetWarning(mEntry->MapID, diff, timeleft);
