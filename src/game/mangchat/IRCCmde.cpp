@@ -1356,10 +1356,18 @@ void IRCCmd::Level_Player(_CDATA *CD)
                 CH.FillSystemMessageData(&data, "Your level progress has been reset.");
             else
                 if (i_oldlvl < i_newlvl)
-                    CH.FillSystemMessageData(&data, fmtstring("You have been leveled up (%i)",i_newlvl-i_oldlvl));
+                {
+                    char  temp [32];
+                    sprintf(temp, "You have been leveled up (%i)",i_newlvl-i_oldlvl);
+                    CH.FillSystemMessageData(&data, temp);
+                }
                 else
                     if (i_oldlvl > i_newlvl)
-                        CH.FillSystemMessageData(&data, fmtstring("You have been leveled down (%i)",i_newlvl-i_oldlvl));
+                    {
+                        char  temp [34];
+                        sprintf(temp, "You have been leveled down (%i)",i_newlvl-i_oldlvl);
+                        CH.FillSystemMessageData(&data, temp);
+                    }
             chr->GetSession()->SendPacket( &data );
         }
         else
