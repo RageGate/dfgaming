@@ -8074,6 +8074,9 @@ void ObjectMgr::LoadTrainerSpell()
                 continue;
             }
 
+            if (!sSpellStore.LookupEntry(spellinfo->EffectTriggerSpell[i]))
+                continue;
+
             trainerSpell.learnedSpell[i] = spellinfo->EffectTriggerSpell[i];
             found = true;
         }

@@ -4145,8 +4145,11 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
 
     bool found = false;
     for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
-        if (trainer_spell->learnedSpell[0])
+        if (trainer_spell->learnedSpell[i])
+        {
             found = true;
+            break;
+        }
 
     if (!found)
         return TRAINER_SPELL_RED;
