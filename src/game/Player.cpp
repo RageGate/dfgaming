@@ -4209,6 +4209,9 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
 
     for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
     {
+        if (!trainer_spell->learnedSpell[i])
+            continue;
+
         // exist, already checked at loading
         SpellEntry const* spell = sSpellStore.LookupEntry(trainer_spell->learnedSpell[i]);
 
