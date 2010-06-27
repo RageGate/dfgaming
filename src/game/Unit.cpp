@@ -6723,6 +6723,10 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAu
                     if (GetGUID() == triggeredByAura->GetCasterGUID())
                         return false;
 
+                    // temp hack
+                    if (procSpell->Id == 20267)
+                        return false;
+
                     // beacon
                     Unit* beacon = triggeredByAura->GetCaster();
                     if (!beacon)

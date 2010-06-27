@@ -696,23 +696,33 @@ bool Player::Create( uint32 guidlow, const std::string& name, uint8 race, uint8 
 
     uint8 powertype = cEntry->powerType;
 
-    SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, DEFAULT_WORLD_OBJECT_SIZE);
-    SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
-
     setFactionForRace(race);
 
     uint32 RaceClassGender = ( race ) | ( class_ << 8 ) | ( gender << 16 );
 
     SetUInt32Value(UNIT_FIELD_BYTES_0, ( RaceClassGender | ( powertype << 24 ) ) );
+
     InitDisplayIds();
+
+    if (CreatureModelInfo const* modelInfo = sObjectMgr.GetCreatureModelInfo(GetDisplayId()))
+    {
+        // bounding_radius and combat_reach is normally modified by scale, but player is always 1.0 scale by default so no need to modify values here.
+        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, modelInfo->bounding_radius);
+        SetFloatValue(UNIT_FIELD_COMBATREACH, modelInfo->combat_reach);
+    }
+    else
+    {
+        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, DEFAULT_WORLD_OBJECT_SIZE);
+        SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
+    }
+
     SetByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_PVP );
     SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE );
     SetFlag(UNIT_FIELD_FLAGS_2, UNIT_FLAG2_REGENERATE_POWER);
     SetFloatValue(UNIT_MOD_CAST_SPEED, 1.0f);               // fix cast time showed in spell tooltip on client
     SetFloatValue(UNIT_FIELD_HOVERHEIGHT, 1.0f);            // default for players in 3.0.3
 
-                                                            // -1 is default value
-    SetInt32Value(PLAYER_FIELD_WATCHED_FACTION_INDEX, -1);
+    SetInt32Value(PLAYER_FIELD_WATCHED_FACTION_INDEX, -1);  // -1 is default value
 
     SetUInt32Value(PLAYER_BYTES, (skin | (face << 8) | (hairStyle << 16) | (hairColor << 24)));
     SetUInt32Value(PLAYER_BYTES_2, (facialHair | (0x00 << 8) | (0x00 << 16) | (0x02 << 24)));
@@ -1711,7 +1721,7 @@ bool Player::isVIP(uint64 guid)
 {
     bool VIP = false;
     uint32 account = sObjectMgr.GetPlayerAccountIdByGUID(guid);
-    QueryResult *result = loginDatabase.PQuery("SELECT * FROM `vips` WHERE `id`='%u'", account);
+    QueryResult *result = LoginDatabase.PQuery("SELECT * FROM `vips` WHERE `id`='%u'", account);
     if(!result)
         VIP = false;
     else
@@ -4147,8 +4157,11 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
 
     bool found = false;
     for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
-        if (trainer_spell->learnedSpell[0])
+        if (trainer_spell->learnedSpell[i])
+        {
             found = true;
+            break;
+        }
 
     if (!found)
         return TRAINER_SPELL_RED;
@@ -4198,6 +4211,9 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
 
     for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
     {
+        if (!trainer_spell->learnedSpell[i])
+            continue;
+
         // exist, already checked at loading
         SpellEntry const* spell = sSpellStore.LookupEntry(trainer_spell->learnedSpell[i]);
 
@@ -15236,8 +15252,20 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
     _LoadIntoDataField(fields[60].GetString(), PLAYER_EXPLORED_ZONES_1, PLAYER_EXPLORED_ZONES_SIZE);
     _LoadIntoDataField(fields[63].GetString(), PLAYER__FIELD_KNOWN_TITLES, KNOWN_TITLES_SIZE*2);
 
-    SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, DEFAULT_WORLD_OBJECT_SIZE);
-    SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
+    InitDisplayIds();
+
+    if (CreatureModelInfo const* modelInfo = sObjectMgr.GetCreatureModelInfo(GetDisplayId()))
+    {
+        // bounding_radius and combat_reach is normally modified by scale, but player is always 1.0 scale by default so no need to modify values here.
+        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, modelInfo->bounding_radius);
+        SetFloatValue(UNIT_FIELD_COMBATREACH, modelInfo->combat_reach);
+    }
+    else
+    {
+        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, DEFAULT_WORLD_OBJECT_SIZE);
+        SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
+    }
+
     SetFloatValue(UNIT_FIELD_HOVERHEIGHT, 1.0f);
 
     uint32 money = fields[8].GetUInt32();
@@ -15255,8 +15283,6 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
 
     SetUInt32Value(PLAYER_AMMO_ID, fields[62].GetUInt32());
     SetByteValue(PLAYER_FIELD_BYTES, 2, fields[64].GetUInt8());
-
-    InitDisplayIds();
 
     // cleanup inventory related item value fields (its will be filled correctly in _LoadInventory)
     for(uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
@@ -16656,7 +16682,8 @@ InstancePlayerBind* Player::BindToInstance(InstanceSave *save, bool permanent, b
 
         if(bind.save != save)
         {
-            if(bind.save) bind.save->RemovePlayer(this);
+            if(bind.save)
+                bind.save->RemovePlayer(this);
             save->AddPlayer(this);
         }
 
