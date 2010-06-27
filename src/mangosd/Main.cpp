@@ -85,9 +85,9 @@ extern int main(int argc, char **argv)
 
 
 #ifdef WIN32
-    char const *options = ":c:s:";
+    char const *options = ":c:m:s:";
 #else
-    char const *options = ":c:";
+    char const *options = ":c:m:";
 #endif
 
     ACE_Get_Opt cmd_opts(argc, argv, options);
