@@ -159,11 +159,7 @@ class IRCClient : public ACE_Based::Runnable
         string  RstMsg;
         string  kikmsg;
         // Misc Options
-        string  ojGM1;
-        string  ojGM2;
-        string  ojGM3;
-        string  ojGM4;
-        string  ojGM5;
+        string  ojGM[SEC_CONSOLE];
         string  logfile;
         int     games;
         int     gmlog;

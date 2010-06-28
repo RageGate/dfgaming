@@ -224,8 +224,10 @@ irc.fun.games = 0
 irc.gm1 = "[Moderator]"
 irc.gm2 = "[Game Master]"
 irc.gm3 = "[BugTracker]"
-irc.gm4 = "[DevTeam Admin]"
-irc.gm5 = "[SysOP]"
+irc.gm4 = "[Developer]"
+irc.gm5 = "[Group Leader]"
+irc.gm6 = "[Administrator]"
+irc.gm7 = "[SysOP]"
 
 ##################################################
 #           End Of MangChat Config File          #

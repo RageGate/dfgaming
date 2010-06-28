@@ -48,15 +48,10 @@ void mcs_OnlinePlayers::run()
             OnlineCount++;
             Player *plr = itr->second->GetSession()->GetPlayer();
             std::string ChatTag = " ";
-            switch(plr->GetSession()->GetSecurity())
-            {
-                  case 0: ChatTag.append("");break;
-                  case 1: ChatTag.append("\0037"+sIRC.ojGM1);break;
-                  case 2: ChatTag.append("\0037"+sIRC.ojGM2);break;
-                  case 3: ChatTag.append("\0037"+sIRC.ojGM3);break;
-                  case 4: ChatTag.append("\0037"+sIRC.ojGM4);break;
-                  case 5: ChatTag.append("\0037"+sIRC.ojGM5);break;
-            }
+
+            uint16 gmLevel = plr->GetSession()->GetSecurity();
+            ChatTag.append("\0037"+sIRC.ojGM[ gmLevel < SEC_CONSOLE ? gmLevel : SEC_CONSOLE]);
+
             if(plr->isAFK())
                 ChatTag.append("\002\0037<AFK>\003\002");
             else if(plr->isDND())
