@@ -95,11 +95,11 @@ bool IRCClient::LoadConfig(char const* cfgfile)
     for (uint16 i = 0; i<SEC_ADMINISTRATOR; i++)
     {
         std::stringstream ircKeyWord, defaultEntry;
-        ircKeyWord << "irc.gm" << i << "blubb";
+        ircKeyWord << "irc.gm" << i;
         if (!i)
             defaultEntry << "";
         else
-            defaultEntry << "GM";
+            defaultEntry << "[GM" << i << "]";
         sIRC.ojGM[i] = MCConfig.GetStringDefault(ircKeyWord.str().c_str(), defaultEntry.str().c_str());
     }
 
