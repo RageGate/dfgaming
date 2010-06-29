@@ -4030,7 +4030,7 @@ void Spell::DoSummon(SpellEffectIndex eff_idx)
 
     spawnCreature->SetOwnerGUID(m_caster->GetGUID());
     spawnCreature->SetUInt32Value(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_NONE);
-    spawnCreature->setPowerType(POWER_MANA);
+    spawnCreature->setPowerType(spawnCreature->GetCreatureInfo()->family == CREATURE_FAMILY_GHOUL ? POWER_ENERGY : POWER_MANA);
     spawnCreature->setFaction(m_caster->getFaction());
     spawnCreature->SetUInt32Value(UNIT_FIELD_FLAGS, 0);
     spawnCreature->SetUInt32Value(UNIT_FIELD_BYTES_0, 2048);
@@ -6690,7 +6690,11 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     Player* p_caster = (Player*)m_caster;
 
                     // do nothing if ghoul summon already exsists (in fact not possible, but...)
-                    if (p_caster->FindGuardianWithEntry(m_currentBasePoints[0]+1) || p_caster->GetPet())
+                    Unit* oldGhoul = p_caster->FindGuardianWithEntry(26125);
+                    if (!oldGhoul)
+                        oldGhoul = p_caster->GetPet();
+
+                    if (oldGhoul && oldGhoul->isAlive())
                     {
                         p_caster->RemoveSpellCooldown(m_spellInfo->Id, true);
                         SendCastResult(SPELL_FAILED_ALREADY_HAVE_SUMMON);
@@ -6698,28 +6702,29 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                         return;
                     }
 
-                    // check if "Glyph of Raise Dead" ,corpse- or "Corpse Dust" is available
-                    bool canCast = p_caster->CanNoReagentCast(m_spellInfo) || FindCorpseUsing<MaNGOS::RaiseDeadObjectCheck>();
-                    if (!canCast && p_caster->HasItemCount(37201,1))
+                    // always cast if corpse was found (see Spell::FillTargetMap)
+                    if (unitTarget == m_caster)
                     {
-                        p_caster->DestroyItemCount(37201, 1, true);
-                        canCast = true;
-                    }
-
-                    // remove spellcooldown if can't cast and send result
-                    if (!canCast)
-                    {
-                        p_caster->RemoveSpellCooldown(m_spellInfo->Id, true);
-                        SendCastResult(SPELL_FAILED_REAGENTS);
-                        finish(false);
-                        return;
+                        // check "Glyph of Raise Dead"
+                        if (!p_caster->CanNoReagentCast(m_spellInfo))
+                        {
+                            // check if "Corpse Dust" is available
+                            if (!p_caster->HasItemCount(37201,1))
+                            {
+                                p_caster->RemoveSpellCooldown(m_spellInfo->Id, true);
+                                SendCastResult(SPELL_FAILED_REAGENTS);
+                                finish(false);
+                                return;
+                            }
+                            p_caster->DestroyItemCount(37201, 1, true);
+                         }
                     }
 
                     // check for "Master of Ghouls", id's stored in basepoints
                     if (p_caster->HasAura(52143))
-                        p_caster->CastSpell(m_caster,m_currentBasePoints[2]+1,true);
+                        p_caster->CastSpell(m_caster,m_currentBasePoints[2],true);
                     else
-                        p_caster->CastSpell(m_caster,m_currentBasePoints[1]+1,true);
+                        p_caster->CastSpell(m_caster,m_currentBasePoints[1],true);
 
                     break;
                 }

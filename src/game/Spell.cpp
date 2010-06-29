@@ -1831,6 +1831,16 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 break;
             }
 
+             // ..._AREAEFFECT_CUSTOM... ok.. here comes the custom stuff... :-P
+            if (m_spellInfo->Id == 46584)
+            {
+                if (Unit* m_target = ((Unit*)FindCorpseUsing<MaNGOS::RaiseDeadObjectCheck>()))
+                     targetUnitMap.push_back(m_target);
+                else
+                     targetUnitMap.push_back(m_caster);
+                break;
+            }
+
             UnitList tempTargetUnitMap;
             SpellScriptTargetBounds bounds = sSpellMgr.GetSpellScriptTargetBounds(m_spellInfo->Id);
             // fill real target list if no spell script target defined
@@ -1868,6 +1878,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                         ++itr;
                 }
             }
+
             break;
         }
         case TARGET_ALL_ENEMY_IN_AREA_INSTANT:
