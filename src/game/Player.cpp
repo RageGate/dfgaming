@@ -12931,7 +12931,7 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
         else if (pSource->GetTypeId() == TYPEID_GAMEOBJECT)
         {
             // we always need UNIT_NPC_FLAG_GOSSIP or UNIT_NPC_FLAG_QUESTGIVER for gameobjects
-            if (!(itr->second.npc_option_npcflag & (UNIT_NPC_FLAG_GOSSIP || UNIT_NPC_FLAG_QUESTGIVER)))
+            if (!(itr->second.npc_option_npcflag & (UNIT_NPC_FLAG_GOSSIP | UNIT_NPC_FLAG_QUESTGIVER)))
                 continue;
 
             GameObject *pGo = (GameObject*)pSource;
