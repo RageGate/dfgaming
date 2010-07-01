@@ -3023,6 +3023,10 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 case 20911:                                 // Blessing of Sanctuary
                 case 25899:                                 // Greater Blessing of Sanctuary
                 {
+                    // check for (Greater) Blessing of Kings
+                    if (target->GetAura(SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE, SPELLFAMILY_PALADIN, UI64LIT(0x0000000001000000)))
+                        break;
+
                     if (apply)
                         target->CastSpell(target, 67480, true, NULL, this);
                     else
@@ -6975,6 +6979,24 @@ void Aura::HandleSpellSpecificBoosts(bool apply)
                 else if (!apply)
                     caster->RemoveAurasDueToSpell(64364);
             }
+            if (m_spellProto->SpellFamilyFlags &            // (Greater) Blessing of Kings
+                UI64LIT(0x0000000001000000))
+            {
+                // check for (Greater) Blessing of Sanctuary
+                if (!m_target->GetAura(SPELL_AURA_DUMMY, SPELLFAMILY_PALADIN, UI64LIT(0x0000000010000000)))
+                    break;
+
+                if (!apply)
+                {
+                    cast_at_remove = true;
+                    spellId1 = 67480;
+                }
+                else
+                    m_target->RemoveAurasDueToSpell(67480);
+
+                break;
+            }
+
             if (m_spellProto->Id == 31884)                  // Avenging Wrath
             {
                 if(!apply)
