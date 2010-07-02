@@ -2954,8 +2954,8 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 }
                 else
                 {
-                    // Final heal only on duration end
-                    if (!(GetAuraDuration() <= 0 && m_removeMode == AURA_REMOVE_BY_DEFAULT))
+                    // Final heal only on expire
+                    if (m_removeMode != AURA_REMOVE_BY_EXPIRE)
                         return;
 
                     Unit* caster = GetCaster();
