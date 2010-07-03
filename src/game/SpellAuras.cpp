@@ -6196,6 +6196,15 @@ void Aura::HandleModDamageDone(bool apply, bool Real)
     for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
         if (m_modifier.m_miscvalue & (1 << i))
         {
+            // apply to weapon damage if school mask fits
+            for (uint8 j = 0; j<3; ++j)
+            {
+                // from all we currently now, weapon damage mods MUST always contain SPELL_SCHOOL_MASK_NORMAL
+                // maybe this not correct for creatures? maybe there is also another criteria to differentiate?
+                SpellSchoolMask attSchoolMask = m_target->GetSchoolMaskForAttackType(WeaponAttackType(j));
+                if (attSchoolMask & SPELL_SCHOOL_MASK_NORMAL && attSchoolMask & (1 << i))
+                    m_target->HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + j), TOTAL_VALUE, float(m_modifier.m_amount), apply);
+            }
             // send info to client, if target is a player
             if (target->GetTypeId() == TYPEID_PLAYER)
             {
@@ -6203,18 +6212,6 @@ void Aura::HandleModDamageDone(bool apply, bool Real)
                     target->ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + i, m_modifier.m_amount, apply);
                else
                     target->ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_NEG + i, m_modifier.m_amount, apply);
-            }
-            // creature case
-            else
-            {
-                // apply mod to weapon damage if school mask fits
-                // we don't need an extra handler here, as creatures can not change weapons (and so the damage school)
-                for (uint8 j = 0; j<3; ++j)
-                {
-                    SpellSchoolMask attSchoolMask = m_target->GetSchoolMaskForAttackType(WeaponAttackType(j));
-                    if (attSchoolMask & (1 << i))
-                        target->HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + j), TOTAL_VALUE, float(m_modifier.m_amount), apply);
-                }
             }
         }
 }
@@ -6251,21 +6248,18 @@ void Aura::HandleModDamagePercentDone(bool apply, bool Real)
     for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
         if (m_modifier.m_miscvalue & (1 << i))
         {
-            // send info to client, if target is a player
-            if (target->GetTypeId() == TYPEID_PLAYER)
-                target->ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT + i, m_modifier.m_amount/100.0f, apply);
-            // creature case
-            else
+            // apply to weapon damage if school mask fits
+            for (uint8 j = 0; j<3; ++j)
             {
-                // apply mod to weapon damage if school mask fits
-                // we don't need an extra handler here, as creatures can not change weapons (and so the damage school)
-                for (uint8 j = 0; j<3; ++j)
-                {
-                    SpellSchoolMask attSchoolMask = target->GetSchoolMaskForAttackType(WeaponAttackType(j));
-                    if (attSchoolMask & (1 << i))
-                        target->HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + j), TOTAL_PCT, float(m_modifier.m_amount), apply);
-                }
+                // from all we currently now, weapon damage mods MUST always contain SPELL_SCHOOL_MASK_NORMAL
+                // maybe this not correct for creatures? maybe there is also another criteria to differentiate?
+                SpellSchoolMask attSchoolMask = m_target->GetSchoolMaskForAttackType(WeaponAttackType(j));
+                if (attSchoolMask & SPELL_SCHOOL_MASK_NORMAL && attSchoolMask & (1 << i))
+                    m_target->HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + j), TOTAL_PCT, float(m_modifier.m_amount), apply);
             }
+            // send info to client, if target is a player
+            if (m_target->GetTypeId() == TYPEID_PLAYER)
+                m_target->ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT + i, m_modifier.m_amount/100.0f, apply);
         }
 }
 
