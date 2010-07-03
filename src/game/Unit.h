@@ -1617,7 +1617,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         float GetTotalAttackPowerValue(WeaponAttackType attType) const;
         float GetWeaponDamageRange(WeaponAttackType attType ,WeaponDamageRange type) const;
         void SetBaseWeaponDamage(WeaponAttackType attType ,WeaponDamageRange damageRange, float value) { m_weaponDamage[attType][damageRange] = value; }
-        virtual SpellSchoolMask GetSchoolMaskForAttackType(WeaponAttackType attType = BASE_ATTACK) const;
+        virtual SpellSchoolMask GetSchoolMaskForAttackType(WeaponAttackType attType = BASE_ATTACK) const {return SPELL_SCHOOL_MASK_NORMAL;};
 
         void SetInFront(Unit const* target);
         void SetFacingTo(float ori);

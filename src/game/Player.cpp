@@ -7348,7 +7348,10 @@ void Player::_ApplyWeaponDependentAuraCritMod(Item *item, WeaponAttackType attac
 
 void Player::_ApplyWeaponDependentAuraDamageMod(Item *item, WeaponAttackType attackType, Aura* aura, bool apply)
 {
+    // ignore spell mods for not wands
     Modifier const* modifier = aura->GetModifier();
+    if((modifier->m_miscvalue & SPELL_SCHOOL_MASK_NORMAL)==0 && (getClassMask() & CLASSMASK_WAND_USERS)==0)
+        return;
 
     // generic not weapon specific case processes in aura code
     if(aura->GetSpellProto()->EquippedItemClass == -1)
@@ -7371,31 +7374,9 @@ void Player::_ApplyWeaponDependentAuraDamageMod(Item *item, WeaponAttackType att
         default: return;
     }
 
-    // check item requirements
     if (!item->IsBroken() && item->IsFitToSpellRequirements(aura->GetSpellProto()))
     {
-        // apply to weapon if school mask fits, note: In comparison to similar checks, we do NOT check SCHOOL_MASK_NORMAL for
-        // weapon-dependent auras. This seems to be the most clean way, to make auras like the old "Wand Specializaion" work.
-        if (GetSchoolMaskForAttackType(attackType) & modifier->m_miscvalue)
-            HandleStatModifier(unitMod, unitModType, float(modifier->m_amount),apply);
-
-        // send info to client, TODO: PLAYER_FIELD_MOD_DAMAGE_DONE_PCT will always show the percent mod for ALL weapons in the
-        // character menu at the client, which is not the correct behaviour from my information
-        ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT, modifier->m_amount/100.0f, apply);
-
-        // aura affects all damage
-        if (aura->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE)
-        {
-            // we need to prevent double apply in case multiple weapons fullfill the requirements
-            // because this is hard to check in this place, we use a workaround: only main hand weapon
-            if (attackType != BASE_ATTACK)
-                return;
-
-            // apply to other weapons, if school fits
-            for (uint8 i = OFF_ATTACK; i < MAX_ATTACK; i++)
-                if (GetSchoolMaskForAttackType(WeaponAttackType(i)) & modifier->m_miscvalue)
-                    HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + i), unitModType, float(modifier->m_amount), apply);
-        }
+        HandleStatModifier(unitMod, unitModType, float(modifier->m_amount),apply);
     }
 }
 
@@ -9160,7 +9141,7 @@ SpellSchoolMask Player::GetSchoolMaskForAttackType(WeaponAttackType type) const
     if(Item* pItem = GetWeaponForAttack(type))
         return SpellSchoolMask(1 << pItem->GetProto()->Damage[0].DamageType);
 
-    return SPELL_SCHOOL_MASK_NONE;
+    return SPELL_SCHOOL_MASK_NORMAL;
 }
 
 bool Player::IsInventoryPos( uint8 bag, uint8 slot )

@@ -10532,8 +10532,8 @@ uint32 Unit::MeleeDamageBonusDone(Unit *pVictim, uint32 pdamage,WeaponAttackType
         for(AuraList::const_iterator i = mModDamageDone.begin(); i != mModDamageDone.end(); ++i)
         {
             if ((*i)->GetSpellProto()->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA ||           // completely schoolmask-independend: pet scaling auras, see note
-                (*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the intrinsic spell school...
-                (*i)->GetModifier()->m_miscvalue & SPELL_SCHOOL_MASK_NORMAL &&                      // ...AND schoolmask has to contain physical spell school (seems to be the most logic sollution)
+                (*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the spell's intrinsic school...
+                (*i)->GetModifier()->m_miscvalue & GetSchoolMaskForAttackType(attType) &&           // ...AND schoolmask has to fit to the weapon's school
                 ((*i)->GetSpellProto()->EquippedItemClass == -1 ||                                  // general, weapon independent
                 pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto()) ||              // OR used weapon fits aura requirements
                 (*i)->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE &&  // OR aura affects ALL damage...
@@ -10580,8 +10580,8 @@ uint32 Unit::MeleeDamageBonusDone(Unit *pVictim, uint32 pdamage,WeaponAttackType
         AuraList const& mModDamagePercentDone = GetAurasByType(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE);
         for(AuraList::const_iterator i = mModDamagePercentDone.begin(); i != mModDamagePercentDone.end(); ++i)
         {
-            if ((*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the intrinsic spell school...
-                (*i)->GetModifier()->m_miscvalue & SPELL_SCHOOL_MASK_NORMAL &&                      // ...AND schoolmask has to contain physical spell school (seems to be the most logic sollution)
+            if ((*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the spell's intrinsic school...
+                (*i)->GetModifier()->m_miscvalue & GetSchoolMaskForAttackType(attType) &&           // ...AND schoolmask has to fit to the weapon' school
                 ((*i)->GetSpellProto()->EquippedItemClass == -1 ||                                  // general, weapon independent
                 pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto()) ||              // OR used weapon fits aura requirements
                 (*i)->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE &&  // OR aura affects ALL damage...
@@ -13408,11 +13408,6 @@ void Unit::ProcDamageAndSpellFor( bool isVictim, Unit * pTarget, uint32 procFlag
         for(RemoveSpellList::const_iterator i = removedSpells.begin(); i != removedSpells.end();++i)
             RemoveSingleSpellAurasFromStack(*i);
     }
-}
-
-SpellSchoolMask Unit::GetSchoolMaskForAttackType(WeaponAttackType attType) const
-{
-    return SPELL_SCHOOL_MASK_NORMAL;
 }
 
 Player* Unit::GetSpellModOwner()
