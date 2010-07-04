@@ -843,8 +843,9 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
                         // the reset time is set but not added to the scheduler
                         // until the players leave the instance
                         time_t resettime = cVictim->GetRespawnTimeEx() + 2 * HOUR;
-                        if(InstanceSave *save = sInstanceSaveMgr.GetInstanceSave(cVictim->GetInstanceId()))
-                            if(save->GetResetTime() < resettime) save->SetResetTime(resettime);
+                        if (InstanceSave *save = m->GetInstanceSave())
+                            if (save->GetResetTime() < resettime)
+                                save->SetResetTime(resettime);
                     }
                 }
             }
@@ -7909,6 +7910,13 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, Aura* triggeredB
                 if (!(procSpell->SpellFamilyFlags & UI64LIT(0x0000000000000020)))
                     return false;
             }
+            // Lock and Load
+            else if (auraSpellInfo->SpellIconID == 3579)
+            {
+                // Check for Lock and Load Marker
+                if (HasAura(67544))
+                    return false;
+            }
             break;
         case SPELLFAMILY_PALADIN:
         {
@@ -13669,6 +13677,8 @@ void Unit::SetDisplayId(uint32 modelId)
 {
     SetUInt32Value(UNIT_FIELD_DISPLAYID, modelId);
 
+    UpdateModelData();
+
     if(GetTypeId() == TYPEID_UNIT && ((Creature*)this)->isPet())
     {
         Pet *pet = ((Pet*)this);
@@ -13677,6 +13687,21 @@ void Unit::SetDisplayId(uint32 modelId)
         Unit *owner = GetOwner();
         if(owner && (owner->GetTypeId() == TYPEID_PLAYER) && ((Player*)owner)->GetGroup())
             ((Player*)owner)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_MODEL_ID);
+    }
+}
+
+void Unit::UpdateModelData()
+{
+    if (CreatureModelInfo const* modelInfo = sObjectMgr.GetCreatureModelInfo(GetDisplayId()))
+    {
+        // we expect values in database to be relative to scale = 1.0
+        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, GetObjectScale() * modelInfo->bounding_radius);
+
+        // never actually update combat_reach for player, it's always the same. Below player case is for initialization
+        if (GetTypeId() == TYPEID_PLAYER)
+            SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
+        else
+            SetFloatValue(UNIT_FIELD_COMBATREACH, GetObjectScale() * modelInfo->combat_reach);
     }
 }
 
@@ -14364,7 +14389,7 @@ float Unit::GetCombatRatingReduction(CombatRating cr) const
         return ((Player const*)this)->GetRatingBonusValue(cr);
     else if (((Creature const*)this)->isPet())
     {
-        // Player's pet have 100% resilience  from owner
+        // Player's pet get 100% resilience from owner
         if (Unit* owner = GetOwner())
             if(owner->GetTypeId() == TYPEID_PLAYER)
                 return ((Player*)owner)->GetRatingBonusValue(cr);
