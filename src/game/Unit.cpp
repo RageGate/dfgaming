@@ -836,8 +836,9 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
                         // the reset time is set but not added to the scheduler
                         // until the players leave the instance
                         time_t resettime = cVictim->GetRespawnTimeEx() + 2 * HOUR;
-                        if(InstanceSave *save = sInstanceSaveMgr.GetInstanceSave(cVictim->GetInstanceId()))
-                            if(save->GetResetTime() < resettime) save->SetResetTime(resettime);
+                        if (InstanceSave *save = m->GetInstanceSave())
+                            if (save->GetResetTime() < resettime)
+                                save->SetResetTime(resettime);
                     }
                 }
             }
@@ -7902,6 +7903,13 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, Aura* triggeredB
                 if (!(procSpell->SpellFamilyFlags & UI64LIT(0x0000000000000020)))
                     return false;
             }
+            // Lock and Load
+            else if (auraSpellInfo->SpellIconID == 3579)
+            {
+                // Check for Lock and Load Marker
+                if (HasAura(67544))
+                    return false;
+            }
             break;
         case SPELLFAMILY_PALADIN:
         {
@@ -10561,8 +10569,8 @@ uint32 Unit::MeleeDamageBonusDone(Unit *pVictim, uint32 pdamage,WeaponAttackType
         for(AuraList::const_iterator i = mModDamageDone.begin(); i != mModDamageDone.end(); ++i)
         {
             if ((*i)->GetSpellProto()->AttributesEx4 & SPELL_ATTR_EX4_PET_SCALING_AURA ||           // completely schoolmask-independend: pet scaling auras, see note
-                (*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the intrinsic spell school...
-                (*i)->GetModifier()->m_miscvalue & SPELL_SCHOOL_MASK_NORMAL &&                      // ...AND schoolmask has to contain physical spell school (seems to be the most logic sollution)
+                (*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the spell's intrinsic school...
+                (*i)->GetModifier()->m_miscvalue & GetSchoolMaskForAttackType(attType) &&           // ...AND schoolmask has to fit to the weapon's school
                 ((*i)->GetSpellProto()->EquippedItemClass == -1 ||                                  // general, weapon independent
                 pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto()) ||              // OR used weapon fits aura requirements
                 (*i)->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE &&  // OR aura affects ALL damage...
@@ -10609,8 +10617,8 @@ uint32 Unit::MeleeDamageBonusDone(Unit *pVictim, uint32 pdamage,WeaponAttackType
         AuraList const& mModDamagePercentDone = GetAurasByType(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE);
         for(AuraList::const_iterator i = mModDamagePercentDone.begin(); i != mModDamagePercentDone.end(); ++i)
         {
-            if ((*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the intrinsic spell school...
-                (*i)->GetModifier()->m_miscvalue & SPELL_SCHOOL_MASK_NORMAL &&                      // ...AND schoolmask has to contain physical spell school (seems to be the most logic sollution)
+            if ((*i)->GetModifier()->m_miscvalue & schoolMask &&                                    // schoolmask has to fit with the spell's intrinsic school...
+                (*i)->GetModifier()->m_miscvalue & GetSchoolMaskForAttackType(attType) &&           // ...AND schoolmask has to fit to the weapon' school
                 ((*i)->GetSpellProto()->EquippedItemClass == -1 ||                                  // general, weapon independent
                 pWeapon && pWeapon->IsFitToSpellRequirements((*i)->GetSpellProto()) ||              // OR used weapon fits aura requirements
                 (*i)->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE &&  // OR aura affects ALL damage...
@@ -13429,11 +13437,6 @@ void Unit::ProcDamageAndSpellFor( bool isVictim, Unit * pTarget, uint32 procFlag
     }
 }
 
-SpellSchoolMask Unit::GetSchoolMaskForAttackType(WeaponAttackType attType) const
-{
-    return SPELL_SCHOOL_MASK_NORMAL;
-}
-
 Player* Unit::GetSpellModOwner()
 {
     if(GetTypeId()==TYPEID_PLAYER)
@@ -13701,10 +13704,27 @@ void Unit::SetDisplayId(uint32 modelId)
 {
     SetUInt32Value(UNIT_FIELD_DISPLAYID, modelId);
 
+    UpdateModelData();
+
     if(Unit *owner = GetCharmerOrOwner())
     {
         if((owner->GetTypeId() == TYPEID_PLAYER) && ((Player*)owner)->GetGroup())
             ((Player*)owner)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_MODEL_ID);
+    }
+}
+
+void Unit::UpdateModelData()
+{
+    if (CreatureModelInfo const* modelInfo = sObjectMgr.GetCreatureModelInfo(GetDisplayId()))
+    {
+        // we expect values in database to be relative to scale = 1.0
+        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, GetObjectScale() * modelInfo->bounding_radius);
+
+        // never actually update combat_reach for player, it's always the same. Below player case is for initialization
+        if (GetTypeId() == TYPEID_PLAYER)
+            SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
+        else
+            SetFloatValue(UNIT_FIELD_COMBATREACH, GetObjectScale() * modelInfo->combat_reach);
     }
 }
 
@@ -14335,9 +14355,9 @@ void Unit::EnterVehicle(Vehicle *vehicle, int8 seat_id, bool force)
         return;
 
     m_movementInfo.SetTransportData(v->GetGUID(),
-        (veSeat->m_attachmentOffsetX + v->GetObjectSize()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
-        (veSeat->m_attachmentOffsetY + v->GetObjectSize()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
-        (veSeat->m_attachmentOffsetZ + v->GetObjectSize()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
+        (veSeat->m_attachmentOffsetX + v->GetObjectBoundingRadius()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
+        (veSeat->m_attachmentOffsetY + v->GetObjectBoundingRadius()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
+        (veSeat->m_attachmentOffsetZ + v->GetObjectBoundingRadius()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
         veSeat->m_passengerYaw, v->GetCreationTime(), seat_id, veSeat->m_ID,
         sObjectMgr.GetSeatFlags(veSeat->m_ID), v->GetVehicleFlags());
 
@@ -14390,7 +14410,7 @@ void Unit::ExitVehicle()
                     vehicle->SetSpawnDuration(1);
                 }
             }
-            v_size = vehicle->GetObjectSize();
+            v_size = vehicle->GetObjectBoundingRadius();
             vehicle->RemovePassenger(this);
         }
         SetVehicleGUID(0);
@@ -14510,7 +14530,7 @@ float Unit::GetCombatRatingReduction(CombatRating cr) const
         return ((Player const*)this)->GetRatingBonusValue(cr);
     else if (((Creature const*)this)->isPet())
     {
-        // Player's pet have 100% resilience  from owner
+        // Player's pet get 100% resilience from owner
         if (Unit* owner = GetOwner())
             if(owner->GetTypeId() == TYPEID_PLAYER)
                 return ((Player*)owner)->GetRatingBonusValue(cr);

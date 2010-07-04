@@ -454,7 +454,7 @@ bool ChatHandler::HandleNamegoCommand(const char* args)
 
         // before GM
         float x,y,z;
-        m_session->GetPlayer()->GetClosePoint(x,y,z,target->GetObjectSize());
+        m_session->GetPlayer()->GetClosePoint(x, y, z, target->GetObjectBoundingRadius());
         target->TeleportTo(m_session->GetPlayer()->GetMapId(),x,y,z,target->GetOrientation());
     }
     else
@@ -563,10 +563,10 @@ bool ChatHandler::HandleGonameCommand(const char* args)
             {
                 Group *group = _player->GetGroup();
                 // if no bind exists, create a solo bind
-                InstanceGroupBind *gBind = group ? group->GetBoundInstance(target) : NULL;
+                InstanceGroupBind *gBind = group ? group->GetBoundInstance(target->GetMapId(), target) : NULL;
                 // if no bind exists, create a solo bind
                 if (!gBind)
-                    if (InstanceSave *save = sInstanceSaveMgr.GetInstanceSave(target->GetInstanceId()))
+                    if (InstanceSave *save = target->GetMap()->GetInstanceSave())
                         _player->BindToInstance(save, !save->CanReset());
             }
 
@@ -1349,7 +1349,7 @@ bool ChatHandler::HandleModifyScaleCommand(const char* args)
             ChatHandler((Player*)target).PSendSysMessage(LANG_YOURS_SIZE_CHANGED, GetNameLink().c_str(), Scale);
     }
 
-    target->SetFloatValue(OBJECT_FIELD_SCALE_X, Scale);
+    target->SetObjectScale(Scale);
 
     return true;
 }
@@ -2194,7 +2194,7 @@ bool ChatHandler::HandleGroupgoCommand(const char* args)
 
         // before GM
         float x,y,z;
-        m_session->GetPlayer()->GetClosePoint(x,y,z,pl->GetObjectSize());
+        m_session->GetPlayer()->GetClosePoint(x, y, z, pl->GetObjectBoundingRadius());
         pl->TeleportTo(m_session->GetPlayer()->GetMapId(),x,y,z,pl->GetOrientation());
     }
 

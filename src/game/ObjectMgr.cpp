@@ -756,7 +756,7 @@ void ObjectMgr::LoadCreatureTemplates()
             if(displayScaleEntry)
                 const_cast<CreatureInfo*>(cInfo)->scale = displayScaleEntry->scale;
             else
-                const_cast<CreatureInfo*>(cInfo)->scale = 1.0f;
+                const_cast<CreatureInfo*>(cInfo)->scale = DEFAULT_OBJECT_SCALE;
         }
     }
 }
@@ -1118,6 +1118,64 @@ void ObjectMgr::LoadCreatureModelInfo()
             sLog.outErrorDb("Table `creature_model_info` has not existed alt.gender model (%u) for existed display id (%u).", minfo->modelid_other_gender, minfo->modelid);
             const_cast<CreatureModelInfo*>(minfo)->modelid_other_gender = 0;
         }
+    }
+
+    // character races expected have model info data in table
+    for(uint32 race = 1; race < sChrRacesStore.GetNumRows(); ++race)
+    {
+        ChrRacesEntry const* raceEntry = sChrRacesStore.LookupEntry(race);
+        if (!raceEntry)
+            continue;
+
+        if (!((1 << (race-1)) & RACEMASK_ALL_PLAYABLE))
+            continue;
+
+        if (CreatureModelInfo const *minfo = GetCreatureModelInfo(raceEntry->model_f))
+        {
+            if (minfo->gender != GENDER_FEMALE)
+                sLog.outErrorDb("Table `creature_model_info` have wrong gender %u for character race %u female model id %u", minfo->gender, race, raceEntry->model_f);
+
+            if (minfo->modelid_other_gender != raceEntry->model_m)
+                sLog.outErrorDb("Table `creature_model_info` have wrong other gender model id %u for character race %u female model id %u", minfo->modelid_other_gender, race, raceEntry->model_f);
+
+            if (minfo->bounding_radius <= 0.0f)
+            {
+                sLog.outErrorDb("Table `creature_model_info` have wrong bounding_radius %f for character race %u female model id %u, use %f instead", minfo->bounding_radius, race, raceEntry->model_f, DEFAULT_WORLD_OBJECT_SIZE);
+                const_cast<CreatureModelInfo*>(minfo)->bounding_radius = DEFAULT_WORLD_OBJECT_SIZE;
+            }
+
+            if (minfo->combat_reach != 1.5f)
+            {
+                sLog.outErrorDb("Table `creature_model_info` have wrong combat_reach %f for character race %u female model id %u, expected always 1.5f", minfo->combat_reach, race, raceEntry->model_f);
+                const_cast<CreatureModelInfo*>(minfo)->combat_reach = 1.5f;
+            }
+        }
+        else
+            sLog.outErrorDb("Table `creature_model_info` expect have data for character race %u female model id %u", race, raceEntry->model_f);
+
+        if (CreatureModelInfo const *minfo = GetCreatureModelInfo(raceEntry->model_m))
+        {
+            if (minfo->gender != GENDER_MALE)
+                sLog.outErrorDb("Table `creature_model_info` have wrong gender %u for character race %u male model id %u", minfo->gender, race, raceEntry->model_m);
+
+            if (minfo->modelid_other_gender != raceEntry->model_f)
+                sLog.outErrorDb("Table `creature_model_info` have wrong other gender model id %u for character race %u male model id %u", minfo->modelid_other_gender, race, raceEntry->model_m);
+
+            if (minfo->bounding_radius <= 0.0f)
+            {
+                sLog.outErrorDb("Table `creature_model_info` have wrong bounding_radius %f for character race %u male model id %u, use %f instead", minfo->bounding_radius, race, raceEntry->model_f, DEFAULT_WORLD_OBJECT_SIZE);
+                const_cast<CreatureModelInfo*>(minfo)->bounding_radius = DEFAULT_WORLD_OBJECT_SIZE;
+            }
+
+            if (minfo->combat_reach != 1.5f)
+            {
+                sLog.outErrorDb("Table `creature_model_info` have wrong combat_reach %f for character race %u male model id %u, expected always 1.5f", minfo->combat_reach, race, raceEntry->model_m);
+                const_cast<CreatureModelInfo*>(minfo)->combat_reach = 1.5f;
+            }
+        }
+        else
+            sLog.outErrorDb("Table `creature_model_info` expect have data for character race %u male model id %u", race, raceEntry->model_m);
+
     }
 
     sLog.outString( ">> Loaded %u creature model based info", sCreatureModelStorage.RecordCount );
@@ -2468,6 +2526,7 @@ void ObjectMgr::LoadPetLevelInfo()
         if(!pInfo || pInfo[0].health == 0 )
         {
             sLog.outErrorDb("Creature %u does not have pet stats data for Level 1!",itr->first);
+            Log::WaitBeforeContinueIfNeed();
             exit(1);
         }
 
@@ -2511,6 +2570,7 @@ void ObjectMgr::LoadPlayerInfo()
             sLog.outString();
             sLog.outString( ">> Loaded %u player create definitions", count );
             sLog.outErrorDb( "Error loading `playercreateinfo` table or empty table.");
+            Log::WaitBeforeContinueIfNeed();
             exit(1);
         }
 
@@ -2790,6 +2850,7 @@ void ObjectMgr::LoadPlayerInfo()
             sLog.outString();
             sLog.outString( ">> Loaded %u level health/mana definitions", count );
             sLog.outErrorDb( "Error loading `player_classlevelstats` table or empty table.");
+            Log::WaitBeforeContinueIfNeed();
             exit(1);
         }
 
@@ -2858,6 +2919,7 @@ void ObjectMgr::LoadPlayerInfo()
         if(!pClassInfo->levelInfo || pClassInfo->levelInfo[0].basehealth == 0 )
         {
             sLog.outErrorDb("Class %i Level 1 does not have health/mana data!",class_);
+            Log::WaitBeforeContinueIfNeed();
             exit(1);
         }
 
@@ -2886,6 +2948,7 @@ void ObjectMgr::LoadPlayerInfo()
             sLog.outString();
             sLog.outString( ">> Loaded %u level stats definitions", count );
             sLog.outErrorDb( "Error loading `player_levelstats` table or empty table.");
+            Log::WaitBeforeContinueIfNeed();
             exit(1);
         }
 
@@ -2976,6 +3039,7 @@ void ObjectMgr::LoadPlayerInfo()
             if(!pInfo->levelInfo || pInfo->levelInfo[0].stats[0] == 0 )
             {
                 sLog.outErrorDb("Race %i Class %i Level 1 does not have stats data!",race,class_);
+                Log::WaitBeforeContinueIfNeed();
                 exit(1);
             }
 
@@ -3009,6 +3073,7 @@ void ObjectMgr::LoadPlayerInfo()
             sLog.outString();
             sLog.outString( ">> Loaded %u xp for level definitions", count );
             sLog.outErrorDb( "Error loading `player_xp_for_level` table or empty table.");
+            Log::WaitBeforeContinueIfNeed();
             exit(1);
         }
 
@@ -4572,6 +4637,16 @@ void ObjectMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
                 // for later, we might consider despawn by database guid, and define in datalong2 as option to despawn self.
                 break;
             }
+            case SCRIPT_COMMAND_PLAY_MOVIE:
+            {
+                if (!sMovieStore.LookupEntry(tmp.datalong))
+                {
+                    sLog.outErrorDb("Table `%s` use non-existing movie_id (id: %u) in SCRIPT_COMMAND_PLAY_MOVIE for script id %u",
+                        tablename, tmp.datalong, tmp.id);
+                    continue;
+                }
+                break;
+           }
         }
 
         if (scripts.find(tmp.id) == scripts.end())
@@ -6093,6 +6168,14 @@ void ObjectMgr::LoadGameobjectInfo()
         GameObjectInfo const* goInfo = sGOStorage.LookupEntry<GameObjectInfo>(id);
         if (!goInfo)
             continue;
+
+
+        if (goInfo->size <= 0.0f)                           // prevent use too small scales
+        {
+            ERROR_DB_STRICT_LOG("Gameobject (Entry: %u GoType: %u) have too small size=%f",
+                goInfo->id, goInfo->type, goInfo->size);
+            const_cast<GameObjectInfo*>(goInfo)->size =  DEFAULT_OBJECT_SCALE;
+        }
 
         // some GO types have unused go template, check goInfo->displayId at GO spawn data loading or ignore
 

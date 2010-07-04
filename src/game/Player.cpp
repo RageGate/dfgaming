@@ -702,19 +702,7 @@ bool Player::Create( uint32 guidlow, const std::string& name, uint8 race, uint8 
 
     SetUInt32Value(UNIT_FIELD_BYTES_0, ( RaceClassGender | ( powertype << 24 ) ) );
 
-    InitDisplayIds();
-
-    if (CreatureModelInfo const* modelInfo = sObjectMgr.GetCreatureModelInfo(GetDisplayId()))
-    {
-        // bounding_radius and combat_reach is normally modified by scale, but player is always 1.0 scale by default so no need to modify values here.
-        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, modelInfo->bounding_radius);
-        SetFloatValue(UNIT_FIELD_COMBATREACH, modelInfo->combat_reach);
-    }
-    else
-    {
-        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, DEFAULT_WORLD_OBJECT_SIZE);
-        SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
-    }
+    InitDisplayIds();                                       // model, scale and model data
 
     SetByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_PVP );
     SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE );
@@ -2369,8 +2357,8 @@ GameObject* Player::GetGameObjectIfCanInteractWith(ObjectGuid guid, uint32 gameo
             if (go->IsWithinDistInMap(this, maxdist) && go->isSpawned())
                 return go;
 
-            sLog.outError("GetGameObjectIfCanInteractWith: GameObject '%s' [GUID: %u] is too far away from player %s [GUID: %u] to be used by him (distance=%f, maximal 10 is allowed)", go->GetGOInfo()->name,
-                go->GetGUIDLow(), GetName(), GetGUIDLow(), go->GetDistance(this));
+            sLog.outError("GetGameObjectIfCanInteractWith: GameObject '%s' [GUID: %u] is too far away from player %s [GUID: %u] to be used by him (distance=%f, maximal %f is allowed)",
+                go->GetGOInfo()->name,  go->GetGUIDLow(), GetName(), GetGUIDLow(), go->GetDistance(this), maxdist);
         }
     }
     return NULL;
@@ -2758,9 +2746,6 @@ void Player::InitStatsForLevel(bool reapplyMods)
 
     // set default cast time multiplier
     SetFloatValue(UNIT_MOD_CAST_SPEED, 1.0f);
-
-    // reset size before reapply auras
-    SetFloatValue(OBJECT_FIELD_SCALE_X,1.0f);
 
     // save base values (bonuses already included in stored stats
     for(int i = STAT_STRENGTH; i < MAX_STATS; ++i)
@@ -4538,8 +4523,6 @@ void Player::BuildPlayerRepop()
     corpse->ResetGhostTime();
 
     StopMirrorTimers();                                     //disable timers(bars)
-
-    SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, (float)1.0);   //see radius of death player?
 
     // set and clear other
     SetByteValue(UNIT_FIELD_BYTES_1, 3, UNIT_BYTE1_FLAG_ALWAYS_STAND);
@@ -7350,12 +7333,14 @@ void Player::_ApplyWeaponDependentAuraCritMod(Item *item, WeaponAttackType attac
 
 void Player::_ApplyWeaponDependentAuraDamageMod(Item *item, WeaponAttackType attackType, Aura* aura, bool apply)
 {
-    Modifier const* modifier = aura->GetModifier();
-    SpellSchoolMask weaponSchoolMask = GetSchoolMaskForAttackType(attackType);
-
-    // basic school check
-    if (!(weaponSchoolMask & modifier->m_miscvalue))
+    // generic not weapon specific case processes in aura code
+    if(aura->GetSpellProto()->EquippedItemClass == -1)
         return;
+
+    if (item->IsBroken())
+        return;
+
+    Modifier const* modifier = aura->GetModifier();
 
     UnitMods unitMod = UNIT_MOD_END;
     switch(attackType)
@@ -7374,44 +7359,35 @@ void Player::_ApplyWeaponDependentAuraDamageMod(Item *item, WeaponAttackType att
         default: return;
     }
 
-    // check item requirements
-    if (!item->IsBroken() && item->IsFitToSpellRequirements(aura->GetSpellProto()))
+    // no school check of item dmg school here
+    if (item->IsFitToSpellRequirements(aura->GetSpellProto()))
     {
-        // specific case
-        if (aura->GetSpellProto()->EquippedItemClass != -1)
-            HandleStatModifier(unitMod, unitModType, float(modifier->m_amount),apply);
-        // generic case requires additional school check, out of experience
-        else if (SPELL_SCHOOL_MASK_NORMAL & modifier->m_miscvalue)
-            HandleStatModifier(unitMod, unitModType, float(modifier->m_amount),apply);
+        HandleStatModifier(unitMod, unitModType, float(modifier->m_amount),apply);
 
         // aura affects all damage
         if (aura->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE)
         {
-            // TODO: Fix the (practical irrelevant) case of having multiple weapons equipped (offhand, ranged)
+            // workaround to prevent double applying:
             if (attackType != BASE_ATTACK)
                 return;
 
+            // apply bonus to weapons, that don't fit requirements themselves
+            for (uint8 i = OFF_ATTACK; i < MAX_ATTACK; i++)
+                if (Item* pItem = GetWeaponForAttack(WeaponAttackType(i),true,false))
+                    if (!pItem->IsFitToSpellRequirements(aura->GetSpellProto()))
+                        HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + i), unitModType, float(modifier->m_amount),apply);
+
             // send info to client
+            uint32 playerField;
+            if (unitModType == TOTAL_VALUE)
+                playerField = aura->IsPositive() ? PLAYER_FIELD_MOD_DAMAGE_DONE_POS : PLAYER_FIELD_MOD_DAMAGE_DONE_NEG;
+            else
+                playerField = PLAYER_FIELD_MOD_DAMAGE_DONE_PCT;
+
             for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
                 if (modifier->m_miscvalue & (1 << i))
-                {
-                    if (unitModType == TOTAL_PCT)
-                        ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT + i, modifier->m_amount/100.0f, apply);
-                    else
-                    {
-                        if(aura->IsPositive())
-                            ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + i, modifier->m_amount, apply);
-                       else
-                            ApplyModUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_NEG + i, modifier->m_amount, apply);
-                    }
-                }
-
-            return;
+                    ApplyModSignedFloatValue(playerField + i, modifier->m_amount/100.0f, apply);
         }
-
-        // send info to client, TODO: PLAYER_FIELD_MOD_DAMAGE_DONE_PCT will always show the percent mod for ALL weapons in the
-        // character menu at the client, which is not the correct behaviour from my information
-        ApplyModSignedFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT, modifier->m_amount/100.0f, apply);
     }
 }
 
@@ -9211,7 +9187,7 @@ SpellSchoolMask Player::GetSchoolMaskForAttackType(WeaponAttackType type) const
     if(Item* pItem = GetWeaponForAttack(type))
         return SpellSchoolMask(1 << pItem->GetProto()->Damage[0].DamageType);
 
-    return SPELL_SCHOOL_MASK_NONE;
+    return SPELL_SCHOOL_MASK_NORMAL;
 }
 
 bool Player::IsInventoryPos( uint8 bag, uint8 slot )
@@ -13441,22 +13417,9 @@ bool Player::CanAddQuest( Quest const *pQuest, bool msg ) const
     if (!SatisfyQuestLog( msg ))
         return false;
 
-    uint32 srcitem = pQuest->GetSrcItemId();
-    if (srcitem > 0)
-    {
-        uint32 count = pQuest->GetSrcItemCount();
-        ItemPosCountVec dest;
-        uint8 msg2 = CanStoreNewItem( NULL_BAG, NULL_SLOT, dest, srcitem, count );
+    if (!CanGiveQuestSourceItem(pQuest))
+        return false;
 
-        // player already have max number (in most case 1) source item, no additional item needed and quest can be added.
-        if (msg2 == EQUIP_ERR_CANT_CARRY_MORE_OF_THIS)
-            return true;
-        else if (msg2 != EQUIP_ERR_OK)
-        {
-            SendEquipError(msg2, NULL, NULL, srcitem);
-            return false;
-        }
-    }
     return true;
 }
 
@@ -13656,7 +13619,8 @@ void Player::AddQuest( Quest const *pQuest, Object *questGiver )
             questStatusData.m_creatureOrGOcount[i] = 0;
     }
 
-    GiveQuestSourceItem( pQuest );
+    GiveQuestSourceItem(pQuest);
+
     AdjustQuestReqItemCount( pQuest, questStatusData );
 
     if( pQuest->GetRepObjectiveFaction() )
@@ -14268,7 +14232,7 @@ bool Player::SatisfyQuestWeek( Quest const* qInfo, bool msg ) const
     return m_weeklyquests.find(qInfo->GetQuestId()) == m_weeklyquests.end();
 }
 
-bool Player::GiveQuestSourceItem( Quest const *pQuest )
+bool Player::CanGiveQuestSourceItem( Quest const *pQuest, ItemPosCountVec* dest ) const
 {
     uint32 srcitem = pQuest->GetSrcItemId();
     if (srcitem > 0)
@@ -14277,14 +14241,17 @@ bool Player::GiveQuestSourceItem( Quest const *pQuest )
         if( count <= 0 )
             count = 1;
 
-        ItemPosCountVec dest;
-        uint8 msg = CanStoreNewItem( NULL_BAG, NULL_SLOT, dest, srcitem, count );
-        if (msg == EQUIP_ERR_OK)
+        uint8 msg;
+        if (!dest)
         {
-            Item * item = StoreNewItem(dest, srcitem, true);
-            SendNewItem(item, count, true, false);
-            return true;
+            ItemPosCountVec destTemp;
+            msg = CanStoreNewItem( NULL_BAG, NULL_SLOT, destTemp, srcitem, count );
         }
+        else
+            msg = CanStoreNewItem( NULL_BAG, NULL_SLOT, *dest, srcitem, count );
+
+        if (msg == EQUIP_ERR_OK)
+            return true;
         // player already have max amount required item, just report success
         else if (msg == EQUIP_ERR_CANT_CARRY_MORE_OF_THIS)
             return true;
@@ -14295,6 +14262,22 @@ bool Player::GiveQuestSourceItem( Quest const *pQuest )
 
     return true;
 }
+
+void Player::GiveQuestSourceItem( Quest const *pQuest )
+{
+    ItemPosCountVec dest;
+
+    if (CanGiveQuestSourceItem(pQuest, &dest) && !dest.empty())
+    {
+        uint32 count = 0;
+        for(ItemPosCountVec::const_iterator c_itr = dest.begin(); c_itr != dest.end(); ++c_itr)
+            count += c_itr->count;
+
+        Item * item = StoreNewItem(dest, pQuest->GetSrcItemId(), true);
+        SendNewItem(item, count, true, false);
+    }
+}
+
 
 bool Player::TakeQuestSourceItem( uint32 quest_id, bool msg )
 {
@@ -14811,7 +14794,7 @@ bool Player::HasQuestForItem( uint32 itemid ) const
                 continue;
 
             // hide quest if player is in raid-group and quest is no raid quest
-            if (GetGroup() && GetGroup()->isRaidGroup() && qinfo->IsAllowedInRaid() && !InBattleGround())
+            if (GetGroup() && GetGroup()->isRaidGroup() && !qinfo->IsAllowedInRaid() && !InBattleGround())
                 continue;
 
             // There should be no mixed ReqItem/ReqSource drop
@@ -15252,19 +15235,7 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
     _LoadIntoDataField(fields[60].GetString(), PLAYER_EXPLORED_ZONES_1, PLAYER_EXPLORED_ZONES_SIZE);
     _LoadIntoDataField(fields[63].GetString(), PLAYER__FIELD_KNOWN_TITLES, KNOWN_TITLES_SIZE*2);
 
-    InitDisplayIds();
-
-    if (CreatureModelInfo const* modelInfo = sObjectMgr.GetCreatureModelInfo(GetDisplayId()))
-    {
-        // bounding_radius and combat_reach is normally modified by scale, but player is always 1.0 scale by default so no need to modify values here.
-        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, modelInfo->bounding_radius);
-        SetFloatValue(UNIT_FIELD_COMBATREACH, modelInfo->combat_reach);
-    }
-    else
-    {
-        SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, DEFAULT_WORLD_OBJECT_SIZE);
-        SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
-    }
+    InitDisplayIds();                                       // model, scale and model data
 
     SetFloatValue(UNIT_FIELD_HOVERHEIGHT, 1.0f);
 
@@ -15488,12 +15459,14 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
         }
     }
 
-    // NOW player must have valid map
+    // player bounded instance saves loaded in _LoadBoundInstances, group versions at group loading
+    InstanceSave* instanceSave = GetBoundInstanceSaveForSelfOrGroup(GetMapId());
+
     // load the player's map here if it's not already loaded
     SetMap(sMapMgr.CreateMap(GetMapId(), this));
 
     // if the player is in an instance and it has been reset in the meantime teleport him to the entrance
-    if(GetInstanceId() && !sInstanceSaveMgr.GetInstanceSave(GetInstanceId()))
+    if(GetInstanceId() && !instanceSave)
     {
         AreaTrigger const* at = sObjectMgr.GetMapEntranceTrigger(GetMapId());
         if(at)
@@ -16696,6 +16669,29 @@ InstancePlayerBind* Player::BindToInstance(InstanceSave *save, bool permanent, b
     }
     else
         return NULL;
+}
+
+InstanceSave* Player::GetBoundInstanceSaveForSelfOrGroup(uint32 mapid)
+{
+    MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
+    if(!mapEntry)
+        return NULL;
+
+    InstancePlayerBind *pBind = GetBoundInstance(mapid, GetDifficulty(mapEntry->IsRaid()));
+    InstanceSave *pSave = pBind ? pBind->save : NULL;
+
+    // the player's permanent player bind is taken into consideration first
+    // then the player's group bind and finally the solo bind.
+    if(!pBind || !pBind->perm)
+    {
+        InstanceGroupBind *groupBind = NULL;
+        Group *group = GetGroup();
+        // use the player's difficulty setting (it may not be the same as the group's)
+        if(group && (groupBind = group->GetBoundInstance(mapid, this)))
+            pSave = groupBind->save;
+    }
+
+    return pSave;
 }
 
 void Player::SendRaidInfo()
@@ -18720,6 +18716,9 @@ void Player::InitDisplayIds()
         return;
     }
 
+    // reset scale before reapply auras
+    SetObjectScale(DEFAULT_OBJECT_SCALE);
+
     uint8 gender = getGender();
     switch(gender)
     {
@@ -20239,7 +20238,7 @@ bool Player::HasQuestForGO(int32 GOId) const
             if(!qinfo)
                 continue;
 
-            if(GetGroup() && GetGroup()->isRaidGroup() && qinfo->IsAllowedInRaid())
+            if(GetGroup() && GetGroup()->isRaidGroup() && !qinfo->IsAllowedInRaid())
                 continue;
 
             for (int j = 0; j < QUEST_OBJECTIVES_COUNT; ++j)
