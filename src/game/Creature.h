@@ -385,6 +385,7 @@ enum CreatureSubtype
     CREATURE_SUBTYPE_TOTEM,                                 // new Totem
     CREATURE_SUBTYPE_VEHICLE,                               // new Vehicle
     CREATURE_SUBTYPE_TEMPORARY_SUMMON,                      // new TemporarySummon
+    CREATURE_SUBTYPE_POSSESSED_SUMMON,                      // new PossessedSummon
 };
 
 class MANGOS_DLL_SPEC Creature : public Unit
@@ -419,6 +420,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         bool isVehicle() const { return m_subtype == CREATURE_SUBTYPE_VEHICLE; }
         bool isTotem() const { return m_subtype == CREATURE_SUBTYPE_TOTEM; }
         bool isTemporarySummon() const { return m_subtype == CREATURE_SUBTYPE_TEMPORARY_SUMMON; }
+        bool isPossessedSummmon() const {return m_subtype == CREATURE_SUBTYPE_POSSESSED_SUMMON; }
 
         void SetCorpseDelay(uint32 delay) { m_corpseDelay = delay; }
         bool isRacialLeader() const { return GetCreatureInfo()->RacialLeader; }

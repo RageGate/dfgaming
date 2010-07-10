@@ -51,6 +51,7 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
+#include "PossessedSummon.h"
 #include "ScriptCalls.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
@@ -3938,8 +3939,7 @@ void Spell::EffectSummonType(SpellEffectIndex eff_idx)
         case SUMMON_PROP_GROUP_CONTROLLABLE:
         {
             // no type here
-            // maybe wrong - but thats the handler currently used for those
-            DoSummonGuardian(eff_idx, summon_prop->FactionId);
+            DoSummonPossessed(eff_idx, summon_prop->FactionId);
             break;
         }
         case SUMMON_PROP_GROUP_VEHICLE:
@@ -4816,6 +4816,56 @@ void Spell::EffectTameCreature(SpellEffectIndex /*eff_idx*/)
 
     pet->SavePetToDB(PET_SAVE_AS_CURRENT);
     plr->PetSpellInitialize();
+}
+
+void Spell::DoSummonPossessed(SpellEffectIndex eff_idx, uint32 forceFaction)
+{
+    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+        return;
+    Player* p_caster = (Player*)m_caster;
+
+    uint32 creature_entry = m_spellInfo->EffectMiscValue[eff_idx];
+    if (!creature_entry)
+        return;
+
+
+    PossessedSummon* pCreature = new PossessedSummon();
+
+    uint32 team = p_caster->GetTeam();
+    if (!pCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), p_caster->GetMap(), p_caster->GetPhaseMask(), creature_entry, team))
+    {
+        delete pCreature;
+        return;
+    }
+
+    float px, py, pz;
+    // If dest location if present
+    if (m_targets.m_targetMask & TARGET_FLAG_DEST_LOCATION)
+    {
+        // Summon 1 unit in dest location
+        px = m_targets.m_destX;
+        py = m_targets.m_destY;
+        pz = m_targets.m_destZ;
+    }
+    // Summon if dest location not present near caster
+    else
+        p_caster->GetClosePoint(px, py, pz, pCreature->GetObjectBoundingRadius());
+
+    pCreature->Relocate(px, py, pz, p_caster->GetOrientation());
+    pCreature->SetSummonPoint(px, py, pz, p_caster->GetOrientation());
+
+    if(!pCreature->IsPositionValid())
+    {
+        sLog.outError("Creature (guidlow %d, entry %d) not summoned. Suggested coordinates isn't valid (X: %f Y: %f)",pCreature->GetGUIDLow(),pCreature->GetEntry(),pCreature->GetPositionX(),pCreature->GetPositionY());
+        delete pCreature;
+        return;
+    }
+
+    // initialize all stuff (owner, camera, etc...)
+    pCreature->Summon(p_caster, m_spellInfo->Id);
+
+    if(forceFaction)
+        pCreature->setFaction(forceFaction);
 }
 
 void Spell::EffectSummonPet(SpellEffectIndex eff_idx)
