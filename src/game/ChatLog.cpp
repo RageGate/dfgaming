@@ -736,15 +736,16 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(118);
             if (sl)
             {
+                SpellAuraHolder* holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < MAX_EFFECT_INDEX; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
                     }
                 }
+                player->AddSpellAuraHolder(holder);
             }
         }
         break;
@@ -755,15 +756,16 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(13005);
             if (sl)
             {
+                SpellAuraHolder* holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < MAX_EFFECT_INDEX; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
                     }
                 }
+                player->AddSpellAuraHolder(holder);
             }
         }
         break;
@@ -796,15 +798,16 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(23312);
             if (sl)
             {
+                SpellAuraHolder* holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < MAX_EFFECT_INDEX; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
                     }
                 }
+                player->AddSpellAuraHolder(holder);
             }
         }
         break;
@@ -815,15 +818,17 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(15007);
             if (sl)
             {
+                SpellAuraHolder* holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < MAX_EFFECT_INDEX; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    SpellAuraHolder* holder = CreateSpellAuraHolder(sl, player, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
                     }
                 }
+                player->AddSpellAuraHolder(holder);
             }
         }
         break;
@@ -834,15 +839,16 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(41032);
             if (sl)
             {
+                SpellAuraHolder* holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < MAX_EFFECT_INDEX; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
                     }
                 }
+                player->AddSpellAuraHolder(holder);
             }
         }
         break;
