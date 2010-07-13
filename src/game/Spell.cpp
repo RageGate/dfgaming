@@ -788,7 +788,7 @@ void Spell::prepareDataForTriggerSystem()
         if (!IsPositiveEffect(m_spellInfo->Id, SpellEffectIndex(i)))
             m_negativeEffectMask |= (1<<i);
 
-       // Hunter traps spells: Immolation Trap Effect, Frost Trap (triggering spell!!),
+    // Hunter traps spells: Immolation Trap Effect, Frost Trap (triggering spell!!),
     // Freezing Trap Effect(+ Freezing Arrow Effect), Explosive Trap Effect, Snake Trap Effect
     if (m_spellInfo->SpellFamilyName == SPELLFAMILY_HUNTER && (m_spellInfo->SpellFamilyFlags & UI64LIT(0x0000200000002008) || m_spellInfo->SpellFamilyFlags2 & 0x00064000))
         m_procAttacker |= PROC_FLAG_ON_TRAP_ACTIVATION;
@@ -1088,12 +1088,11 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
         if (m_spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT && m_spellInfo->SpellIconID == 3143) 
         { 
             int32 diseaseCount = 0; 
-            Unit::AuraMap const& auras = unitTarget->GetAuras(); 
-            for(Unit::AuraMap::const_iterator itr = auras.begin(); itr!=auras.end(); ++itr) 
+            Unit::SpellAuraHolderMap const& auras = unitTarget->GetSpellAuraHolderMap(); 
+            for(Unit::SpellAuraHolderMap::const_iterator itr = auras.begin(); itr!=auras.end(); ++itr) 
             { 
                 if(itr->second->GetSpellProto()->Dispel == DISPEL_DISEASE && 
-                   itr->second->GetCasterGUID() == caster->GetGUID() && 
-                   IsSpellLastAuraEffect(itr->second->GetSpellProto(), itr->second->GetEffIndex())) 
+                   itr->second->GetCasterGUID() == caster->GetGUID())
                     ++diseaseCount; 
             } 
             if (diseaseCount) 
@@ -1109,12 +1108,11 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
         if (m_spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT && m_spellInfo->SpellFamilyFlags & UI64LIT(0x0800000000000000))
         {
             uint32 count = 0;
-            Unit::AuraMap const& auras = unitTarget->GetAuras();
-            for(Unit::AuraMap::const_iterator itr = auras.begin(); itr!=auras.end(); ++itr)
+            Unit::SpellAuraHolderMap const& auras = unitTarget->GetSpellAuraHolderMap();
+            for(Unit::SpellAuraHolderMap::const_iterator itr = auras.begin(); itr!=auras.end(); ++itr)
             {
                 if(itr->second->GetSpellProto()->Dispel == DISPEL_DISEASE &&
-                    itr->second->GetCasterGUID() == caster->GetGUID() &&
-                    IsSpellLastAuraEffect(itr->second->GetSpellProto(), itr->second->GetEffIndex()))
+                    itr->second->GetCasterGUID() == caster->GetGUID())
                     ++count;
             }
 
@@ -1269,6 +1267,11 @@ void Spell::DoSpellHitOnUnit(Unit *unit, const uint32 effectMask)
     // Apply additional spell effects to target
     CastPreCastSpells(unit);
 
+    if (IsSpellAppliesAura(m_spellInfo, effectMask))
+        spellAuraHolder = CreateSpellAuraHolder(m_spellInfo, unit, realCaster, m_CastItem);
+    else
+        spellAuraHolder = NULL;
+
     for(int effectNumber = 0; effectNumber < MAX_EFFECT_INDEX; ++effectNumber)
     {
         if (effectMask & (1 << effectNumber))
@@ -1285,6 +1288,16 @@ void Spell::DoSpellHitOnUnit(Unit *unit, const uint32 effectMask)
                 m_damageMultipliers[effectNumber] *= multiplier;
             }
         }
+    }
+
+    // now apply all created auras
+    if (spellAuraHolder)
+    {
+        // normally shouldn't happen
+        if (!spellAuraHolder->IsEmptyHolder())
+            unit->AddSpellAuraHolder(spellAuraHolder);
+        else
+            delete spellAuraHolder;
     }
 }
 
@@ -3542,7 +3555,7 @@ void Spell::finish(bool ok)
             case 44544: // Fingers of Frost dissapear after two spells
                 if(!m_IsTriggeredSpell && m_spellInfo->SpellFamilyName == SPELLFAMILY_MAGE)
                 {
-                    if((*j)->DropAuraCharge())
+                    if((*j)->GetHolder()->DropAuraCharge())
                         m_caster->RemoveAura((*j));
                     break_for = true;
                 }
@@ -4456,6 +4469,16 @@ SpellCastResult Spell::CheckCast(bool strict)
             if(bg->GetStatus() == STATUS_WAIT_LEAVE)
                 return SPELL_FAILED_DONT_REPORT;
 
+    if(m_caster->GetTypeId() == TYPEID_PLAYER && VMAP::VMapFactory::createOrGetVMapManager()->isLineOfSightCalcEnabled())
+    {
+        if(m_spellInfo->Attributes & SPELL_ATTR_OUTDOORS_ONLY &&
+                !m_caster->GetMap()->IsOutdoors(m_caster->GetPositionX(), m_caster->GetPositionY(), m_caster->GetPositionZ()))
+            return SPELL_FAILED_ONLY_OUTDOORS;
+
+        if(m_spellInfo->Attributes & SPELL_ATTR_INDOORS_ONLY &&
+                m_caster->GetMap()->IsOutdoors(m_caster->GetPositionX(), m_caster->GetPositionY(), m_caster->GetPositionZ()))
+            return SPELL_FAILED_ONLY_INDOORS;
+    }
     // only check at first call, Stealth auras are already removed at second call
     // for now, ignore triggered spells
     if( strict && !m_IsTriggeredSpell)
@@ -5722,43 +5745,48 @@ SpellCastResult Spell::CheckCasterAuras() const
         if (school_immune || mechanic_immune || dispel_immune)
         {
             //Checking auras is needed now, because you are prevented by some state but the spell grants immunity.
-            Unit::AuraMap const& auras = m_caster->GetAuras();
-            for(Unit::AuraMap::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
+            Unit::SpellAuraHolderMap const& auras = m_caster->GetSpellAuraHolderMap();
+            for(Unit::SpellAuraHolderMap::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
             {
-                if (itr->second)
+                if (SpellAuraHolder *holder = itr->second)
                 {
-                    if (GetSpellMechanicMask(itr->second->GetSpellProto(), itr->second->GetEffIndex()) & mechanic_immune)
-                        continue;
-                    if (GetSpellSchoolMask(itr->second->GetSpellProto()) & school_immune)
-                        continue;
-                    if ((1<<(itr->second->GetSpellProto()->Dispel)) & dispel_immune)
-                        continue;
-
-                    // Make a second check for spell failed so the right SPELL_FAILED message is returned.
-                    // That is needed when your casting is prevented by multiple states and you are only immune to some of them.
-                    switch(itr->second->GetModifier()->m_auraname)
+                    for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
                     {
-                        case SPELL_AURA_MOD_STUN:
-                            if (!(m_spellInfo->AttributesEx5 & SPELL_ATTR_EX5_USABLE_WHILE_STUNNED))
-                                return SPELL_FAILED_STUNNED;
-                            break;
-                        case SPELL_AURA_MOD_CONFUSE:
-                            if (!(m_spellInfo->AttributesEx5 & SPELL_ATTR_EX5_USABLE_WHILE_CONFUSED))
-                                return SPELL_FAILED_CONFUSED;
-                            break;
-                        case SPELL_AURA_MOD_FEAR:
-                            if (!(m_spellInfo->AttributesEx5 & SPELL_ATTR_EX5_USABLE_WHILE_FEARED))
-                                return SPELL_FAILED_FLEEING;
-                            break;
-                        case SPELL_AURA_MOD_SILENCE:
-                        case SPELL_AURA_MOD_PACIFY:
-                        case SPELL_AURA_MOD_PACIFY_SILENCE:
-                            if( m_spellInfo->PreventionType == SPELL_PREVENTION_TYPE_PACIFY)
-                                return SPELL_FAILED_PACIFIED;
-                            else if ( m_spellInfo->PreventionType == SPELL_PREVENTION_TYPE_SILENCE)
-                                return SPELL_FAILED_SILENCED;
-                            break;
-                        default: break;
+                        if (GetSpellMechanicMask(itr->second->GetSpellProto(), i) & mechanic_immune)
+                            continue;
+                        if (GetSpellSchoolMask(itr->second->GetSpellProto()) & school_immune)
+                            continue;
+                        if ((1<<(itr->second->GetSpellProto()->Dispel)) & dispel_immune)
+                            continue;
+                        Aura *aura = holder->GetAuraByEffectIndex(SpellEffectIndex(i));
+                        if (!aura)
+                            continue;
+                        // Make a second check for spell failed so the right SPELL_FAILED message is returned.
+                        // That is needed when your casting is prevented by multiple states and you are only immune to some of them.
+                        switch(aura->GetModifier()->m_auraname)
+                        {
+                            case SPELL_AURA_MOD_STUN:
+                                if (!(m_spellInfo->AttributesEx5 & SPELL_ATTR_EX5_USABLE_WHILE_STUNNED))
+                                    return SPELL_FAILED_STUNNED;
+                                break;
+                            case SPELL_AURA_MOD_CONFUSE:
+                                if (!(m_spellInfo->AttributesEx5 & SPELL_ATTR_EX5_USABLE_WHILE_CONFUSED))
+                                    return SPELL_FAILED_CONFUSED;
+                                break;
+                            case SPELL_AURA_MOD_FEAR:
+                                if (!(m_spellInfo->AttributesEx5 & SPELL_ATTR_EX5_USABLE_WHILE_FEARED))
+                                    return SPELL_FAILED_FLEEING;
+                                break;
+                            case SPELL_AURA_MOD_SILENCE:
+                            case SPELL_AURA_MOD_PACIFY:
+                            case SPELL_AURA_MOD_PACIFY_SILENCE:
+                                if( m_spellInfo->PreventionType == SPELL_PREVENTION_TYPE_PACIFY)
+                                    return SPELL_FAILED_PACIFIED;
+                                else if ( m_spellInfo->PreventionType == SPELL_PREVENTION_TYPE_SILENCE)
+                                    return SPELL_FAILED_SILENCED;
+                                break;
+                            default: break;
+                        }
                     }
                 }
             }
@@ -6509,10 +6537,7 @@ void Spell::DelayedChannel()
         if ((*ihit).missCondition == SPELL_MISS_NONE)
         {
             if (Unit* unit = m_caster->GetObjectGuid() == ihit->targetGUID ? m_caster : ObjectAccessor::GetUnit(*m_caster, ihit->targetGUID))
-                for (int j = 0; j < MAX_EFFECT_INDEX; ++j)
-                    if (ihit->effectMask & (1 << j))
-                        unit->DelayAura(m_spellInfo->Id, SpellEffectIndex(j), delaytime);
-
+                unit->DelaySpellAuraHolder(m_spellInfo->Id, delaytime);
         }
     }
 

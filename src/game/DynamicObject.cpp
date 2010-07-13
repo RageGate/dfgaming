@@ -71,7 +71,7 @@ bool DynamicObject::Create( uint32 guidlow, Unit *caster, uint32 spellId, SpellE
     }
 
     SetEntry(spellId);
-    SetObjectScale(DEFAULT_OBJECT_SCALE * 2);
+    SetObjectScale(DEFAULT_OBJECT_SCALE);
 
     SetUInt64Value(DYNAMICOBJECT_CASTER, caster->GetGUID());
 
@@ -149,7 +149,7 @@ void DynamicObject::Delay(int32 delaytime)
     m_aliveDuration -= delaytime;
     for(AffectedSet::iterator iunit= m_affected.begin(); iunit != m_affected.end(); ++iunit)
         if (*iunit)
-            (*iunit)->DelayAura(m_spellId, m_effIndex, delaytime);
+            (*iunit)->DelaySpellAuraHolder(m_spellId, delaytime);
 }
 
 bool DynamicObject::isVisibleForInState(Player const* u, WorldObject const* viewPoint, bool inVisibleList) const
