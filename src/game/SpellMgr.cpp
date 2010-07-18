@@ -1680,6 +1680,9 @@ bool SpellMgr::canStackSpellRanks(SpellEntry const *spellInfo)
                 // Paladin aura Spell
                 if (spellInfo->Effect[i]==SPELL_EFFECT_APPLY_AREA_AURA_RAID)
                     return false;
+                // Seal of Righteousness, 2 version of same rank
+                if ((spellInfo->SpellFamilyFlags & UI64LIT(0x0000000008000000)) && spellInfo->SpellIconID == 25)
+                    return false;
                 break;
             case SPELLFAMILY_DRUID:
                 // Druid form Spell
@@ -3538,6 +3541,12 @@ SpellCastResult SpellMgr::GetSpellAllowedInLocationError(SpellEntry const *spell
 
             BattleGround* bg = player->GetBattleGround();
             return bg && bg->GetStatus()==STATUS_WAIT_JOIN ? SPELL_CAST_OK : SPELL_FAILED_ONLY_IN_ARENA;
+        }
+        case 75617:
+        case 75618:
+        {
+            uint32 vmap = GetVirtualMapForMapAndZone(map_id, zone_id);
+            return (vmap == 530 || vmap == 571) ? SPELL_CAST_OK : SPELL_FAILED_INCORRECT_AREA;
         }
     }
 
