@@ -7043,11 +7043,8 @@ void Spell::SelectMountByAreaAndSkill(Unit* target, uint32 spellId75, uint32 spe
                     }
                 }
             }
-            target->CastSpell(target, pSpell, true);
-        }
-        else
-	    {
-			if (spellId225 == 75617 || spellId300 == 75618)
+
+            if (spellId225 == 75617 || spellId300 == 75618)
 			{
 				if (((Player*)target)->GetMapId() == 530 || ((Player*)target)->GetMapId() == 571)
 					target->CastSpell(target, pSpell, true);
@@ -7055,6 +7052,8 @@ void Spell::SelectMountByAreaAndSkill(Unit* target, uint32 spellId75, uint32 spe
 					target->CastSpell(target, spellId150, true);
 			}
 		}
+        else
+			target->CastSpell(target, pSpell, true);
     }
     else if (skillval >= 150 && spellId150 > 0)
         target->CastSpell(target, spellId150, true);
