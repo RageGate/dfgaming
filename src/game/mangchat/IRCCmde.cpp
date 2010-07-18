@@ -1644,7 +1644,7 @@ void IRCCmd::Tele_Player(_CDATA *CD)
     Player* plr = GetPlayer(_PARAMS[0]);
     if (plr)
     {
-        if (plr->isInFlight() || plr->isInCombat())
+        if (plr->IsTaxiFlying() || plr->isInCombat())
         {
             Send_IRCA(CD->USER, MakeMsg("\0034[ERROR] : %s Is Busy And Cannot Be Teleported! They Could Be In Combat, Or Flying.",_PARAMS[0].c_str()), true, "ERROR");
             return;
