@@ -417,21 +417,29 @@ bool Unit::IsTriggeredAtSpellProcEvent(Unit *pVictim, SpellAuraHolder* holder, S
     // If in spellProcEvent exist custom chance, chance = spellProcEvent->customChance;
     if(spellProcEvent && spellProcEvent->customChance)
         chance = spellProcEvent->customChance;
-    // If PPM exist and its a melee/ranged spell calculate chance from PPM
-    if(spellProcEvent && spellProcEvent->ppmRate != 0 &&
-        (!procSpell || procSpell->DmgClass == SPELL_DAMAGE_CLASS_RANGED || procSpell->DmgClass == SPELL_DAMAGE_CLASS_MELEE))
+
+    // If PPM handling
+    if(spellProcEvent && spellProcEvent->ppmRate)
     {
-        if(!isVictim)
+        // weapon based
+        if (!procSpell || procSpell->DmgClass == SPELL_DAMAGE_CLASS_RANGED || procSpell->DmgClass == SPELL_DAMAGE_CLASS_MELEE)
         {
-            uint32 WeaponSpeed = GetAttackTime(attType);
-            chance = GetPPMProcChance(WeaponSpeed, spellProcEvent->ppmRate);
+            if(!isVictim)
+            {
+                uint32 WeaponSpeed = GetAttackTime(attType);
+                chance = GetPPMProcChance(WeaponSpeed, spellProcEvent->ppmRate);
+            }
+            else
+            {
+                uint32 WeaponSpeed = pVictim->GetAttackTime(attType);
+                chance = pVictim->GetPPMProcChance(WeaponSpeed, spellProcEvent->ppmRate);
+            }
         }
-        else
-        {
-            uint32 WeaponSpeed = pVictim->GetAttackTime(attType);
-            chance = pVictim->GetPPMProcChance(WeaponSpeed, spellProcEvent->ppmRate);
-        }
+        // we also use this for non-wepon spells
+        else if (!spellProcEvent->customChance)
+            chance = GetPPMProcChance(BASE_ATTACK_TIME, spellProcEvent->ppmRate);
     }
+
     // Apply chance modifer aura
     if(Player* modOwner = GetSpellModOwner())
     {
