@@ -417,21 +417,29 @@ bool Unit::IsTriggeredAtSpellProcEvent(Unit *pVictim, SpellAuraHolder* holder, S
     // If in spellProcEvent exist custom chance, chance = spellProcEvent->customChance;
     if(spellProcEvent && spellProcEvent->customChance)
         chance = spellProcEvent->customChance;
-    // If PPM exist and its a melee/ranged spell calculate chance from PPM
-    if(spellProcEvent && spellProcEvent->ppmRate != 0 &&
-        (!procSpell || procSpell->DmgClass == SPELL_DAMAGE_CLASS_RANGED || procSpell->DmgClass == SPELL_DAMAGE_CLASS_MELEE))
+
+    // If PPM handling
+    if(spellProcEvent && spellProcEvent->ppmRate)
     {
-        if(!isVictim)
+        // weapon based
+        if (!procSpell || procSpell->DmgClass == SPELL_DAMAGE_CLASS_RANGED || procSpell->DmgClass == SPELL_DAMAGE_CLASS_MELEE)
         {
-            uint32 WeaponSpeed = GetAttackTime(attType);
-            chance = GetPPMProcChance(WeaponSpeed, spellProcEvent->ppmRate);
+            if(!isVictim)
+            {
+                uint32 WeaponSpeed = GetAttackTime(attType);
+                chance = GetPPMProcChance(WeaponSpeed, spellProcEvent->ppmRate);
+            }
+            else
+            {
+                uint32 WeaponSpeed = pVictim->GetAttackTime(attType);
+                chance = pVictim->GetPPMProcChance(WeaponSpeed, spellProcEvent->ppmRate);
+            }
         }
-        else
-        {
-            uint32 WeaponSpeed = pVictim->GetAttackTime(attType);
-            chance = pVictim->GetPPMProcChance(WeaponSpeed, spellProcEvent->ppmRate);
-        }
+        // we also use this for non-wepon spells
+        else if (!spellProcEvent->customChance)
+            chance = GetPPMProcChance(BASE_ATTACK_TIME, spellProcEvent->ppmRate);
     }
+
     // Apply chance modifer aura
     if(Player* modOwner = GetSpellModOwner())
     {
@@ -2989,7 +2997,7 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit *pVictim, uint32 d
             }
             break;
         case SPELLFAMILY_MAGE:
-            if (auraSpellInfo->SpellIconID == 2127)     // Blazing Speed
+            if (auraSpellInfo->SpellIconID == 2127)         // Blazing Speed
             {
                 switch (auraSpellInfo->Id)
                 {
@@ -2998,17 +3006,23 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit *pVictim, uint32 d
                         trigger_spell_id = 31643;
                         break;
                     default:
-                        sLog.outError("Unit::HandleProcTriggerSpellAuraProc: Spell %u miss posibly Blazing Speed",auraSpellInfo->Id);
+                        sLog.outError("Unit::HandleProcTriggerSpellAuraProc: Spell %u miss possibly Blazing Speed",auraSpellInfo->Id);
                         return SPELL_AURA_PROC_FAILED;
                 }
             }
-            // Persistent Shield (Scarab Brooch trinket)
-            else if(auraSpellInfo->Id == 26467)
+            else if(auraSpellInfo->Id == 26467)             // Persistent Shield (Scarab Brooch trinket)
             {
-                // This spell originally trigger 13567 - Dummy Trigger (vs dummy efect)
+                // This spell originally trigger 13567 - Dummy Trigger (vs dummy effect)
                 basepoints[0] = damage * 15 / 100;
                 target = pVictim;
                 trigger_spell_id = 26470;
+            }
+            else if(auraSpellInfo->Id == 71761)             // Deep Freeze Immunity State
+            {
+                // spell applied only to permanent immunes to stun targets (bosses)
+                if (pVictim->GetTypeId() != TYPEID_UNIT ||
+                    (((Creature*)pVictim)->GetCreatureInfo()->MechanicImmuneMask & (1 << (MECHANIC_STUN - 1))) == 0)
+                    return SPELL_AURA_PROC_FAILED;
             }
             break;
         case SPELLFAMILY_WARRIOR:
