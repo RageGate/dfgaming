@@ -9273,8 +9273,7 @@ bool SpellAuraHolder::HasMechanicMask(uint32 mechanicMask) const
         return true;
 
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
-        if(((1 << (m_spellProto->EffectMechanic[i]-1)) | (1 << (m_spellProto->Mechanic-1))) & mechanicMask)
-        //if (m_auras[i] && m_spellProto->EffectMechanic[i] & mechanicMask) // buggy
+        if (m_auras[i] && m_spellProto->EffectMechanic[i] && ((1 << (m_spellProto->EffectMechanic[i] -1)) & mechanicMask))
             return true;
     return false;
 }
