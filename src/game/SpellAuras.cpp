@@ -9267,7 +9267,8 @@ bool SpellAuraHolder::HasAuraAndMechanicEffect(uint32 mechanic) const
 bool SpellAuraHolder::HasAuraAndMechanicEffectMask(uint32 mechanicMask) const
 {
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
-        if (m_auras[i] && m_spellProto->EffectMechanic[i] & mechanicMask)
+        if(((1 << (m_spellProto->EffectMechanic[i]-1)) | (1 << (m_spellProto->Mechanic-1))) & mechanicMask)
+        //if (m_auras[i] && m_spellProto->EffectMechanic[i] & mechanicMask) // buggy
             return true;
     return false;
 }
