@@ -1348,11 +1348,11 @@ void World::SetInitialWorldSettings()
     uint32 nextGameEvent = sGameEventMgr.Initialize();
     m_timers[WUPDATE_EVENTS].SetInterval(nextGameEvent);    //depend on next event
 
-    // Delete all characters which have been deleted X days before
-    Player::DeleteOldCharacters();
-
     sLog.outString("Initialize AuctionHouseBot...");
     auctionbot.Initialize();
+
+    // Delete all characters which have been deleted X days before
+    Player::DeleteOldCharacters();
 
     sLog.outString( "WORLD: World initialized" );
 

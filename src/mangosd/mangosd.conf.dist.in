@@ -1655,7 +1655,7 @@ AuctionHouseBot.UseBuyPriceForSeller = 0
 AuctionHouseBot.UseBuyPriceForBuyer = 0
 
 ###################################################################################################################
-# CONSOLE AND REMOTE ACCESS
+# CONSOLE, REMOTE ACCESS AND SOAP
 #
 #    Console.Enable
 #        Enable console
