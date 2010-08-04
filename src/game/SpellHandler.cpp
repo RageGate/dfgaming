@@ -579,11 +579,11 @@ void WorldSession::HandleSpellClick( WorldPacket & recv_data )
     if (_player->isInCombat())                              // client prevent click and set different icon at combat state
         return;
 */
-    Creature *unit = ObjectAccessor::GetCreatureOrPetOrVehicle(*_player, guid);
-    if (!unit || (unit->isInCombat() && unit->GetCreatureInfo()->DisplayID_A[0] != 27769))    // client prevent click and set different icon at combat state
+    Creature *unit = _player->GetMap()->GetCreatureOrPetOrVehicle(guid);
+    if (!unit || (unit->isInCombat() && unit->GetCreatureInfo()->ModelId[0] != 27769))      // client prevent click and set different icon at combat state
         return;
     // Lightwell Hack
-    if (_player->isInCombat() && unit->GetCreatureInfo()->DisplayID_A[0] != 27769)            // client prevent click and set different icon at combat state
+    if (_player->isInCombat() && unit->GetCreatureInfo()->ModelId[0] != 27769)              // client prevent click and set different icon at combat state
         return;
 
     if(!_player->IsWithinDistInMap(unit, 10))

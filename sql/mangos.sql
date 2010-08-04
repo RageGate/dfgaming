@@ -24,7 +24,7 @@ CREATE TABLE `db_version` (
   `version` varchar(120) default NULL,
   `creature_ai_version` varchar(120) default NULL,
   `cache_id` int(10) default '0',
-  `required_10270_01_mangos_reputation_spillover_template` bit(1) default NULL
+  `required_10314_02_mangos_command` bit(1) default NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Used DB version notes';
 
 --
@@ -104,26 +104,6 @@ CREATE TABLE `areatrigger_involvedrelation` (
 LOCK TABLES `areatrigger_involvedrelation` WRITE;
 /*!40000 ALTER TABLE `areatrigger_involvedrelation` DISABLE KEYS */;
 /*!40000 ALTER TABLE `areatrigger_involvedrelation` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `areatrigger_scripts`
---
-
-DROP TABLE IF EXISTS `areatrigger_scripts`;
-CREATE TABLE `areatrigger_scripts` (
-    `entry` MEDIUMINT( 8 ) NOT NULL ,
-    `ScriptName` CHAR( 64 ) NOT NULL ,
-    PRIMARY KEY ( `entry` )
-) ENGINE = MYISAM DEFAULT CHARSET=utf8;
-
---
--- Dumping data for table `areatrigger_scripts`
---
-
-LOCK TABLES `areatrigger_scripts` WRITE;
-/*!40000 ALTER TABLE `areatrigger_scripts` DISABLE KEYS */;
-/*!40000 ALTER TABLE `areatrigger_scripts` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -587,7 +567,7 @@ INSERT INTO `command` VALUES
 ('go grid',1,'Syntax: .go grid #gridX #gridY [#mapId]\r\n\r\nTeleport the gm to center of grid with provided indexes at map #mapId (or current map if it not provided).'),
 ('go object',1,'Syntax: .go object (#gameobject_guid|$gameobject_name|id #gameobject_id)\r\nTeleport your character to gameobject with guid #gameobject_guid, or teleport your character to gameobject with name including as part $gameobject_name substring, or teleport your character to a gameobject that was spawned from the template with this entry #gameobject_id.'),
 ('go taxinode',1,'Syntax: .go taxinode #taxinode\r\n\r\nTeleport player to taxinode coordinates. You can look up zone using .lookup taxinode $namepart'),
-('go trigger',1,'Syntax: .go trigger #trigger_id\r\n\r\nTeleport your character to areatrigger with id #trigger_id. Character will be teleported to trigger target if selected areatrigger is telporting trigger.'),
+('go trigger',1,'Syntax: .go trigger (#trigger_id|$trigger_shift-link|$trigger_target_shift-link) [target]\r\n\r\nTeleport your character to areatrigger with id #trigger_id or trigger id associated with shift-link. If additional arg "target" provided then character will telported to areatrigger target point.'),
 ('go xy',1,'Syntax: .go xy #x #y [#mapid]\r\n\r\nTeleport player to point with (#x,#y) coordinates at ground(water) level at map #mapid or same map if #mapid not provided.'),
 ('go xyz',1,'Syntax: .go xyz #x #y #z [#mapid]\r\n\r\nTeleport player to point with (#x,#y,#z) coordinates at ground(water) level at map #mapid or same map if #mapid not provided.'),
 ('go zonexy',1,'Syntax: .go zonexy #x #y [#zone]\r\n\r\nTeleport player to point with (#x,#y) client coordinates at ground(water) level in zone #zoneid or current zone if #zoneid not provided. You can look up zone using .lookup area $namepart'),
@@ -783,6 +763,9 @@ INSERT INTO `command` VALUES
 ('titles current',2,'Syntax: .titles current #title\r\nSet title #title (id or shift-link) as current selected titl for selected player. If title not in known title list for player then it will be added to list.'),
 ('titles remove',2,'Syntax: .titles remove #title\r\nRemove title #title (id or shift-link) from known titles list for selected player.'),
 ('titles setmask',2,'Syntax: .titles setmask #mask\r\n\r\nAllows user to use all titles from #mask.\r\n\r\n #mask=0 disables the title-choose-field'),
+('trigger',2,'Syntax: .trigger [#trigger_id|$trigger_shift-link|$trigger_target_shift-link]\r\n\r\nShow detail infor about areatrigger with id #trigger_id or trigger id associated with shift-link. If areatrigger id or shift-link not provided then selected nearest areatrigger at current map.'),
+('trigger active',2,'Syntax: .trigger active\r\n\r\nShow list of areatriggers wiht activation zone including current character position.'),
+('trigger near',2,'Syntax: .trigger near [#distance]\r\n\r\nOutput areatriggers at distance #distance from player. If #distance not provided use 10 as default value.'),
 ('unaura',3,'Syntax: .unaura #spellid\r\n\r\nRemove aura due to spell #spellid from the selected Unit.'),
 ('unban account',3,'Syntax: .unban account $Name\r\nUnban accounts for account name pattern.'),
 ('unban character',3,'Syntax: .unban character $Name\r\nUnban accounts for character name pattern.'),
@@ -844,7 +827,7 @@ UNLOCK TABLES;
 
 DROP TABLE IF EXISTS `creature_addon`;
 CREATE TABLE `creature_addon` (
-  `guid` int(11) NOT NULL default '0',
+  `guid` int(10) unsigned NOT NULL default '0',
   `mount` mediumint(8) unsigned NOT NULL default '0',
   `bytes1` int(10) unsigned NOT NULL default '0',
   `bytes2` int(10) unsigned NOT NULL default '0',
@@ -964,6 +947,8 @@ CREATE TABLE `creature_model_info` (
   `combat_reach` float NOT NULL default '0',
   `gender` tinyint(3) unsigned NOT NULL default '2',
   `modelid_other_gender` mediumint(8) unsigned NOT NULL default '0',
+  `modelid_alternative` mediumint(8) unsigned NOT NULL default '0',
+  `modelid_other_team` mediumint(8) unsigned NOT NULL default '0',
   PRIMARY KEY  (`modelid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Creature System (Model related info)';
 
@@ -974,27 +959,27 @@ CREATE TABLE `creature_model_info` (
 LOCK TABLES `creature_model_info` WRITE;
 /*!40000 ALTER TABLE `creature_model_info` DISABLE KEYS */;
 INSERT INTO `creature_model_info` VALUES
-(49, 0.3060, 1.5, 0, 50),
-(50, 0.2080, 1.5, 1, 49),
-(51, 0.3720, 1.5, 0, 52),
-(52, 0.2360, 1.5, 1, 51),
-(53, 0.3470, 1.5, 0, 54),
-(54, 0.3470, 1.5, 1, 53),
-(55, 0.3890, 1.5, 0, 56),
-(56, 0.3060, 1.5, 1, 55),
-(57, 0.3830, 1.5, 0, 58),
-(58, 0.3830, 1.5, 1, 57),
-(59, 0.9747, 1.5, 0, 60),
-(60, 0.8725, 1.5, 1, 59),
-(1478, 0.3060, 1.5, 0, 1479),
-(1479, 0.3060, 1.5, 1, 1478),
-(1563, 0.3519, 1.5, 0, 1564),
-(1564, 0.3519, 1.5, 1, 1563),
-(10045, 1.0000, 1.5, 2, 0),
-(15475, 0.3830, 1.5, 1, 15476),
-(15476, 0.3830, 1.5, 0, 15475),
-(16125, 1.0000, 1.5, 0, 16126),
-(16126, 1.0000, 1.5, 1, 16125);
+(49, 0.3060, 1.5, 0, 50, 0, 0),
+(50, 0.2080, 1.5, 1, 49, 0, 0),
+(51, 0.3720, 1.5, 0, 52, 0, 0),
+(52, 0.2360, 1.5, 1, 51, 0, 0),
+(53, 0.3470, 1.5, 0, 54, 0, 0),
+(54, 0.3470, 1.5, 1, 53, 0, 0),
+(55, 0.3890, 1.5, 0, 56, 0, 0),
+(56, 0.3060, 1.5, 1, 55, 0, 0),
+(57, 0.3830, 1.5, 0, 58, 0, 0),
+(58, 0.3830, 1.5, 1, 57, 0, 0),
+(59, 0.9747, 1.5, 0, 60, 0, 0),
+(60, 0.8725, 1.5, 1, 59, 0, 0),
+(1478, 0.3060, 1.5, 0, 1479, 0, 0),
+(1479, 0.3060, 1.5, 1, 1478, 0, 0),
+(1563, 0.3519, 1.5, 0, 1564, 0, 0),
+(1564, 0.3519, 1.5, 1, 1563, 0, 0),
+(10045, 1.0000, 1.5, 2, 0, 0, 0),
+(15475, 0.3830, 1.5, 1, 15476, 0, 0),
+(15476, 0.3830, 1.5, 0, 15475, 0, 0),
+(16125, 1.0000, 1.5, 0, 16126, 0, 0),
+(16126, 1.0000, 1.5, 1, 16125, 0, 0);
 /*!40000 ALTER TABLE `creature_model_info` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1146,10 +1131,10 @@ CREATE TABLE `creature_template` (
   `difficulty_entry_3` mediumint(8) unsigned NOT NULL default '0',
   `KillCredit1` int(11) unsigned NOT NULL default '0',
   `KillCredit2` int(11) unsigned NOT NULL default '0',
-  `modelid_A` mediumint(8) unsigned NOT NULL default '0',
-  `modelid_A2` mediumint(8) unsigned NOT NULL default '0',
-  `modelid_H` mediumint(8) unsigned NOT NULL default '0',
-  `modelid_H2` mediumint(8) unsigned NOT NULL default '0',
+  `modelid_1` mediumint(8) unsigned NOT NULL default '0',
+  `modelid_2` mediumint(8) unsigned NOT NULL default '0',
+  `modelid_3` mediumint(8) unsigned NOT NULL default '0',
+  `modelid_4` mediumint(8) unsigned NOT NULL default '0',
   `name` char(100) NOT NULL default '0',
   `subname` char(100) default NULL,
   `IconName` char(100) default NULL,
@@ -1232,7 +1217,7 @@ CREATE TABLE `creature_template` (
 LOCK TABLES `creature_template` WRITE;
 /*!40000 ALTER TABLE `creature_template` DISABLE KEYS */;
 INSERT INTO `creature_template` VALUES
-(1,0,0,0,0,0,10045,0,10045,0,'Waypoint(Only GM can see it)','Visual',NULL,0,1,1,64,64,0,0,5,35,35,0,0.91,1.14286,1,0,2,3,0,10,1,2000,2200,8,4096,0,0,0,0,0,0,1,2,100,8,5242886,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'',0,3,1,1,0,0,0,0,0,0,0,0,1,0,0,130,'');
+(1,0,0,0,0,0,10045,0,0,0,'Waypoint(Only GM can see it)','Visual',NULL,0,1,1,64,64,0,0,5,35,35,0,0.91,1.14286,1,0,2,3,0,10,1,2000,2200,8,4096,0,0,0,0,0,0,1,2,100,8,5242886,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'',0,3,1,1,0,0,0,0,0,0,0,0,1,0,0,130,'');
 /*!40000 ALTER TABLE `creature_template` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -2108,7 +2093,7 @@ CREATE TABLE `instance_template` (
   `parent` smallint(5) unsigned NOT NULL default '0',
   `levelMin` tinyint(3) unsigned NOT NULL default '0',
   `levelMax` tinyint(3) unsigned NOT NULL default '0',
-  `script` varchar(128) NOT NULL default '',
+  `ScriptName` varchar(128) NOT NULL default '',
   PRIMARY KEY  (`map`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
@@ -3288,6 +3273,21 @@ INSERT INTO `mangos_string` VALUES
 (354,'Title %u (%s) removed from known titles list for player %s.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (355,'Title %u (%s) set as current selected title for player %s.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (356,'Current selected title for player %s reset as not known now.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(357,'Areatrigger %u not has target coordinates',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(358,'No areatriggers found!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(359,'%s|cffffffff|Hareatrigger_target:%u|h[Trigger target %u]|h|r Map %u X:%f Y:%f Z:%f%s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(360,'%s[Trigger target %u] Map %u X:%f Y:%f Z:%f',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(361,'|cffffffff|Hareatrigger:%u|h[Trigger %u]|h|r Map %u X:%f Y:%f Z:%f%s%s%s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(362,'[Trigger %u] Map %u X:%f Y:%f Z:%f%s%s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(363,' (Dist %f)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(364,' [Tavern]',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(365,' [Quest]',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(366,'Explore quest:',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(367,'Required level %u',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(368,'Required Items:',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(369,'Required quest (normal difficulty):',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(370,'Required heroic keys:',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(371,'Required quest (heroic difficulty):',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (400,'|cffff0000[System Message]:|rScripts reloaded',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (401,'You change security level of account %s to %i.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (402,'%s changed your security level to %i.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -3399,7 +3399,7 @@ INSERT INTO `mangos_string` VALUES
 (509,'%d - sender: %s (guid: %u account: %u ) receiver: %s (guid: %u account: %u ) %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (510,'%d - owner: %s (guid: %u account: %u ) %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (511,'Wrong link type!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(512,'%d - |cffffffff|Hitem:%d:0:0:0:0:0:0:0:0|h[%s]|h|r ',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(512,'%d - |cffffffff|Hitem:%d:0:0:0:0:0:0:0:0|h[%s]|h|r %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (513,'%d - |cffffffff|Hquest:%d:%d|h[%s]|h|r %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (514,'%d - |cffffffff|Hcreature_entry:%d|h[%s]|h|r ',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (515,'%d%s - |cffffffff|Hcreature:%d|h[%s X:%f Y:%f Z:%f MapId:%d]|h|r ',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -3670,7 +3670,7 @@ INSERT INTO `mangos_string` VALUES
 (1102,'Message sent to %s: %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1103,'%d - %s %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1104,'%d - %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(1105,'%d - %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(1105,'%d - %s %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1106,'%d - %s %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1107,'%d - %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1108,'%d - %s %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -3717,6 +3717,7 @@ INSERT INTO `mangos_string` VALUES
 (1149,' (Pool %u)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1150,' (Event %i)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1151,' (Pool %u Event %i)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(1152,'[usable]',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1200,'You try to view cinemitic %u but it doesn\'t exist.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (1201,'You try to view movie %u but it doesn\'t exist.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `mangos_string` ENABLE KEYS */;
@@ -14079,6 +14080,46 @@ CREATE TABLE `reserved_name` (
 LOCK TABLES `reserved_name` WRITE;
 /*!40000 ALTER TABLE `reserved_name` DISABLE KEYS */;
 /*!40000 ALTER TABLE `reserved_name` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `scripted_areatrigger`
+--
+
+DROP TABLE IF EXISTS `scripted_areatrigger`;
+CREATE TABLE `scripted_areatrigger` (
+  `entry` MEDIUMINT( 8 ) NOT NULL ,
+  `ScriptName` CHAR( 64 ) NOT NULL ,
+  PRIMARY KEY ( `entry` )
+) ENGINE = MYISAM DEFAULT CHARSET=utf8;
+
+--
+-- Dumping data for table `scripted_areatrigger`
+--
+
+LOCK TABLES `scripted_areatrigger` WRITE;
+/*!40000 ALTER TABLE `scripted_areatrigger` DISABLE KEYS */;
+/*!40000 ALTER TABLE `scripted_areatrigger` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `scripted_event_id`
+--
+
+DROP TABLE IF EXISTS `scripted_event_id`;
+CREATE TABLE `scripted_event_id` (
+  `id` mediumint(8) NOT NULL,
+  `ScriptName` char(64) NOT NULL,
+  PRIMARY KEY  (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Script library scripted events';
+
+--
+-- Dumping data for table `scripted_event_id`
+--
+
+LOCK TABLES `scripted_event_id` WRITE;
+/*!40000 ALTER TABLE `scripted_event_id` DISABLE KEYS */;
+/*!40000 ALTER TABLE `scripted_event_id` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --

@@ -40,6 +40,8 @@
 // |color|Hachievement:achievement_id:player_guid:0:0:0:0:0:0:0:0|h[name]|h|r
 //                                                                        - client, item icon shift click, not used in server currently
 // |color|Harea:area_id|h[name]|h|r
+// |color|Hareatrigger:id|h[name]|h|r
+// |color|Hareatrigger_target:id|h[name]|h|r                
 // |color|Hcreature:creature_guid|h[name]|h|r
 // |color|Hcreature_entry:creature_id|h[name]|h|r
 // |color|Henchant:recipe_spell_id|h[prof_name: recipe_name]|h|r          - client, at shift click in recipes list dialog
@@ -613,6 +615,14 @@ ChatCommand * ChatHandler::getCommandTable()
         { NULL,             0,                  false, NULL,                                           "", NULL }
     };
 
+    static ChatCommand triggerCommandTable[] =
+    {
+        { "active",         SEC_GAMEMASTER,     false, &ChatHandler::HandleTriggerActiveCommand,       "", NULL },
+        { "near",           SEC_GAMEMASTER,     false, &ChatHandler::HandleTriggerNearCommand,         "", NULL },
+        { "",               SEC_GAMEMASTER,     true,  &ChatHandler::HandleTriggerCommand,             "", NULL },
+        { NULL,             0,                  false, NULL,                                           "", NULL }
+    };
+
     static ChatCommand unbanCommandTable[] =
     {
         { "account",        SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleUnBanAccountCommand,      "", NULL },
@@ -657,6 +667,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "server",         SEC_PLAYER,         true,  NULL,                                           "", serverCommandTable   },
         { "tele",           SEC_MODERATOR,      true,  NULL,                                           "", teleCommandTable     },
         { "titles",         SEC_GAMEMASTER,     false, NULL,                                           "", titlesCommandTable   },
+        { "trigger",        SEC_GAMEMASTER,     false, NULL,                                           "", triggerCommandTable  },
         { "wp",             SEC_GAMEMASTER,     false, NULL,                                           "", wpCommandTable       },
 
         { "aura",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleAuraCommand,                "", NULL },
@@ -731,7 +742,7 @@ ChatCommand * ChatHandler::getCommandTable()
         load_command_table = false;
 
         // check hardcoded part integrity
-        CheckIntergrity(commandTable, NULL);
+        CheckIntegrity(commandTable, NULL);
 
         QueryResult *result = WorldDatabase.Query("SELECT name,security,help FROM command");
         if (result)
@@ -903,7 +914,7 @@ void ChatHandler::PSendSysMessage(const char *format, ...)
     SendSysMessage(str);
 }
 
-void ChatHandler::CheckIntergrity( ChatCommand *table, ChatCommand *parentCommand )
+void ChatHandler::CheckIntegrity( ChatCommand *table, ChatCommand *parentCommand )
 {
     for(uint32 i = 0; table[i].Name != NULL; ++i)
     {
@@ -918,10 +929,29 @@ void ChatHandler::CheckIntergrity( ChatCommand *table, ChatCommand *parentComman
 
         if (command->ChildCommands)
         {
+            if (command->Handler)
+            {
+                if (parentCommand)
+                    sLog.outError("Subcommand '%s' of command '%s' have handler and subcommands in same time, must be used '' subcommand for handler instead.",
+                        command->Name, parentCommand->Name);
+                else
+                    sLog.outError("First level command '%s' have handler and subcommands in same time, must be used '' subcommand for handler instead.",
+                        command->Name);
+            }
+
             if (parentCommand && strlen(command->Name)==0)
                 sLog.outError("Subcommand '' of command '%s' have subcommands", parentCommand->Name);
 
-            CheckIntergrity(command->ChildCommands, command);
+            CheckIntegrity(command->ChildCommands, command);
+        }
+        else if (!command->Handler)
+        {
+            if (parentCommand)
+                sLog.outError("Subcommand '%s' of command '%s' not have handler and subcommands in same time. Must have some from its!",
+                    command->Name, parentCommand->Name);
+            else
+                sLog.outError("First level command '%s' not have handler and subcommands in same time. Must have some from its!",
+                    command->Name);
         }
     }
 }
@@ -1182,7 +1212,7 @@ bool ChatHandler::SetDataForCommandInTable(ChatCommand *commandTable, const char
         }
         case CHAT_COMMAND_UNKNOWN:
         {
-            sLog.outErrorDb("Table `command` have not existed command '%s', skip.", cmdName.c_str());
+            sLog.outErrorDb("Table `command` have nonexistent command '%s', skip.", cmdName.c_str());
             return false;
         }
     }
@@ -2272,7 +2302,9 @@ enum LocationLinkType
     LOCATION_LINK_CREATURE          = 3,
     LOCATION_LINK_GAMEOBJECT        = 4,
     LOCATION_LINK_CREATURE_ENTRY    = 5,
-    LOCATION_LINK_GAMEOBJECT_ENTRY  = 6
+    LOCATION_LINK_GAMEOBJECT_ENTRY  = 6,
+    LOCATION_LINK_AREATRIGGER       = 7,
+    LOCATION_LINK_AREATRIGGER_TARGET= 8,
 };
 
 static char const* const locationKeys[] =
@@ -2284,6 +2316,8 @@ static char const* const locationKeys[] =
     "Hgameobject",
     "Hcreature_entry",
     "Hgameobject_entry",
+    "Hareatrigger",
+    "Hareatrigger_target",
     NULL
 };
 
@@ -2298,6 +2332,8 @@ bool ChatHandler::extractLocationFromLink(char* text, uint32& mapid, float& x, f
     // |color|Hgameobject:go_guid|h[name]|h|r
     // |color|Hcreature_entry:creature_id|h[name]|h|r
     // |color|Hgameobject_entry:go_id|h[name]|h|r
+    // |color|Hareatrigger:id|h[name]|h|r
+    // |color|Hareatrigger_target:id|h[name]|h|r
     char* idS = extractKeyFromLink(text,locationKeys,&type);
     if(!idS)
         return false;
@@ -2435,6 +2471,49 @@ bool ChatHandler::extractLocationFromLink(char* text, uint32& mapid, float& x, f
             }
             else
                 return false;
+        }
+        case LOCATION_LINK_AREATRIGGER:
+        {
+            uint32 id = (uint32)atol(idS);
+
+            AreaTriggerEntry const* atEntry = sAreaTriggerStore.LookupEntry(id);
+            if (!atEntry)
+            {
+                PSendSysMessage(LANG_COMMAND_GOAREATRNOTFOUND, id);
+                SetSentErrorMessage(true);
+                return false;
+            }
+
+            mapid = atEntry->mapid;
+            x = atEntry->x;
+            y = atEntry->y;
+            z = atEntry->z;
+            return true;
+        }
+        case LOCATION_LINK_AREATRIGGER_TARGET:
+        {
+            uint32 id = (uint32)atol(idS);
+
+            if (!sAreaTriggerStore.LookupEntry(id))
+            {
+                PSendSysMessage(LANG_COMMAND_GOAREATRNOTFOUND, id);
+                SetSentErrorMessage(true);
+                return false;
+            }
+
+            AreaTrigger const* at = sObjectMgr.GetAreaTrigger(id);
+            if(!at)
+            {
+                PSendSysMessage(LANG_AREATRIGER_NOT_HAS_TARGET, id);
+                SetSentErrorMessage(true);
+                return false;
+            }
+
+            mapid = at->target_mapId;
+            x = at->target_X;
+            y = at->target_Y;
+            z = at->target_Z;
+            return true;
         }
     }
 

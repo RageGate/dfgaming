@@ -21,6 +21,7 @@
 
 #include "SharedDefines.h"
 
+class AreaTrigger;
 class ChatHandler;
 class WorldSession;
 class Creature;
@@ -105,7 +106,7 @@ class ChatHandler
         bool ShowHelpForSubCommands(ChatCommand *table, char const* cmd);
         ChatCommandSearchResult FindCommand(ChatCommand* table, char const*& text, ChatCommand*& command, ChatCommand** parentCommand = NULL, std::string* cmdNamePtr = NULL, bool allAvailable = false);
 
-        void CheckIntergrity(ChatCommand *table, ChatCommand *parentCommand);
+        void CheckIntegrity(ChatCommand *table, ChatCommand *parentCommand);
         ChatCommand* getCommandTable();
 
         bool HandleAccountCommand(const char* args);
@@ -263,6 +264,8 @@ class ChatHandler
         bool HandleLookupPlayerAccountCommand(const char* args);
         bool HandleLookupPlayerEmailCommand(const char* args);
         bool HandleLookupQuestCommand(const char* args);
+
+        void ShowQuestListHelper(uint32 questId, int32 loc_idx, Player* target = NULL);
         bool HandleLookupSkillCommand(const char* args);
         bool HandleLookupSpellCommand(const char* args);
         bool HandleLookupTaxiNodeCommand(const char * args);
@@ -466,6 +469,10 @@ class ChatHandler
         bool HandleTitlesRemoveCommand(const char* args);
         bool HandleTitlesSetMaskCommand(const char* args);
 
+        bool HandleTriggerActiveCommand(const char* args);
+        bool HandleTriggerNearCommand(const char* args);
+        bool HandleTriggerCommand(const char* args);
+
         bool HandleUnBanAccountCommand(const char* args);
         bool HandleUnBanCharacterCommand(const char* args);
         bool HandleUnBanIPCommand(const char* args);
@@ -575,6 +582,9 @@ class ChatHandler
         void ShowTicket(uint64 guid, char const* text, char const* time);
         bool ShowAccountListHelper(QueryResult* result, uint32* limit = NULL, bool title = true, bool error = true);
         bool ShowPlayerListHelper(QueryResult* result, uint32* limit = NULL, bool title = true, bool error = true);
+        void ShowItemListHelper(uint32 itemId, int loc_idx, Player* target = NULL);
+        void ShowTriggerListHelper(AreaTriggerEntry const * atEntry);
+        void ShowTriggerTargetListHelper(uint32 id, AreaTrigger const* at, bool subpart = false);
         bool LookupPlayerSearchCommand(QueryResult* result, uint32* limit = NULL);
         bool HandleBanListHelper(QueryResult* result);
         bool HandleBanHelper(BanMode mode,char const* args);
