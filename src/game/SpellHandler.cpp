@@ -574,10 +574,10 @@ void WorldSession::HandleSpellClick( WorldPacket & recv_data )
         return;
 */
     Creature *unit = _player->GetMap()->GetCreatureOrPetOrVehicle(guid);
-    if (!unit || (unit->isInCombat() && unit->GetCreatureInfo()->DisplayID_A[0] != 27769))    // client prevent click and set different icon at combat state
+    if (!unit || (unit->isInCombat() && unit->GetCreatureInfo()->ModelId[0] != 27769))      // client prevent click and set different icon at combat state
         return;
     // Lightwell Hack
-    if (_player->isInCombat() && unit->GetCreatureInfo()->DisplayID_A[0] != 27769)            // client prevent click and set different icon at combat state
+    if (_player->isInCombat() && unit->GetCreatureInfo()->ModelId[0] != 27769)              // client prevent click and set different icon at combat state
         return;
 
     SpellClickInfoMapBounds clickPair = sObjectMgr.GetSpellClickInfoMapBounds(unit->GetEntry());
