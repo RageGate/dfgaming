@@ -1401,14 +1401,11 @@ bool ChatHandler::HandleLoadScriptsCommand(char* args)
 
 bool ChatHandler::HandleAccountSetGmLevelCommand(char* args)
 {
-    char* arg1;
-    char* arg2;
-
-    extractOptFirstArg(args, &arg1, &arg2);
+    char* accountStr = ExtractOptArg(&args);
 
     std::string targetAccountName;
     Player* targetPlayer = NULL;
-    uint32 targetAccountId = extractAccountId(arg1, &targetAccountName, &targetPlayer);
+    uint32 targetAccountId = extractAccountId(accountStr, &targetAccountName, &targetPlayer);
     if (!targetAccountId)
         return false;
 
@@ -1416,7 +1413,10 @@ bool ChatHandler::HandleAccountSetGmLevelCommand(char* args)
     if (GetAccountId() == targetAccountId)
         return false;
 
-    int32 gm = (int32)atoi(arg2);
+    int32 gm;
+    if (!ExtractInt32(&args, gm))
+        return false;
+
     if ( gm < SEC_PLAYER || gm > SEC_ADMINISTRATOR )
     {
         SendSysMessage(LANG_BAD_VALUE);
@@ -3762,11 +3762,11 @@ bool ChatHandler::HandleGuildCreateCommand(char* args)
     if(!extractPlayerTarget(*args!='"' ? args : NULL, &target))
         return false;
 
-    char* tailStr = *args!='"' ? strtok(NULL, "") : args;
-    if(!tailStr)
+    char* tail = *args!='"' ? strtok(NULL, "") : args;
+    if(!tail)
         return false;
 
-    char* guildStr = extractQuotedArg(tailStr);
+    char* guildStr = ExtractQuotedArg(&tail);
     if(!guildStr)
         return false;
 
@@ -3801,11 +3801,11 @@ bool ChatHandler::HandleGuildInviteCommand(char *args)
     if(!extractPlayerTarget(*args!='"' ? args : NULL, NULL, &target_guid))
         return false;
 
-    char* tailStr = *args!='"' ? strtok(NULL, "") : args;
-    if(!tailStr)
+    char* tail = *args!='"' ? strtok(NULL, "") : args;
+    if(!tail)
         return false;
 
-    char* guildStr = extractQuotedArg(tailStr);
+    char* guildStr = ExtractQuotedArg(&tail);
     if(!guildStr)
         return false;
 
@@ -3842,11 +3842,7 @@ bool ChatHandler::HandleGuildUninviteCommand(char *args)
 
 bool ChatHandler::HandleGuildRankCommand(char *args)
 {
-    char* nameStr;
-    char* rankStr;
-    extractOptFirstArg(args, &nameStr, &rankStr);
-    if(!rankStr)
-        return false;
+    char* nameStr = ExtractOptArg(&args);
 
     Player* target;
     uint64 target_guid;
@@ -3862,7 +3858,10 @@ bool ChatHandler::HandleGuildRankCommand(char *args)
     if (!targetGuild)
         return false;
 
-    uint32 newrank = uint32 (atoi (rankStr));
+    uint32 newrank;
+    if (!ExtractUInt32(&args, newrank))
+        return false;
+
     if (newrank > targetGuild->GetLowestRank ())
         return false;
 
@@ -3875,7 +3874,7 @@ bool ChatHandler::HandleGuildDeleteCommand(char* args)
     if (!*args)
         return false;
 
-    char* guildStr = extractQuotedArg(args);
+    char* guildStr = ExtractQuotedArg(&args);
     if(!guildStr)
         return false;
 
@@ -4542,17 +4541,23 @@ void ChatHandler::HandleCharacterLevel(Player* player, uint64 player_guid, uint3
 
 bool ChatHandler::HandleCharacterLevelCommand(char* args)
 {
-    char* nameStr;
-    char* levelStr;
-    extractOptFirstArg(args, &nameStr, &levelStr);
-    if (!levelStr)
-        return false;
+    char* nameStr = ExtractOptArg(&args);
 
+    int32 newlevel;
+    bool nolevel = false;
     // exception opt second arg: .character level $name
-    if (isalpha(levelStr[0]))
+    if (!ExtractInt32(&args, newlevel))
     {
-        nameStr = levelStr;
-        levelStr = NULL;                                    // current level will used
+        if (!nameStr)
+        {
+            nameStr = ExtractArg(&args);
+            if (!nameStr)
+                return false;
+
+            nolevel = true;
+        }
+        else
+            return false;
     }
 
     Player* target;
@@ -4562,7 +4567,8 @@ bool ChatHandler::HandleCharacterLevelCommand(char* args)
         return false;
 
     int32 oldlevel = target ? target->getLevel() : Player::GetLevelFromDB(target_guid);
-    int32 newlevel = levelStr ? atoi(levelStr) : oldlevel;
+    if (nolevel)
+        newlevel = oldlevel;
 
     if (newlevel < 1)
         return false;                                       // invalid level
@@ -4570,7 +4576,7 @@ bool ChatHandler::HandleCharacterLevelCommand(char* args)
     if (newlevel > STRONG_MAX_LEVEL)                        // hardcoded maximum level
         newlevel = STRONG_MAX_LEVEL;
 
-    HandleCharacterLevel(target,target_guid,oldlevel,newlevel);
+    HandleCharacterLevel(target, target_guid, oldlevel, newlevel);
 
     if (!m_session || m_session->GetPlayer() != target)     // including player==NULL
     {
@@ -4583,15 +4589,21 @@ bool ChatHandler::HandleCharacterLevelCommand(char* args)
 
 bool ChatHandler::HandleLevelUpCommand(char* args)
 {
-    char* nameStr;
-    char* levelStr;
-    extractOptFirstArg(args, &nameStr, &levelStr);
+    int32 addlevel = 1;
+    char* nameStr = NULL;
 
-    // exception opt second arg: .character level $name
-    if (levelStr && isalpha(levelStr[0]))
+    if (*args)
     {
-        nameStr = levelStr;
-        levelStr = NULL;                                    // current level will used
+        nameStr = ExtractOptArg(&args);
+
+        // exception opt second arg: .levelup $name
+        if (!ExtractInt32(&args, addlevel))
+        {
+            if (!nameStr)
+                nameStr = ExtractArg(&args);
+            else
+                return false;
+        }
     }
 
     Player* target;
@@ -4601,7 +4613,6 @@ bool ChatHandler::HandleLevelUpCommand(char* args)
         return false;
 
     int32 oldlevel = target ? target->getLevel() : Player::GetLevelFromDB(target_guid);
-    int32 addlevel = levelStr ? atoi(levelStr) : 1;
     int32 newlevel = oldlevel + addlevel;
 
     if (newlevel < 1)
@@ -5359,13 +5370,11 @@ bool ChatHandler::HandleServerIdleShutDownCommand(char* args)
 
 bool ChatHandler::HandleQuestAddCommand(char* args)
 {
-    Player* player; 
-	char* nameStr;
-    char* questStr;
-	// quest add <questID> <charname>
-    extractOptFirstArg((char*)args,&questStr,&nameStr);
+    Player* player = 0; 
+	char* nameStr = ExtractOptArg(&args);
+    int32 entry = 0;
 
-    if(nameStr && questStr)
+    if(nameStr)
     {
         std::string name = extractPlayerNameFromLink(nameStr);
         if(!name.empty())
@@ -5381,33 +5390,27 @@ bool ChatHandler::HandleQuestAddCommand(char* args)
         }
     }
 
-	if(!questStr)
+	if(!player)
 		player = getSelectedPlayer();
 
-		if(!player)
-		{
-			SendSysMessage(LANG_NO_CHAR_SELECTED);
-			SetSentErrorMessage(true);
-			return false;
-		}
+    if(!player)
+    {
+        SendSysMessage(LANG_NO_CHAR_SELECTED);
+        SetSentErrorMessage(true);
+        return false;
+    }
 
     // .addquest #entry'
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
+    if(!ExtractInt32(&args, entry))
+    {
+	    char* cId = extractKeyFromLink(args, "Hquest");
 
-	char* cId;
-
-	if(!questStr)
-		cId = nameStr;
-	else
-		cId = questStr;
-
-    if(!cId)
-        cId = extractKeyFromLink(args, "Hquest");
-
-    if (!cId)
-        return false;
-
-    uint32 entry = atol(cId);
+        if (!cId)
+            return false;
+    
+        entry = atol(cId);
+    }
 
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(entry);
 
@@ -5447,13 +5450,11 @@ bool ChatHandler::HandleQuestAddCommand(char* args)
 
 bool ChatHandler::HandleQuestRemoveCommand(char* args)
 {
-	Player* player; 
-	char* nameStr;
-    char* questStr;
-	// quest remove <questID> <charname>
-    extractOptFirstArg((char*)args,&questStr,&nameStr);
+	Player* player = 0; 
+	char* nameStr = ExtractOptArg(&args);
+    int32 entry = 0;
 
-    if(nameStr && questStr)
+    if(nameStr)
     {
         std::string name = extractPlayerNameFromLink(nameStr);
         if(!name.empty())
@@ -5469,31 +5470,27 @@ bool ChatHandler::HandleQuestRemoveCommand(char* args)
         }
     }
 
-	if(!questStr)
+	if(!player)
 		player = getSelectedPlayer();
 
-		if(!player)
-		{
-			SendSysMessage(LANG_NO_CHAR_SELECTED);
-			SetSentErrorMessage(true);
-			return false;
-		}
-
-    char* cId;
-
-	if(!questStr)
-		cId = nameStr;
-	else
-		cId = questStr;
-
-    // .removequest #entry'
-    // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-    if(!cId)
-        cId = extractKeyFromLink(args, "Hquest");
-    if (!cId)
+    if(!player)
+    {
+        SendSysMessage(LANG_NO_CHAR_SELECTED);
+        SetSentErrorMessage(true);
         return false;
+    }
 
-    uint32 entry = atol(cId);
+    // .addquest #entry'
+    // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
+    if(!ExtractInt32(&args, entry))
+    {
+	    char* cId = extractKeyFromLink(args, "Hquest");
+
+        if (!cId)
+            return false;
+    
+        entry = atol(cId);
+    }
 
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(entry);
 
@@ -5529,13 +5526,11 @@ bool ChatHandler::HandleQuestRemoveCommand(char* args)
 
 bool ChatHandler::HandleQuestCompleteCommand(char* args)
 {
-	Player* player; 
-	char* nameStr;
-    char* questStr;
-	// quest complete <questID> <charname>
-    extractOptFirstArg((char*)args,&questStr,&nameStr);
+	Player* player = 0; 
+	char* nameStr = ExtractOptArg(&args);
+    int32 entry = 0;
 
-    if(nameStr && questStr)
+    if(nameStr)
     {
         std::string name = extractPlayerNameFromLink(nameStr);
         if(!name.empty())
@@ -5551,31 +5546,27 @@ bool ChatHandler::HandleQuestCompleteCommand(char* args)
         }
     }
 
-	if(!questStr)
+	if(!player)
 		player = getSelectedPlayer();
 
     if(!player)
-	{
-		SendSysMessage(LANG_NO_CHAR_SELECTED);
-		SetSentErrorMessage(true);
-		return false;
-	}
-
-	char* cId;
-
-	if(!questStr)
-		cId = nameStr;
-	else
-		cId = questStr;
-
-    // .quest complete #entry
-    // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-    if(!cId)
-        cId = extractKeyFromLink(args, "Hquest");
-    if (!cId)
+    {
+        SendSysMessage(LANG_NO_CHAR_SELECTED);
+        SetSentErrorMessage(true);
         return false;
+    }
 
-    uint32 entry = atol(cId);
+    // .addquest #entry'
+    // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
+    if(!ExtractInt32(&args, entry))
+    {
+	    char* cId = extractKeyFromLink(args, "Hquest");
+
+        if (!cId)
+            return false;
+    
+        entry = atol(cId);
+    }
 
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(entry);
 
@@ -6908,13 +6899,10 @@ bool ChatHandler::HandleAccountCharactersCommand(char* args)
 bool ChatHandler::HandleAccountSetAddonCommand(char* args)
 {
     ///- Get the command line arguments
-    char* arg1;
-    char* arg2;
-
-    extractOptFirstArg(args, &arg1, &arg2);
+    char* accountStr = ExtractOptArg(&args);
 
     std::string account_name;
-    uint32 account_id = extractAccountId(arg1, &account_name);
+    uint32 account_id = extractAccountId(accountStr, &account_name);
     if (!account_id )
         return false;
 
@@ -6924,8 +6912,8 @@ bool ChatHandler::HandleAccountSetAddonCommand(char* args)
         HasLowerSecurityAccount (NULL,account_id,true))
         return false;
 
-    int lev=atoi(arg2);                                     //get int anyway (0 if error)
-    if (lev < 0)
+    uint32 lev;
+    if (!ExtractUInt32(&args, lev))
         return false;
 
     // No SQL injection
@@ -6944,19 +6932,15 @@ bool ChatHandler::HandleSendItemsCommand(char* args)
     if (!extractPlayerTarget(args, &receiver, &receiver_guid, &receiver_name))
         return false;
 
-    char* tail1 = strtok(NULL, "");
-    if (!tail1)
+    char* tail = strtok(NULL, "");
+    if (!tail)
         return false;
 
-    char* msgSubject = extractQuotedArg(tail1);
+    char* msgSubject = ExtractQuotedArg(&tail);
     if (!msgSubject)
         return false;
 
-    char* tail2 = strtok(NULL, "");
-    if(!tail2)
-        return false;
-
-    char* msgText = extractQuotedArg(tail2);
+    char* msgText = ExtractQuotedArg(&tail);
     if (!msgText)
         return false;
 
@@ -6968,9 +6952,6 @@ bool ChatHandler::HandleSendItemsCommand(char* args)
     typedef std::pair<uint32,uint32> ItemPair;
     typedef std::list< ItemPair > ItemPairs;
     ItemPairs items;
-
-    // get all tail string
-    char* tail = strtok(NULL, "");
 
     // get from tail next item str
     while(char* itemStr = strtok(tail, " "))
@@ -7051,24 +7032,19 @@ bool ChatHandler::HandleSendMoneyCommand(char* args)
     if (!extractPlayerTarget(args, &receiver, &receiver_guid, &receiver_name))
         return false;
 
-    char* tail1 = strtok(NULL, "");
-    if (!tail1)
+    char* tail = strtok(NULL, "");
+    if (!tail)
         return false;
 
-    char* msgSubject = extractQuotedArg(tail1);
+    char* msgSubject = ExtractQuotedArg(&tail);
     if (!msgSubject)
         return false;
 
-    char* tail2 = strtok(NULL, "");
-    if (!tail2)
-        return false;
-
-    char* msgText = extractQuotedArg(tail2);
+    char* msgText = ExtractQuotedArg(&tail);
     if (!msgText)
         return false;
 
-    char* money_str = strtok(NULL, "");
-    int32 money = money_str ? atoi(money_str) : 0;
+    int32 money = tail ? atoi(tail) : 0;
     if (money <= 0)
         return false;
 
