@@ -54,8 +54,6 @@
 #include "BattleGround.h"
 #include "BattleGroundAV.h"
 #include "BattleGroundMgr.h"
-#include "OutdoorPvP.h"
-#include "OutdoorPvPMgr.h"
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Database/DatabaseImpl.h"
@@ -63,7 +61,6 @@
 #include "SocialMgr.h"
 #include "AchievementMgr.h"
 #include "Mail.h"
-#include "mangchat/IRCClient.h"
 
 #include <cmath>
 
@@ -445,7 +442,6 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
 
     m_regenTimer = 0;
     m_weaponChangeTimer = 0;
-    m_petScalingUpdateTimer = 0;
 
     m_zoneUpdateId = 0;
     m_zoneUpdateTimer = 0;
@@ -534,7 +530,6 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
     //returning reagents for temporarily removed pets
     //when dying/logging out
     m_oldpetspell = 0;
-    m_lastpetnumber = 0;
 
     ////////////////////Rest System/////////////////////
     time_inn_enter=0;
@@ -542,17 +537,6 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
     m_rest_bonus=0;
     rest_type=REST_TYPE_NO;
     ////////////////////Rest System/////////////////////
-
-    //movement anticheat
-    m_anti_lastmovetime = 0;   //last movement time
-    m_anti_NextLenCheck = 0;
-    m_anti_MovedLen = 0.0f;
-    m_anti_BeginFallZ = INVALID_HEIGHT;
-    m_anti_lastalarmtime = 0;    //last time when alarm generated
-    m_anti_alarmcount = 0;       //alarm counter
-    m_anti_TeleTime = 0;
-    m_CanFly=false;
-    /////////////////////////////////
 
     m_mailsUpdated = false;
     unReadMails = 0;
@@ -981,11 +965,8 @@ uint32 Player::EnvironmentalDamage(EnviromentalDamage type, uint32 damage)
     data << uint32(resist);
     SendMessageToSet(&data, true);
 
-    if(HasAuraType(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED) && type==DAMAGE_FALL)
-        damage = 0;
-
     uint32 final_damage = DealDamage(this, damage, NULL, SELF_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, NULL, false);
-    
+
     if(!isAlive())
     {
         if(type==DAMAGE_FALL)                               // DealDamage not apply item durability loss at self damage
@@ -1422,9 +1403,6 @@ void Player::Update( uint32 p_time )
             RegenerateAll();
     }
 
-    if (!isAlive() && !HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
-        SetHealth(0);
-
     if (m_deathState == JUST_DIED)
         KillPlayer();
 
@@ -1491,20 +1469,10 @@ void Player::Update( uint32 p_time )
     // group update
     SendUpdateToOutOfRangeGroupMembers();
 
-    if (Pet* pet = GetPet())
+    Pet* pet = GetPet();
+    if(pet && !pet->IsWithinDistInMap(this, GetMap()->GetVisibilityDistance()) && (GetCharmGUID() && (pet->GetGUID() != GetCharmGUID())))
     {
-        if (!pet->IsWithinDistInMap(this, GetMap()->GetVisibilityDistance()) && (GetCharmGUID() && (pet->GetGUID() != GetCharmGUID())))
-            RemovePet(pet, PET_SAVE_NOT_IN_SLOT, true);
-        else if (m_petScalingUpdateTimer)
-        {
-            if (m_petScalingUpdateTimer <= p_time)
-            {
-                pet->UpdateScalingAuras();
-                m_petScalingUpdateTimer = 0;
-            }
-            else
-                m_petScalingUpdateTimer -= p_time;
-        }
+        RemovePet(pet, PET_SAVE_NOT_IN_SLOT, true);
     }
 
     if (IsHasDelayedTeleport())
@@ -1706,19 +1674,6 @@ bool Player::BuildEnumData( QueryResult * result, WorldPacket * p_data )
     *p_data << uint32(0);                                   // enchant?
 
     return true;
-}
-
-bool Player::isVIP(uint64 guid)
-{
-    bool VIP = false;
-    uint32 account = sObjectMgr.GetPlayerAccountIdByGUID(guid);
-    QueryResult *result = LoginDatabase.PQuery("SELECT * FROM `vips` WHERE `id`='%u'", account);
-    if(!result)
-        VIP = false;
-    else
-        VIP = true;
-
-    return VIP;
 }
 
 bool Player::ToggleAFK()
@@ -2072,7 +2027,6 @@ void Player::RemoveFromWorld()
         ///- Release charmed creatures, unsummon totems and remove pets/guardians
         UnsummonAllTotems();
         RemoveMiniPet();
-        sOutdoorPvPMgr.HandlePlayerLeaveZone(this, m_zoneUpdateId);
     }
 
     for(int i = PLAYER_SLOT_START; i < PLAYER_SLOT_END; ++i)
@@ -2286,7 +2240,7 @@ Creature* Player::GetNPCIfCanInteractWith(ObjectGuid guid, uint32 npcflagmask)
         return NULL;
 
     // exist (we need look pets also for some interaction (quest/etc)
-    Creature *unit = GetMap()->GetCreatureOrPetOrVehicle(guid);
+    Creature *unit = GetMap()->GetAnyTypeCreature(guid);
     if (!unit)
         return NULL;
 
@@ -2659,16 +2613,6 @@ void Player::GiveLevel(uint32 level)
     InitGlyphsForLevel();
 
     UpdateAllStats();
-
-    if((sIRC.BOTMASK & 64) != 0)
-    {
-        char  plevel [3];
-        sprintf(plevel, "%u", level);
-
-        std::string pname = GetName();
-        std::string channel = std::string("#") + sIRC._irc_chan[sIRC.anchn].c_str();
-        sIRC.Send_IRC_Channel(channel, "\00311["+pname+"] : Has Reached Level: "+plevel, true);
-    }
 
     // set current level health and mana/energy to maximum after applying all mods.
     SetHealth(GetMaxHealth());
@@ -4148,78 +4092,49 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
     if (!trainer_spell)
         return TRAINER_SPELL_RED;
 
-    bool found = false;
-    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
-        if (trainer_spell->learnedSpell[i])
-        {
-            found = true;
-            break;
-        }
-
-    if (!found)
+    if (!trainer_spell->learnedSpell)
         return TRAINER_SPELL_RED;
 
     // known spell
-    found = false;
-    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
-    {
-        // learnable as long as one of the spells is not known already
-        if(trainer_spell->learnedSpell[i] && !HasSpell(trainer_spell->learnedSpell[i]))
-        {
-            found = true;
-            break;
-        }
-    }
-    if (!found)
+    if(HasSpell(trainer_spell->learnedSpell))
         return TRAINER_SPELL_GRAY;
 
-
-    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
-    {
-        // check chains
-        if(SpellChainNode const* spell_chain = sSpellMgr.GetSpellChainNode(trainer_spell->learnedSpell[i]))
-        {
-            // check prev.rank requirement
-            if(spell_chain->prev && !HasSpell(spell_chain->prev))
-                return TRAINER_SPELL_RED;
-
-            // check additional spell requirement
-            if(spell_chain->req && !HasSpell(spell_chain->req))
-               return TRAINER_SPELL_RED;
-        }
-    }
-
     // check race/class requirement
-    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
-        if(!IsSpellFitByClassAndRace(trainer_spell->learnedSpell[i]))
-            return TRAINER_SPELL_RED;
+    if(!IsSpellFitByClassAndRace(trainer_spell->learnedSpell))
+        return TRAINER_SPELL_RED;
 
     // check level requirement
     if(getLevel() < trainer_spell->reqLevel)
         return TRAINER_SPELL_RED;
 
+    if(SpellChainNode const* spell_chain = sSpellMgr.GetSpellChainNode(trainer_spell->learnedSpell))
+    {
+        // check prev.rank requirement
+        if(spell_chain->prev && !HasSpell(spell_chain->prev))
+            return TRAINER_SPELL_RED;
+
+        // check additional spell requirement
+        if(spell_chain->req && !HasSpell(spell_chain->req))
+            return TRAINER_SPELL_RED;
+    }
+
     // check skill requirement
     if(trainer_spell->reqSkill && GetBaseSkillValue(trainer_spell->reqSkill) < trainer_spell->reqSkillValue)
         return TRAINER_SPELL_RED;
 
-    for (uint8 i = EFFECT_INDEX_0; i<MAX_EFFECT_INDEX; i++)
-    {
-        if (!trainer_spell->learnedSpell[i])
-            continue;
+    // exist, already checked at loading
+    SpellEntry const* spell = sSpellStore.LookupEntry(trainer_spell->learnedSpell);
 
-        // exist, already checked at loading
-        SpellEntry const* spell = sSpellStore.LookupEntry(trainer_spell->learnedSpell[i]);
+    // secondary prof. or not prof. spell
+    uint32 skill = spell->EffectMiscValue[1];
 
-        // secondary prof. or not prof. spell
-        uint32 skill = spell->EffectMiscValue[1];
+    if(spell->Effect[1] != SPELL_EFFECT_SKILL || !IsPrimaryProfessionSkill(skill))
+        return TRAINER_SPELL_GREEN;
 
-        if(spell->Effect[1] != SPELL_EFFECT_SKILL || !IsPrimaryProfessionSkill(skill))
-            return TRAINER_SPELL_GREEN;
+    // check primary prof. limit
+    if(sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell->Id) && GetFreePrimaryProfessionPoints() == 0)
+        return TRAINER_SPELL_GREEN_DISABLED;
 
-        // check primary prof. limit
-        if(sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell->Id) && GetFreePrimaryProfessionPoints() == 0)
-            return TRAINER_SPELL_GREEN_DISABLED;
-    }
     return TRAINER_SPELL_GREEN;
 }
 
@@ -4502,8 +4417,7 @@ void Player::BuildPlayerRepop()
     if(GetCorpse())
     {
         sLog.outError("BuildPlayerRepop: player %s(%d) already has a corpse", GetName(), GetGUIDLow());
-        sLog.outError("Removing player %s(%d) corpse from DB", GetName(), GetGUIDLow());
-        CharacterDatabase.PExecute("DELETE FROM corpse WHERE player = '%d'",GetGUIDLow());
+        ASSERT(false);
     }
 
     // create a corpse and place it at the player's location
@@ -4573,7 +4487,6 @@ void Player::ResurrectPlayer(float restore_percent, bool applySickness)
     uint32 newzone, newarea;
     GetZoneAndAreaId(newzone,newarea);
     UpdateZone(newzone,newarea);
-    sOutdoorPvPMgr.HandlePlayerResurrects(this, newzone);
 
     // update visibility of world around viewpoint
     m_camera.UpdateVisibilityForOwner();
@@ -4939,7 +4852,7 @@ void Player::RepopAtGraveyard()
     AreaTableEntry const *zone = GetAreaEntryByAreaID(GetAreaId());
 
     // Such zones are considered unreachable as a ghost and the player must be automatically revived
-    if ((!isAlive() && zone && zone->flags & AREA_FLAG_NEED_FLY) || GetTransport() || GetPositionZ() < -500.0f)
+    if ((!isAlive() && zone && zone->flags & AREA_FLAG_NEED_FLY) || GetTransport())
     {
         ResurrectPlayer(0.5f);
         SpawnCorpseBones();
@@ -6406,26 +6319,11 @@ void Player::RewardReputation(Unit *pVictim, float rate)
     if(!Rep)
         return;
 
-    uint32 tabardFactionId = 0;
-
-    // Has reputational tabard
-    if (HasAura(57818))
-    {
-        if (Item* pTabard = GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_TABARD))
-            tabardFactionId = pTabard->GetProto()->RequiredReputationFaction;
-    }
-
     if(Rep->repfaction1 && (!Rep->team_dependent || GetTeam()==ALLIANCE))
     {
-        uint32 factionId = Rep->repfaction1;
-
-        // Alliance Vanguard
-        if (tabardFactionId && Rep->repfaction1 == 1037)
-            factionId = tabardFactionId;
-
-        int32 donerep1 = CalculateReputationGain(REPUTATION_SOURCE_KILL, Rep->repvalue1, factionId, pVictim->getLevel());
+        int32 donerep1 = CalculateReputationGain(REPUTATION_SOURCE_KILL, Rep->repvalue1, Rep->repfaction1, pVictim->getLevel());
         donerep1 = int32(donerep1*rate);
-        FactionEntry const *factionEntry1 = sFactionStore.LookupEntry(factionId);
+        FactionEntry const *factionEntry1 = sFactionStore.LookupEntry(Rep->repfaction1);
         uint32 current_reputation_rank1 = GetReputationMgr().GetRank(factionEntry1);
         if (factionEntry1 && current_reputation_rank1 <= Rep->reputation_max_cap1)
             GetReputationMgr().ModifyReputation(factionEntry1, donerep1);
@@ -6441,15 +6339,9 @@ void Player::RewardReputation(Unit *pVictim, float rate)
 
     if(Rep->repfaction2 && (!Rep->team_dependent || GetTeam()==HORDE))
     {
-        uint32 factionId = Rep->repfaction2;
-
-        // Horde Expedition
-        if (tabardFactionId && Rep->repfaction2 == 1052)
-            factionId = tabardFactionId;
-
-        int32 donerep2 = CalculateReputationGain(REPUTATION_SOURCE_KILL, Rep->repvalue2, factionId, pVictim->getLevel());
+        int32 donerep2 = CalculateReputationGain(REPUTATION_SOURCE_KILL, Rep->repvalue2, Rep->repfaction2, pVictim->getLevel());
         donerep2 = int32(donerep2*rate);
-        FactionEntry const *factionEntry2 = sFactionStore.LookupEntry(factionId);
+        FactionEntry const *factionEntry2 = sFactionStore.LookupEntry(Rep->repfaction2);
         uint32 current_reputation_rank2 = GetReputationMgr().GetRank(factionEntry2);
         if (factionEntry2 && current_reputation_rank2 <= Rep->reputation_max_cap2)
             GetReputationMgr().ModifyReputation(factionEntry2, donerep2);
@@ -6637,7 +6529,7 @@ bool Player::RewardHonor(Unit *uVictim, uint32 groupsize, float honor)
             if (!cVictim->isRacialLeader())
                 return false;
 
-            honor = 2000;                                    // ??? need more info
+            honor = 100;                                    // ??? need more info
             victim_rank = 19;                               // HK: Leader
         }
     }
@@ -6821,8 +6713,6 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
 
     if(m_zoneUpdateId != newZone)
     {
-        sOutdoorPvPMgr.HandlePlayerLeaveZone(this, m_zoneUpdateId);
-        sOutdoorPvPMgr.HandlePlayerEnterZone(this, newZone);
         SendInitWorldStates(newZone, newArea);              // only if really enters to new zone, not just area change, works strange...
 
         if (sWorld.getConfig(CONFIG_BOOL_WEATHER))
@@ -6943,16 +6833,6 @@ void Player::CheckDuelDistance(time_t currTime)
             DuelComplete(DUEL_FLED);
         }
     }
-}
-
-OutdoorPvP * Player::GetOutdoorPvP() const
-{
-    return sOutdoorPvPMgr.GetOutdoorPvPToZoneId(GetZoneId());
-}
-
-bool Player::IsOutdoorPvPActive()
-{
-    return isAlive() && !HasInvisibilityAura() && !HasStealthAura() && (IsPvP() || sWorld.IsPvPRealm())  && !HasMovementFlag(MOVEFLAG_FLYING) && !IsTaxiFlying();
 }
 
 void Player::DuelComplete(DuelCompleteType type)
@@ -7246,9 +7126,6 @@ void Player::_ApplyItemBonuses(ItemPrototype const *proto, uint8 slot, bool appl
             case ITEM_MOD_BLOCK_VALUE:
                 HandleBaseModValue(SHIELD_BLOCK_VALUE, FLAT_MOD, float(val), apply);
                 break;
-            case ITEM_MOD_SPELL_PENETRATION:
-                ApplyModInt32Value(PLAYER_FIELD_MOD_TARGET_RESISTANCE, int32(-val), apply);
-                break;
             // depricated item mods
             case ITEM_MOD_FERAL_ATTACK_POWER:
             case ITEM_MOD_SPELL_HEALING_DONE:
@@ -7408,14 +7285,14 @@ void Player::_ApplyWeaponDependentAuraCritMod(Item *item, WeaponAttackType attac
 
 void Player::_ApplyWeaponDependentAuraDamageMod(Item *item, WeaponAttackType attackType, Aura* aura, bool apply)
 {
+    // ignore spell mods for not wands
+    Modifier const* modifier = aura->GetModifier();
+    if((modifier->m_miscvalue & SPELL_SCHOOL_MASK_NORMAL)==0 && (getClassMask() & CLASSMASK_WAND_USERS)==0)
+        return;
+
     // generic not weapon specific case processes in aura code
     if(aura->GetSpellProto()->EquippedItemClass == -1)
         return;
-
-    if (item->IsBroken())
-        return;
-
-    Modifier const* modifier = aura->GetModifier();
 
     UnitMods unitMod = UNIT_MOD_END;
     switch(attackType)
@@ -7434,35 +7311,9 @@ void Player::_ApplyWeaponDependentAuraDamageMod(Item *item, WeaponAttackType att
         default: return;
     }
 
-    // no school check of item dmg school here
     if (item->IsFitToSpellRequirements(aura->GetSpellProto()))
     {
         HandleStatModifier(unitMod, unitModType, float(modifier->m_amount),apply);
-
-        // aura affects all damage
-        if (aura->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE)
-        {
-            // workaround to prevent double applying:
-            if (attackType != BASE_ATTACK)
-                return;
-
-            // apply bonus to weapons, that don't fit requirements themselves
-            for (uint8 i = OFF_ATTACK; i < MAX_ATTACK; i++)
-                if (Item* pItem = GetWeaponForAttack(WeaponAttackType(i),true,false))
-                    if (!pItem->IsFitToSpellRequirements(aura->GetSpellProto()))
-                        HandleStatModifier(UnitMods(UNIT_MOD_DAMAGE_MAINHAND + i), unitModType, float(modifier->m_amount),apply);
-
-            // send info to client
-            uint32 playerField;
-            if (unitModType == TOTAL_VALUE)
-                playerField = aura->IsPositive() ? PLAYER_FIELD_MOD_DAMAGE_DONE_POS : PLAYER_FIELD_MOD_DAMAGE_DONE_NEG;
-            else
-                playerField = PLAYER_FIELD_MOD_DAMAGE_DONE_PCT;
-
-            for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
-                if (modifier->m_miscvalue & (1 << i))
-                    ApplyModSignedFloatValue(playerField + i, modifier->m_amount/100.0f, apply);
-        }
     }
 }
 
@@ -8441,43 +8292,6 @@ static WorldStatePair EY_world_states[] =
     { 0x0,   0x0 }
 };
 
-static WorldStatePair EP_world_states[] =
-{
-    { 0x97a, 0x0 },     // 10 2426
-    { 0x917, 0x0 },     // 11 2327
-    { 0x918, 0x0 },     // 12 2328
-    { 0x97b, 0x32 },     // 13 2427
-    { 0x97c, 0x32 },     // 14 2428
-    { 0x933, 0x1 },     // 15 2355
-    { 0x946, 0x0 },     // 16 2374
-    { 0x947, 0x0 },     // 17 2375
-    { 0x948, 0x0 },     // 18 2376
-    { 0x949, 0x0 },     // 19 2377
-    { 0x94a, 0x0 },     // 20 2378
-    { 0x94b, 0x0 },     // 21 2379
-    { 0x932, 0x0 },     // 22 2354
-    { 0x934, 0x0 },     // 23 2356
-    { 0x935, 0x0 },     // 24 2357
-    { 0x936, 0x0 },     // 25 2358
-    { 0x937, 0x0 },     // 26 2359
-    { 0x938, 0x0 },     // 27 2360
-    { 0x939, 0x1 },     // 28 2361
-    { 0x930, 0x1 },     // 29 2352
-    { 0x93a, 0x0 },     // 30 2362
-    { 0x93b, 0x0 },     // 31 2363
-    { 0x93c, 0x0 },     // 32 2364
-    { 0x93d, 0x0 },     // 33 2365
-    { 0x944, 0x0 },     // 34 2372
-    { 0x945, 0x0 },     // 35 2373
-    { 0x931, 0x1 },     // 36 2353
-    { 0x93e, 0x0 },     // 37 2366
-    { 0x931, 0x1 },     // 38 2367 ??  grey horde not in dbc! send for consistency's sake, and to match field count
-    { 0x940, 0x0 },     // 39 2368
-    { 0x941, 0x0 },     // 7 2369
-    { 0x942, 0x0 },     // 8 2370
-    { 0x943, 0x0 }      // 9 2371
-};
-
 static WorldStatePair HP_world_states[] =                   // Hellfire Peninsula
 {
     { 0x9ba, 0x1 },                                         // 10
@@ -8496,111 +8310,67 @@ static WorldStatePair HP_world_states[] =                   // Hellfire Peninsul
     { 0x0,   0x0 }
 };
 
-static WorldStatePair SI_world_states[] =                   // Hellfire Peninsula
-{
-                     // states are always shown
-    { 2313, 0x0 },   // 7 ally silityst gathered
-    { 2314, 0x0 },   // 8 horde silityst gathered
-    { 2317, 0x0 }   // 9 max silithyst
-};
-
-static WorldStatePair NA_world_states[] =
-{
-    { 2503, 0x0 },  // 10
-    { 2502, 0x0 },  // 11
-    { 2493, 0x0 },  // 12
-    { 2491, 0x0 },  // 13
-
-    { 2495, 0x0 },  // 14
-    { 2494, 0x0 },  // 15
-    { 2497, 0x0 },  // 16
-
-    { 2762, 0x0 },  // 17
-    { 2662, 0x0 },  // 18
-    { 2663, 0x0 },  // 19
-    { 2664, 0x0 },  // 20
-
-    { 2760, 0x0 },  // 21
-    { 2670, 0x0 },  // 22
-    { 2668, 0x0 },  // 23
-    { 2669, 0x0 },  // 24
-
-    { 2761, 0x0 },  // 25
-    { 2667, 0x0 },  // 26
-    { 2665, 0x0 },  // 27
-    { 2666, 0x0 },  // 28
-
-    { 2763, 0x0 },  // 29
-    { 2659, 0x0 },  // 30
-    { 2660, 0x0 },  // 31
-    { 2661, 0x0 },  // 32
-
-    { 2671, 0x0 },  // 33
-    { 2676, 0x0 },  // 34
-    { 2677, 0x0 },  // 35
-    { 2672, 0x0 },  // 36
-    { 2673, 0x0 }  // 37
-};
-
 static WorldStatePair TF_world_states[] =                   // Terokkar Forest
 {
-    { 0xa41, 0x0 },                // 10 // 2625 capture bar pos
-    { 0xa40, 0x14 },               // 11 // 2624 capture bar neutral
-    { 0xa3f, 0x0 },                // 12 // 2623 show capture bar
-    { 0xa3e, 0x0 },                // 13 // 2622 horde towers controlled
-    { 0xa3d, 0x5 },                // 14 // 2621 ally towers controlled
-    { 0xa3c, 0x0 },                // 15 // 2620 show towers controlled
-    { 0xa88, 0x0 },                // 16 // 2696 SE Neu
-    { 0xa87, 0x0 },                // 17 // SE Horde
-    { 0xa86, 0x0 },                // 18 // SE Ally
-    { 0xa85, 0x0 },                // 19 //S Neu
-    { 0xa84, 0x0 },                // 20 S Horde
-    { 0xa83, 0x0 },                // 21 S Ally
-    { 0xa82, 0x0 },                // 22 NE Neu
-    { 0xa81, 0x0 },                // 23 NE Horde
-    { 0xa80, 0x0 },                // 24 NE Ally
-    { 0xa7e, 0x0 },                // 25 // 2686 N Neu
-    { 0xa7d, 0x0 },                // 26 N Horde
-    { 0xa7c, 0x0 },                // 27 N Ally
-    { 0xa7b, 0x0 },                // 28 NW Ally
-    { 0xa7a, 0x0 },                // 29 NW Horde
-    { 0xa79, 0x0 },                // 30 NW Neutral
-    { 0x9d0, 0x5 },                // 31 // 2512 locked time remaining seconds first digit
-    { 0x9ce, 0x0 },                // 32 // 2510 locked time remaining seconds second digit
-    { 0x9cd, 0x0 },                // 33 // 2509 locked time remaining minutes
-    { 0x9cc, 0x0 },                // 34 // 2508 neutral locked time show
-    { 0xad0, 0x0 },                // 35 // 2768 horde locked time show
-    { 0xacf, 0x1 }                // 36 // 2767 ally locked time show
+    { 0xa41, 0x0 },                                         // 10
+    { 0xa40, 0x14 },                                        // 11
+    { 0xa3f, 0x0 },                                         // 12
+    { 0xa3e, 0x0 },                                         // 13
+    { 0xa3d, 0x5 },                                         // 14
+    { 0xa3c, 0x0 },                                         // 15
+    { 0xa87, 0x0 },                                         // 16
+    { 0xa86, 0x0 },                                         // 17
+    { 0xa85, 0x0 },                                         // 18
+    { 0xa84, 0x0 },                                         // 19
+    { 0xa83, 0x0 },                                         // 20
+    { 0xa82, 0x0 },                                         // 21
+    { 0xa81, 0x0 },                                         // 22
+    { 0xa80, 0x0 },                                         // 23
+    { 0xa7e, 0x0 },                                         // 24
+    { 0xa7d, 0x0 },                                         // 25
+    { 0xa7c, 0x0 },                                         // 26
+    { 0xa7b, 0x0 },                                         // 27
+    { 0xa7a, 0x0 },                                         // 28
+    { 0xa79, 0x0 },                                         // 29
+    { 0x9d0, 0x5 },                                         // 30
+    { 0x9ce, 0x0 },                                         // 31
+    { 0x9cd, 0x0 },                                         // 32
+    { 0x9cc, 0x0 },                                         // 33
+    { 0xa88, 0x0 },                                         // 34
+    { 0xad0, 0x0 },                                         // 35
+    { 0xacf, 0x1 },                                         // 36
+    { 0x0,   0x0 }
 };
 
 static WorldStatePair ZM_world_states[] =                   // Terokkar Forest
 {
-    { 0x9e1, 0x0 },           // 10 //2529
-    { 0x9e0, 0x0 },           // 11
-    { 0x9df, 0x0 },           // 12
-    { 0xa5d, 0x1 },           // 13 //2653
-    { 0xa5c, 0x0 },           // 14 //2652 east beacon neutral
-    { 0xa5b, 0x1 },           // 15 horde
-    { 0xa5a, 0x0 },           // 16 ally
-    { 0xa59, 0x1 },           // 17 // 2649 Twin spire graveyard horde  12???
-    { 0xa58, 0x0 },           // 18 ally     14 ???
-    { 0xa57, 0x0 },           // 19 neutral  7???
-    { 0xa56, 0x0 },           // 20 // 2646 west beacon neutral
-    { 0xa55, 0x1 },           // 21 horde
-    { 0xa54, 0x0 },           // 22 ally
-    { 0x9e7, 0x0 },           // 23 // 2535
-    { 0x9e6, 0x0 },           // 24
-    { 0x9e5, 0x0 },           // 25
-    { 0xa00, 0x0 },           // 26 // 2560
-    { 0x9ff, 0x1 },           // 27
-    { 0x9fe, 0x0 },           // 28
-    { 0x9fd, 0x0 },           // 29
-    { 0x9fc, 0x1 },           // 30
-    { 0x9fb, 0x0 },           // 31
-    { 0xa62, 0x0 },           // 32 // 2658
-    { 0xa61, 0x1 },           // 33
-    { 0xa60, 0x1 },           // 34
-    { 0xa5f, 0x0 }           // 35
+    { 0x9e1, 0x0 },                                         // 10
+    { 0x9e0, 0x0 },                                         // 11
+    { 0x9df, 0x0 },                                         // 12
+    { 0xa5d, 0x1 },                                         // 13
+    { 0xa5c, 0x0 },                                         // 14
+    { 0xa5b, 0x1 },                                         // 15
+    { 0xa5a, 0x0 },                                         // 16
+    { 0xa59, 0x1 },                                         // 17
+    { 0xa58, 0x0 },                                         // 18
+    { 0xa57, 0x0 },                                         // 19
+    { 0xa56, 0x0 },                                         // 20
+    { 0xa55, 0x1 },                                         // 21
+    { 0xa54, 0x0 },                                         // 22
+    { 0x9e7, 0x0 },                                         // 23
+    { 0x9e6, 0x0 },                                         // 24
+    { 0x9e5, 0x0 },                                         // 25
+    { 0xa00, 0x0 },                                         // 26
+    { 0x9ff, 0x1 },                                         // 27
+    { 0x9fe, 0x0 },                                         // 28
+    { 0x9fd, 0x0 },                                         // 29
+    { 0x9fc, 0x1 },                                         // 30
+    { 0x9fb, 0x0 },                                         // 31
+    { 0xa62, 0x0 },                                         // 32
+    { 0xa61, 0x1 },                                         // 33
+    { 0xa60, 0x1 },                                         // 34
+    { 0xa5f, 0x0 },                                         // 35
+    { 0x0,   0x0 }
 };
 
 void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
@@ -8608,7 +8378,6 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
     // data depends on zoneid/mapid...
     BattleGround* bg = GetBattleGround();
     uint32 mapid = GetMapId();
-    OutdoorPvP * pvp = sOutdoorPvPMgr.GetOutdoorPvPToZoneId(zoneid);
 
     DEBUG_LOG("Sending SMSG_INIT_WORLD_STATES to Map:%u, Zone: %u", mapid, zoneid);
 
@@ -8647,26 +8416,6 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
         case 38:
         case 40:
         case 51:
-        case 139: // EPL
-            if(pvp && pvp->GetTypeId() == OUTDOOR_PVP_EP)
-                pvp->FillInitialWorldStates(data, count);
-                else
-                    FillInitialWorldState(data,count, EP_world_states);
-            break;
-        case 1377:                                          // Silithus
-            {
-                if(pvp && pvp->GetTypeId() == OUTDOOR_PVP_SI)
-                        pvp->FillInitialWorldStates(data, count);
-                    else
-                    {
-                        FillInitialWorldState(data,count, SI_world_states);
-                    }
-                    FillInitialWorldState(data,count,2322, 0x0 ); // 10 sandworm N
-                    FillInitialWorldState(data,count,2323, 0x0 ); // 11 sandworm S
-                    FillInitialWorldState(data,count,2324, 0x0 ); // 12 sandworm SW
-                    FillInitialWorldState(data,count,2325, 0x0 ); // 13 sandworm E
-            }
-            break;
         case 1519:
         case 1537:
         case 2257:
@@ -8689,21 +8438,20 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
             else
                 FillInitialWorldState(data,count, AB_world_states);
             break;
+        case 3820:                                          // EY
+            if (bg && bg->GetTypeID() == BATTLEGROUND_EY)
+                bg->FillInitialWorldStates(data, count);
+            else
+                FillInitialWorldState(data,count, EY_world_states);
+            break;
         case 3483:                                          // Hellfire Peninsula
-            if(pvp && pvp->GetTypeId() == OUTDOOR_PVP_HP)
-                FillInitialWorldState(data,count, HP_world_states);
-            break;
-        case 3521:                                          // Zangarmarsh
-            if(pvp && pvp->GetTypeId() == OUTDOOR_PVP_ZM)
-                FillInitialWorldState(data,count, ZM_world_states);
-            break;
-        case 3518:                                          // Haala
-            if(pvp && pvp->GetTypeId() == OUTDOOR_PVP_NA)
-                FillInitialWorldState(data,count, NA_world_states);
+            FillInitialWorldState(data,count, HP_world_states);
             break;
         case 3519:                                          // Terokkar Forest
-            if(pvp && pvp->GetTypeId() == OUTDOOR_PVP_TF)
-                FillInitialWorldState(data,count, TF_world_states);
+            FillInitialWorldState(data,count, TF_world_states);
+            break;
+        case 3521:                                          // Zangarmarsh
+            FillInitialWorldState(data,count, ZM_world_states);
             break;
         case 3698:                                          // Nagrand Arena
             if (bg && bg->GetTypeID() == BATTLEGROUND_NA)
@@ -8724,12 +8472,6 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
                 FillInitialWorldState(data,count,0x9f1,0x0);// 8 green
                 FillInitialWorldState(data,count,0x9f3,0x0);// 9 show
             }
-            break;
-        case 3820:                                          // EY
-            if (bg && bg->GetTypeID() == BATTLEGROUND_EY)
-                bg->FillInitialWorldStates(data, count);
-            else
-                FillInitialWorldState(data,count, EY_world_states);
             break;
         case 3968:                                          // Ruins of Lordaeron
             if (bg && bg->GetTypeID() == BATTLEGROUND_RL)
@@ -8812,7 +8554,6 @@ void Player::SendPetSkillWipeConfirm()
     data << uint32(pet->resetTalentsCost());
     GetSession()->SendPacket( &data );
 }
-
 
 /*********************************************************/
 /***                    STORAGE SYSTEM                 ***/
@@ -9328,16 +9069,6 @@ uint32 Player::GetAttackBySlot( uint8 slot )
         case EQUIPMENT_SLOT_RANGED:   return RANGED_ATTACK;
         default:                      return MAX_ATTACK;
     }
-}
-
-SpellSchoolMask Player::GetSchoolMaskForAttackType(WeaponAttackType type) const
-{
-    // Weapons can have different spell schools,
-    // in fact only wands have non-physical schools (at least damage[0]...)
-    if(Item* pItem = GetWeaponForAttack(type))
-        return SpellSchoolMask(1 << pItem->GetProto()->Damage[0].DamageType);
-
-    return SPELL_SCHOOL_MASK_NORMAL;
 }
 
 bool Player::IsInventoryPos( uint8 bag, uint8 slot )
@@ -12581,15 +12312,6 @@ void Player::ApplyEnchantment(Item *item, EnchantmentSlot slot, bool apply, bool
     if (!ignore_condition && pEnchant->EnchantmentCondition && !((Player*)this)->EnchantmentFitsRequirements(pEnchant->EnchantmentCondition, -1))
         return;
 
-    if ((pEnchant->requiredLevel) > ((Player*)this)->getLevel())
-        return;
-
-    if ((pEnchant->requiredSkill) > 0)
-    {
-       if ((pEnchant->requiredSkillValue) > (((Player*)this)->GetSkillValue(pEnchant->requiredSkill)))
-        return;
-    }
-
     if (!item->IsBroken())
     {
         for (int s = 0; s < 3; ++s)
@@ -13033,6 +12755,10 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
                     if (!pCreature->isCanTrainingAndResetTalentsOf(this))
                         hasMenuItem = false;
                     break;
+                case GOSSIP_OPTION_UNLEARNPETSKILLS:
+                    if (!GetPet() || GetPet()->getPetType() != HUNTER_PET || GetPet()->m_spells.size() <= 1 || pCreature->GetCreatureInfo()->trainer_type != TRAINER_TYPE_PETS || pCreature->GetCreatureInfo()->trainer_class != CLASS_HUNTER)
+                        hasMenuItem = false;
+                    break;
                 case GOSSIP_OPTION_TAXIVENDOR:
                     if (GetSession()->SendLearnNewTaxiNode(pCreature))
                         return;
@@ -13052,10 +12778,6 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
                 case GOSSIP_OPTION_TABARDDESIGNER:
                 case GOSSIP_OPTION_AUCTIONEER:
                     break;                                  // no checks
-                case GOSSIP_OPTION_OUTDOORPVP:
-                    if (!sOutdoorPvPMgr.CanTalkTo(this, pCreature, itr->second))
-                        hasMenuItem = false;
-                    break;
                 default:
                     sLog.outErrorDb("Creature entry %u have unknown gossip option %u for menu %u", pCreature->GetEntry(), itr->second.option_id, itr->second.menu_id);
                     hasMenuItem = false;
@@ -13064,10 +12786,6 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
         }
         else if (pSource->GetTypeId() == TYPEID_GAMEOBJECT)
         {
-            // we always need UNIT_NPC_FLAG_GOSSIP or UNIT_NPC_FLAG_QUESTGIVER for gameobjects
-            if (!(itr->second.npc_option_npcflag & (UNIT_NPC_FLAG_GOSSIP | UNIT_NPC_FLAG_QUESTGIVER)))
-                continue;
-
             GameObject *pGo = (GameObject*)pSource;
 
             switch(itr->second.option_id)
@@ -13231,9 +12949,6 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
 
             break;
         }
-        case GOSSIP_OPTION_OUTDOORPVP:
-            sOutdoorPvPMgr.HandleGossipOption(this, pSource->GetGUID(), gossipListId);
-            break;
         case GOSSIP_OPTION_SPIRITHEALER:
             if (isDead())
                 ((Creature*)pSource)->CastSpell(((Creature*)pSource),17251,true,NULL,NULL,GetGUID());
@@ -13255,6 +12970,10 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
         case GOSSIP_OPTION_UNLEARNTALENTS:
             PlayerTalkClass->CloseGossip();
             SendTalentWipeConfirm(guid);
+            break;
+        case GOSSIP_OPTION_UNLEARNPETSKILLS:
+            PlayerTalkClass->CloseGossip();
+            SendPetSkillWipeConfirm();
             break;
         case GOSSIP_OPTION_TAXIVENDOR:
             GetSession()->SendTaxiMenu(((Creature*)pSource));
@@ -13347,7 +13066,7 @@ void Player::PrepareQuestMenu( uint64 guid )
     QuestRelations* pObjectQIR;
 
     // pets also can have quests
-    if (Creature *pCreature = GetMap()->GetCreatureOrPetOrVehicle(guid))
+    if (Creature *pCreature = GetMap()->GetAnyTypeCreature(guid))
     {
         pObject = (Object*)pCreature;
         pObjectQR  = &sObjectMgr.mCreatureQuestRelations;
@@ -13441,7 +13160,7 @@ void Player::SendPreparedQuest(uint64 guid)
         std::string title = "";
 
         // need pet case for some quests
-        if (Creature *pCreature = GetMap()->GetCreatureOrPetOrVehicle(guid))
+        if (Creature *pCreature = GetMap()->GetAnyTypeCreature(guid))
         {
             uint32 textid = GetGossipTextId(pCreature);
 
@@ -13514,7 +13233,7 @@ Quest const * Player::GetNextQuest( uint64 guid, Quest const *pQuest )
     QuestRelations* pObjectQR;
     QuestRelations* pObjectQIR;
 
-    if (Creature *pCreature = GetMap()->GetCreatureOrPetOrVehicle(guid))
+    if (Creature *pCreature = GetMap()->GetAnyTypeCreature(guid))
     {
         pObject = (Object*)pCreature;
         pObjectQR  = &sObjectMgr.mCreatureQuestRelations;
@@ -15131,61 +14850,6 @@ void Player::SendQuestUpdateAddCreatureOrGo( Quest const* pQuest, ObjectGuid gui
 /*********************************************************/
 /***                   LOAD SYSTEM                     ***/
 /*********************************************************/
-
-bool Player::MinimalLoadFromDB( QueryResult *result, uint32 guid )
-{
-    bool delete_result = true;
-    if (!result)
-    {
-        //                                        0     1     2     3           4           5           6    7          8          9         10    11
-        result = CharacterDatabase.PQuery("SELECT guid, data, name, position_x, position_y, position_z, map, totaltime, leveltime, at_login, zone, level FROM characters WHERE guid = '%u'",guid);
-        if (!result)
-            return false;
-    }
-    else
-        delete_result = false;
-
-    Field *fields = result->Fetch();
-
-    if (!LoadValues( fields[1].GetString()))
-    {
-        sLog.outError("Player #%d have broken data in `data` field. Can't be loaded for character list.",GUID_LOPART(guid));
-        if (delete_result)
-            delete result;
-        return false;
-    }
-
-    // overwrite possible wrong/corrupted guid
-    SetUInt64Value(OBJECT_FIELD_GUID, MAKE_NEW_GUID(guid, 0, HIGHGUID_PLAYER));
-
-    m_name = fields[2].GetCppString();
-
-    Relocate(fields[3].GetFloat(),fields[4].GetFloat(),fields[5].GetFloat());
-    SetLocationMapId(fields[6].GetUInt32());
-
-    // the instance id is not needed at character enum
-
-    m_Played_time[PLAYED_TIME_TOTAL] = fields[7].GetUInt32();
-    m_Played_time[PLAYED_TIME_LEVEL] = fields[8].GetUInt32();
-
-    m_atLoginFlags = fields[9].GetUInt32();
-
-    // I don't see these used anywhere ..
-    /*_LoadGroup();
-
-    _LoadBoundInstances();*/
-
-    if (delete_result)
-        delete result;
-
-    for (int i = 0; i < PLAYER_SLOTS_COUNT; ++i)
-        m_items[i] = NULL;
-
-    if (HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
-        m_deathState = DEAD;
-
-    return true;
-}
 
 void Player::_LoadDeclinedNames(QueryResult* result)
 {
@@ -17953,39 +17617,27 @@ void Player::RemovePet(Pet* pet, PetSaveMode mode, bool returnreagent)
     if (pet && m_temporaryUnsummonedPetNumber && m_temporaryUnsummonedPetNumber != pet->GetCharmInfo()->GetPetNumber() && mode == PET_SAVE_AS_CURRENT)
         mode = PET_SAVE_NOT_IN_SLOT;
 
-    if(mode != PET_SAVE_AS_CURRENT)
+    if (returnreagent && pet && mode != PET_SAVE_AS_CURRENT)
     {
         //returning of reagents only for players, so best done here
-        uint32 spellId = pet ? pet->GetUInt32Value(UNIT_CREATED_BY_SPELL) : m_oldpetspell;      // this is nonsense, pet will always be != NULL here
+        uint32 spellId = pet ? pet->GetUInt32Value(UNIT_CREATED_BY_SPELL) : m_oldpetspell;
+        SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellId);
 
-        if(SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellId))
+        if(spellInfo)
         {
-            // returning of reagents
-            if (returnreagent && !InBattleGround())
+            for(uint32 i = 0; i < MAX_SPELL_REAGENTS; ++i)
             {
-                for(uint32 i = 0; i < MAX_SPELL_REAGENTS; ++i)
+                if(spellInfo->Reagent[i] > 0)
                 {
-                    if(spellInfo->Reagent[i] > 0)
+                    ItemPosCountVec dest;                   //for succubus, voidwalker, felhunter and felguard credit soulshard when despawn reason other than death (out of range, logout)
+                    uint8 msg = CanStoreNewItem( NULL_BAG, NULL_SLOT, dest, spellInfo->Reagent[i], spellInfo->ReagentCount[i] );
+                    if( msg == EQUIP_ERR_OK )
                     {
-                        ItemPosCountVec dest;                   //for succubus, voidwalker, felhunter and felguard credit soulshard when despawn reason other than death (out of range, logout)
-                        uint8 msg = CanStoreNewItem( NULL_BAG, NULL_SLOT, dest, spellInfo->Reagent[i], spellInfo->ReagentCount[i] );
-                        if( msg == EQUIP_ERR_OK )
-                        {
-                            Item* item = StoreNewItem( dest, spellInfo->Reagent[i], true);
-                            if(IsInWorld())
-                                SendNewItem(item,spellInfo->ReagentCount[i],true,false);
-                        }
+                        Item* item = StoreNewItem( dest, spellInfo->Reagent[i], true);
+                        if(IsInWorld())
+                            SendNewItem(item,spellInfo->ReagentCount[i],true,false);
                     }
                 }
-            }
-            // cooldown, only if pet is not death already (corpse)
-            if (spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE && pet->getDeathState() != CORPSE)
-            {
-                SendCooldownEvent(spellInfo);
-                // Raise Dead hack
-                if (spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT && spellInfo->SpellFamilyFlags & 0x1000)
-                    if (spellInfo = sSpellStore.LookupEntry(46584))
-                        SendCooldownEvent(spellInfo);
             }
         }
     }
@@ -18288,17 +17940,6 @@ void Player::RemovePetActionBar()
     WorldPacket data(SMSG_PET_SPELLS, 8);
     data << uint64(0);
     SendDirectMessage(&data);
-}
-
-void Player::UpdatePetScalingAuras()
-{
-    Pet* pet = GetPet();
-    if (!pet)
-        return;
-
-    // pet scaling auras will be updated with delay, to minimize cpu cycles
-    if (!m_petScalingUpdateTimer)
-        m_petScalingUpdateTimer = 1000;
 }
 
 bool Player::IsAffectedBySpellmod(SpellEntry const *spellInfo, SpellModifier *mod, Spell const* spell)
@@ -19285,18 +18926,15 @@ void Player::AddSpellCooldown(uint32 spellid, uint32 itemid, time_t end_time)
     m_spellCooldowns[spellid] = sc;
 }
 
-void Player::SendCooldownEvent(SpellEntry const *spellInfo, uint32 itemId, Spell* spell, Unit* cooldownTarget)
+void Player::SendCooldownEvent(SpellEntry const *spellInfo, uint32 itemId, Spell* spell)
 {
-    if (!cooldownTarget)
-        cooldownTarget = this;
-
     // start cooldowns at server side, if any
-    cooldownTarget->AddSpellAndCategoryCooldowns(spellInfo,itemId,spell);
+    AddSpellAndCategoryCooldowns(spellInfo, itemId, spell);
 
     // Send activate cooldown timer (possible 0) at client side
     WorldPacket data(SMSG_COOLDOWN_EVENT, (4+8));
     data << uint32(spellInfo->Id);
-    data << uint64(cooldownTarget->GetGUID());
+    data << uint64(GetGUID());
     SendDirectMessage(&data);
 }
 
@@ -19938,25 +19576,6 @@ void Player::SendInitialPacketsAfterAddToMap()
     SendAurasForTarget(this);
     SendEnchantmentDurations();                             // must be after add to map
     SendItemDurations();                                    // must be after add to map
-
-    // Juggernaut & Warbringer both need special packet
-    // for alowing charge in combat and Warbringer
-    // for alowing charge in different stances, too
-    if(HasAura(64976) || HasAura(57499))
-    {
-        WorldPacket aura_update(SMSG_AURA_UPDATE);
-        aura_update << GetPackGUID();
-        aura_update << uint8(255);
-        if(HasAura(64976))
-            aura_update << uint32(64976);
-        if(HasAura(57499))
-            aura_update << uint32(57499);
-        aura_update << uint8(19);
-        aura_update << uint8(getLevel());
-        aura_update << uint8(1);
-        aura_update << uint8(0);
-        GetSession()->SendPacket(&aura_update);
-    }
 }
 
 void Player::SendUpdateToOutOfRangeGroupMembers()
@@ -20416,7 +20035,7 @@ void Player::UpdateForQuestWorldObjects()
         }
         else if (itr->IsCreatureOrVehicle())
         {
-            Creature *obj = GetMap()->GetCreatureOrPetOrVehicle(*itr);
+            Creature *obj = GetMap()->GetAnyTypeCreature(*itr);
             if(!obj)
                 continue;
 
@@ -21661,9 +21280,7 @@ uint8 Player::CanEquipUniqueItem( ItemPrototype const* itemProto, uint8 except_s
 void Player::HandleFall(MovementInfo const& movementInfo)
 {
     // calculate total z distance of the fall
-    float z_diff = (m_lastFallZ >= m_anti_BeginFallZ ? m_lastFallZ : m_anti_BeginFallZ) - movementInfo.GetPos()->z;
-
-    m_anti_BeginFallZ=INVALID_HEIGHT;
+    float z_diff = m_lastFallZ - movementInfo.GetPos()->z;
     DEBUG_LOG("zDiff = %f", z_diff);
 
     //Players with low fall distance, Feather Fall or physical immunity (charges used) are ignored
@@ -21973,12 +21590,6 @@ void Player::UnsummonPetTemporaryIfAny()
     if(!pet)
         return;
 
-    if (((Player*)this)->InArena())
-    {
-        RemovePet(pet, PET_SAVE_NOT_IN_SLOT); // remove pet while is player teleported to arena
-        return;
-    }
- 
     if(!m_temporaryUnsummonedPetNumber && pet->isControlled() && !pet->isTemporarySummoned() )
     {
         m_temporaryUnsummonedPetNumber = pet->GetCharmInfo()->GetPetNumber();
@@ -22634,16 +22245,6 @@ Object* Player::GetObjectByTypeMask(ObjectGuid guid, TypeMask typemask)
     }
 
     return NULL;
-}
-
-void Player::CompletedAchievement(AchievementEntry const* entry)
-{
-  GetAchievementMgr().CompletedAchievement(entry);
-}
-
-void Player::CompletedAchievement(uint32 uiAchievementID)
-{
-  GetAchievementMgr().CompletedAchievement(sAchievementStore.LookupEntry(uiAchievementID));
 }
 
 void Player::SetRestType( RestType n_r_type, uint32 areaTriggerId /*= 0*/)
