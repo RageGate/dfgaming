@@ -21,7 +21,7 @@
 
 DROP TABLE IF EXISTS `character_db_version`;
 CREATE TABLE `character_db_version` (
-  `required_10160_02_characters_pet_aura` bit(1) default NULL
+  `required_10312_02_characters_pet_aura` bit(1) default NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Last applied sql update to DB';
 
 --
@@ -135,13 +135,13 @@ LOCK TABLES `arena_team_stats` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `auctionhouse`
+-- Table structure for table `auction`
 --
 
-DROP TABLE IF EXISTS `auctionhouse`;
-CREATE TABLE `auctionhouse` (
+DROP TABLE IF EXISTS `auction`;
+CREATE TABLE `auction` (
   `id` int(11) unsigned NOT NULL default '0',
-  `auctioneerguid` int(11) unsigned NOT NULL default '0',
+  `houseid` int(11) unsigned NOT NULL default '0',
   `itemguid` int(11) unsigned NOT NULL default '0',
   `item_template` int(11) unsigned NOT NULL default '0' COMMENT 'Item Identifier',
   `itemowner` int(11) unsigned NOT NULL default '0',
@@ -156,12 +156,12 @@ CREATE TABLE `auctionhouse` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --
--- Dumping data for table `auctionhouse`
+-- Dumping data for table `auction`
 --
 
-LOCK TABLES `auctionhouse` WRITE;
-/*!40000 ALTER TABLE `auctionhouse` DISABLE KEYS */;
-/*!40000 ALTER TABLE `auctionhouse` ENABLE KEYS */;
+LOCK TABLES `auction` WRITE;
+/*!40000 ALTER TABLE `auction` DISABLE KEYS */;
+/*!40000 ALTER TABLE `auction` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -383,7 +383,7 @@ CREATE TABLE `character_aura` (
   `remaintime1` INT(11) NOT NULL DEFAULT '0',
   `remaintime2` INT(11) NOT NULL DEFAULT '0',
   `effIndexMask` INT(11) NOT NULL DEFAULT '0',
-  PRIMARY KEY  (`guid`,`spell`)
+  PRIMARY KEY (`guid`,`caster_guid`,`spell`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Player System';
 
 --
@@ -1468,7 +1468,7 @@ CREATE TABLE `pet_aura` (
   `remaintime1` INT(11) NOT NULL DEFAULT '0',
   `remaintime2` INT(11) NOT NULL DEFAULT '0',
   `effIndexMask` INT(11) NOT NULL DEFAULT '0',
-  PRIMARY KEY  (`guid`,`spell`)
+  PRIMARY KEY (`guid`,`caster_guid`,`spell`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Pet System';
 
 --
