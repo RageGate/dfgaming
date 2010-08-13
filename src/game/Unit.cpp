@@ -6617,7 +6617,7 @@ uint32 Unit::SpellDamageBonusTaken(Unit *pCaster, SpellEntry const *spellProto, 
     }
 
     // .. taken pct: SPELL_AURA_284 
-    AuraList const& mAuraListAura284 = GetAurasByType(SPELL_AURA_284); 
+    AuraList const& mAuraListAura284 = GetAurasByType(SPELL_AURA_LINKED); 
     for(AuraList::const_iterator i = mAuraListAura284.begin(); i != mAuraListAura284.end(); ++i) 
     { 
         // Crypt Fever and Ebon Plague 
@@ -7717,7 +7717,7 @@ uint32 Unit::MeleeDamageBonusTaken(Unit *pCaster, uint32 pdamage,WeaponAttackTyp
     }
 
      // .. taken pct: SPELL_AURA_284 
-    AuraList const& mAuraListAura284 = GetAurasByType(SPELL_AURA_284); 
+    AuraList const& mAuraListAura284 = GetAurasByType(SPELL_AURA_LINKED); 
     for(AuraList::const_iterator i = mAuraListAura284.begin(); i != mAuraListAura284.end(); ++i) 
     { 
         // Crypt Fever and Ebon Plague 
