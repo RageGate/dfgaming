@@ -4140,25 +4140,9 @@ bool ChatHandler::HandleDieCommand(char* args)
 	Unit* target = NULL;
 	Player* plyr = NULL;
 
-    if(args && *args)
-    {
-        std::string name = extractPlayerNameFromLink((char*)args);
-        if(!name.empty())
-        {
-            plyr = sObjectMgr.GetPlayer(name.c_str());
-        
-            if (!plyr)
-            {
-                SendSysMessage(LANG_PLAYER_NOT_FOUND);
-                SetSentErrorMessage(true);
-                return false;
-            }
-        }
-    }
-    //extractPlayerTarget((char*)args,&plyr);
-
-	if(plyr)
-		target = plyr;
+    // TODO: check if possibly wrong error message sent
+    if(ExtractPlayerTarget(&args,&plyr))
+        target = plyr;
 	else
 		{
 			target = getSelectedUnit();
@@ -5514,27 +5498,9 @@ bool ChatHandler::HandleServerIdleShutDownCommand(char* args)
 
 bool ChatHandler::HandleQuestAddCommand(char* args)
 {
-    Player* player = 0; 
-	char* nameStr = ExtractOptArg(&args);
-    int32 entry = 0;
+    Player* player; 
 
-    if(nameStr)
-    {
-        std::string name = extractPlayerNameFromLink(nameStr);
-        if(!name.empty())
-        {
-            player = sObjectMgr.GetPlayer(name.c_str());
-        
-            if (!player)
-            {
-                SendSysMessage(LANG_PLAYER_NOT_FOUND);
-                SetSentErrorMessage(true);
-                return false;
-            }
-        }
-    }
-
-	if(!player)
+    if(!ExtractPlayerTarget(&args,&player))
 		player = getSelectedPlayer();
 
     if(!player)
@@ -5546,12 +5512,10 @@ bool ChatHandler::HandleQuestAddCommand(char* args)
 
     // .addquest #entry'
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-<<<<<<< HEAD
-    if(!ExtractInt32(&args, entry))
-    {
-	    uint32 entry;
-      if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
-            return false;
+    //if(!ExtractInt32(&args, entry))
+    uint32 entry;
+    if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
+        return false;
 
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(entry);
     if(!pQuest)
@@ -5590,27 +5554,9 @@ bool ChatHandler::HandleQuestAddCommand(char* args)
 
 bool ChatHandler::HandleQuestRemoveCommand(char* args)
 {
-	Player* player = 0; 
-	char* nameStr = ExtractOptArg(&args);
-    int32 entry = 0;
+    Player* player; 
 
-    if(nameStr)
-    {
-        std::string name = extractPlayerNameFromLink(nameStr);
-        if(!name.empty())
-        {
-            player = sObjectMgr.GetPlayer(name.c_str());
-        
-            if (!player)
-            {
-                SendSysMessage(LANG_PLAYER_NOT_FOUND);
-                SetSentErrorMessage(true);
-                return false;
-            }
-        }
-    }
-
-	if(!player)
+    if(!ExtractPlayerTarget(&args,&player))
 		player = getSelectedPlayer();
 
     if(!player)
@@ -5622,23 +5568,11 @@ bool ChatHandler::HandleQuestRemoveCommand(char* args)
 
     // .addquest #entry'
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-<<<<<<< HEAD
-    if(!ExtractInt32(&args, entry))
-    {
-	    char* cId = extractKeyFromLink(args, "Hquest");
-
-        if (!cId)
-            return false;
-    
-        entry = atol(cId);
-    }
-
-=======
+    //if(!ExtractInt32(&args, entry))
     uint32 entry;
-    if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
-        return false;
+        if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
+            return false;
 
->>>>>>> 928642b... [10334] Update shift-link related functions for chat command parsing.
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(entry);
 
     if (!pQuest)
@@ -5673,27 +5607,9 @@ bool ChatHandler::HandleQuestRemoveCommand(char* args)
 
 bool ChatHandler::HandleQuestCompleteCommand(char* args)
 {
-	Player* player = 0; 
-	char* nameStr = ExtractOptArg(&args);
-    int32 entry = 0;
+    Player* player; 
 
-    if(nameStr)
-    {
-        std::string name = extractPlayerNameFromLink(nameStr);
-        if(!name.empty())
-        {
-            player = sObjectMgr.GetPlayer(name.c_str());
-        
-            if (!player)
-            {
-                SendSysMessage(LANG_PLAYER_NOT_FOUND);
-                SetSentErrorMessage(true);
-                return false;
-            }
-        }
-    }
-
-	if(!player)
+    if(!ExtractPlayerTarget(&args,&player))
 		player = getSelectedPlayer();
 
     if(!player)
@@ -5705,23 +5621,11 @@ bool ChatHandler::HandleQuestCompleteCommand(char* args)
 
     // .addquest #entry'
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-<<<<<<< HEAD
-    if(!ExtractInt32(&args, entry))
-    {
-	    char* cId = extractKeyFromLink(args, "Hquest");
-
-        if (!cId)
-            return false;
-    
-        entry = atol(cId);
-    }
-
-=======
+    //if(!ExtractInt32(&args, entry))
     uint32 entry;
-    if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
-        return false;
+        if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
+            return false;
 
->>>>>>> 928642b... [10334] Update shift-link related functions for chat command parsing.
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(entry);
 
     // If player doesn't have the quest

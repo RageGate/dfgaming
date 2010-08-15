@@ -283,7 +283,6 @@ class AchievementMgr
         void SendAchievementEarned(AchievementEntry const* achievement);
         void SendCriteriaUpdate(uint32 id, CriteriaProgress const* progress);
         void CompletedCriteriaFor(AchievementEntry const* achievement);
-        void CompletedAchievement(AchievementEntry const* entry);
         void IncompletedAchievement(AchievementEntry const* entry);
         bool IsCompletedAchievement(AchievementEntry const* entry);
         void CompleteAchievementsWithRefs(AchievementEntry const* entry);
