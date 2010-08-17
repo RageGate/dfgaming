@@ -6236,6 +6236,29 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     }
                     return;
                 }
+                case 51904:                                 // Summon Ghouls Of Scarlet Crusade
+                {
+                    if (!unitTarget)
+                        return;
+
+                    m_caster->RemoveSpellsCausingAura(SPELL_AURA_MOD_STEALTH); // hacky
+                    unitTarget->CastSpell(unitTarget, 54522, true);
+                    break;
+                }
+                case 52694:                                 // Recall Eye of Acherus
+                {
+                    if  (m_caster->GetTypeId() != TYPEID_UNIT || !(((Creature*)m_caster)->isPossessedSummon()))
+                        return;
+
+                    if (m_caster->isInCombat())
+                    {
+                        SendCastResult(SPELL_FAILED_AFFECTING_COMBAT);
+                        return;
+                    }
+
+                    ((PossessedSummon*)m_caster)->UnSummon();
+                    break;
+                }
                 case 52751:                                 // Death Gate
                 {
                     if (!unitTarget || unitTarget->getClass() != CLASS_DEATH_KNIGHT)
