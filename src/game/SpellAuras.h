@@ -143,9 +143,10 @@ class MANGOS_DLL_SPEC SpellAuraHolder
 
         void SetVisibleAura(bool remove) { m_target->SetVisibleAura(m_auraSlot, remove ? 0 : GetId()); }
         void SetRemoveMode(AuraRemoveMode mode) { m_removeMode = mode; }
-        void SetLoadedState(uint64 casterGUID, int32 stackAmount, int32 charges)
+        void SetLoadedState(uint64 casterGUID, uint64 itemGUID, int32 stackAmount, int32 charges)
         {
             m_caster_guid = casterGUID;
+            m_castItemGuid = itemGUID;
             m_procCharges = charges;
             m_stackAmount = stackAmount;
         }
@@ -365,6 +366,7 @@ class MANGOS_DLL_SPEC Aura
         void HandleAuraModAllCritChance(bool Apply, bool Real);
         void HandleAllowOnlyAbility(bool Apply, bool Real);
         void HandleAuraOpenStable(bool apply, bool Real);
+        void HandleAuraLinked(bool Apply, bool Real);
 
         virtual ~Aura();
 

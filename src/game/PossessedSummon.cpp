@@ -83,8 +83,6 @@ void PossessedSummon::Summon(Player* owner, uint32 spellId)
 
     owner->PossessSpellInitialize();
 
-    // this will initialize PetAI, a bit oversized for this kind of creature,
-    // but at least we get the team update by this AI
     AIM_Initialize();
 }
 

@@ -583,7 +583,7 @@ class World
 
         void KickAll();
         void KickAllLess(AccountTypes sec);
-        BanReturn BanAccount(BanMode mode, std::string nameOrIP, std::string duration, std::string reason, std::string author);
+        BanReturn BanAccount(BanMode mode, std::string nameOrIP, uint32 duration_secs, std::string reason, std::string author);
         bool RemoveBanAccount(BanMode mode, std::string nameOrIP);
 
         uint32 IncreaseScheduledScriptsCount() { return (uint32)++m_scheduledScripts; }
@@ -608,7 +608,7 @@ class World
         inline uint32 GetMvAnticheatAlarmCount()       {return m_MvAnticheatAlarmCount;}
         inline uint32 GetMvAnticheatAlarmPeriod()      {return m_MvAnticheatAlarmPeriod;}
         inline unsigned char GetMvAnticheatBan()       {return m_MvAntiCheatBan;}
-        inline std::string GetMvAnticheatBanTime()     {return m_MvAnticheatBanTime;}
+        inline uint32 GetMvAnticheatBanTime()          {return m_MvAnticheatBanTime;}
         inline unsigned char GetMvAnticheatGmLevel()   {return m_MvAnticheatGmLevel;}
         inline bool GetMvAnticheatKill()               {return m_MvAnticheatKill;}
         inline float GetMvAnticheatMaxXYT()            {return m_MvAnticheatMaxXYT;}
@@ -718,7 +718,7 @@ class World
         uint32 m_MvAnticheatAlarmCount;
         uint32 m_MvAnticheatAlarmPeriod;
         unsigned char m_MvAntiCheatBan;
-        std::string m_MvAnticheatBanTime;
+        uint32 m_MvAnticheatBanTime;
         unsigned char m_MvAnticheatGmLevel;
         bool m_MvAnticheatKill;
         float m_MvAnticheatMaxXYT;

@@ -392,7 +392,7 @@ void Vehicle::EmptySeatsCountChanged()
 
     if(uint64 vehicleGUID = GetVehicleGUID())
     {
-        if(Vehicle *vehicle = ObjectAccessor::GetVehicle(vehicleGUID))
+        if(Vehicle *vehicle = GetMap()->GetVehicle(vehicleGUID))
         {
             if(u_count > 0)
                 vehicle->ChangeSeatFlag(m_movementInfo.GetTransportSeat(), SEAT_VEHICLE_FREE);
