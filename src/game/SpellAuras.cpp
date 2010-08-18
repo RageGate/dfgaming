@@ -47,6 +47,7 @@
 #include "Vehicle.h"
 #include "CellImpl.h"
 #include "TemporarySummon.h"
+#include "PossessedSummon.h"
 
 #define NULL_AURA_SLOT 0xFF
 
@@ -8213,6 +8214,7 @@ m_auraFlags(AFLAG_NONE), m_auraLevel(1), m_procCharges(0), m_stackAmount(1)
     m_isPassive = IsPassiveSpell(GetId());
     m_isDeathPersist = IsDeathPersistentSpell(m_spellProto);
     m_isSingleTarget = IsSingleTargetSpell(spellproto);
+    m_boundUnitGuid = 0;
 
     if(GetSpellMaxDuration(m_spellProto) == -1 || m_isPassive && m_spellProto->DurationIndex == 0)
         m_permanent = true;
@@ -9369,6 +9371,47 @@ void SpellAuraHolder::HandleSpellSpecificBoosts(bool apply)
     }
 
     SetInUse(false);
+}
+
+void SpellAuraHolder::HandleBoundUnit(bool apply)
+{
+    if (!m_boundUnitGuid)
+        return;
+
+    if (apply)
+        return;
+
+    // Some spell effects have aura-like character (duration) and are always bound
+    // to an aura. Handle those special effects here.
+    for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+    {
+        switch (SpellEffects(GetSpellProto()->Effect[i]))
+        {
+            case SPELL_EFFECT_SUMMON:
+            {
+                // possesed summons need to be unsummoned if aura is cancelled
+                uint32 prop_id = GetSpellProto()->EffectMiscValueB[i];
+                SummonPropertiesEntry const *summon_prop = sSummonPropertiesStore.LookupEntry(prop_id);
+                if(!summon_prop || summon_prop->Group != SUMMON_PROP_GROUP_CONTROLLABLE)
+                    return;
+
+                Unit* boundUnit = m_target->GetMap()->GetUnit(m_boundUnitGuid);
+
+                if (!boundUnit)
+                    return;
+                ASSERT((boundUnit->GetTypeId() == TYPEID_UNIT && ((Creature*)boundUnit)->isPossessedSummon()));
+                ((PossessedSummon*)boundUnit)->UnSummon();
+                return;
+            }
+            case SPELL_EFFECT_REDIRECT_THREAT:
+            {
+                // TODO: implement :-P
+                return;
+            }
+            default:
+                break;
+        }
+    }
 }
 
 SpellAuraHolder::~SpellAuraHolder()

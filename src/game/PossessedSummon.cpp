@@ -18,6 +18,7 @@
 
 #include "PossessedSummon.h"
 #include "ObjectAccessor.h"
+#include "SpellAuras.h"
 
 PossessedSummon::PossessedSummon():
 m_oldCharm(0), Creature(CREATURE_SUBTYPE_POSSESSED_SUMMON)
@@ -32,14 +33,7 @@ void PossessedSummon::Update( uint32 diff )
     if ( m_deathState == CORPSE || m_deathState == DEAD || !owner)
     {
         UnSummon();
-        return;
-    }
 
-    // note: Spells summoning PossessedSummons always have at least one aura.
-    // The exsistence of this summon is bound to this aura.
-    if (!owner->HasAura(GetUInt32Value(UNIT_CREATED_BY_SPELL)))
-    {
-        UnSummon();
         return;
     }
 
@@ -58,8 +52,6 @@ void PossessedSummon::Summon(Player* owner, uint32 spellId)
 
     addUnitState(UNIT_STAT_CONTROLLED);
     SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED);
-
-    // those creatures are alway bound to a spellId (see PossessedSummon::Update)
     SetUInt32Value(UNIT_CREATED_BY_SPELL, spellId);
 
 
@@ -97,7 +89,7 @@ void PossessedSummon::UnSummon()
         Player* pOwner = (Player*)uOwner;
         Camera& camera = pOwner->GetCamera();
 
-        // cancel aura
+        // cancel bound Aura
         pOwner->RemoveAurasDueToSpellByCancel(GetUInt32Value(UNIT_CREATED_BY_SPELL));
         pOwner->InterruptSpell(CURRENT_CHANNELED_SPELL);                                // TODO: this should generally be done at the aura system
 

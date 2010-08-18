@@ -4913,6 +4913,12 @@ void Spell::DoSummonPossessed(SpellEffectIndex eff_idx, uint32 forceFaction)
     if (!creature_entry)
         return;
 
+    // possessed summons are always bound to an aura
+    if (!spellAuraHolder)
+    {
+        sLog.outDebug("Spell %i summons a possessed summon but has no aura it can be bound to.", m_spellInfo->Id);
+        return;
+    }
 
     PossessedSummon* pCreature = new PossessedSummon();
 
@@ -4948,6 +4954,9 @@ void Spell::DoSummonPossessed(SpellEffectIndex eff_idx, uint32 forceFaction)
 
     // initialize all stuff (owner, camera, etc...)
     pCreature->Summon(p_caster, m_spellInfo->Id);
+
+    // bind to auraholder
+    spellAuraHolder->SetBoundUnit(pCreature->GetGUID());
 
     if(forceFaction)
         pCreature->setFaction(forceFaction);
