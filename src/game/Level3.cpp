@@ -5498,9 +5498,25 @@ bool ChatHandler::HandleServerIdleShutDownCommand(char* args)
 
 bool ChatHandler::HandleQuestAddCommand(char* args)
 {
-    Player* player; 
+    Player* player = NULL;
 
-    if(!ExtractPlayerTarget(&args,&player))
+    char* nameStr = ExtractOptNotLastArg(&args);
+
+    if(nameStr)
+    {
+        std::string name = ExtractPlayerNameFromLink(&nameStr);
+        if(!name.empty())
+        {
+            player = sObjectMgr.GetPlayer(name.c_str());
+            if (!player)
+            {
+                SendSysMessage(LANG_PLAYER_NOT_FOUND);
+                SetSentErrorMessage(true);
+                return false;
+            }
+        }
+    }
+    if(!player)
 		player = getSelectedPlayer();
 
     if(!player)
@@ -5510,9 +5526,8 @@ bool ChatHandler::HandleQuestAddCommand(char* args)
         return false;
     }
 
-    // .addquest #entry'
+    // .quest add [#player] #entry
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-    //if(!ExtractInt32(&args, entry))
     uint32 entry;
     if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
         return false;
@@ -5554,9 +5569,25 @@ bool ChatHandler::HandleQuestAddCommand(char* args)
 
 bool ChatHandler::HandleQuestRemoveCommand(char* args)
 {
-    Player* player; 
+    Player* player = NULL;
 
-    if(!ExtractPlayerTarget(&args,&player))
+    char* nameStr = ExtractOptNotLastArg(&args);
+
+    if(nameStr)
+    {
+        std::string name = ExtractPlayerNameFromLink(&nameStr);
+        if(!name.empty())
+        {
+            player = sObjectMgr.GetPlayer(name.c_str());
+            if (!player)
+            {
+                SendSysMessage(LANG_PLAYER_NOT_FOUND);
+                SetSentErrorMessage(true);
+                return false;
+            }
+        }
+    }
+    if(!player)
 		player = getSelectedPlayer();
 
     if(!player)
@@ -5566,12 +5597,11 @@ bool ChatHandler::HandleQuestRemoveCommand(char* args)
         return false;
     }
 
-    // .addquest #entry'
+    // .quest remove [#player] #entry
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-    //if(!ExtractInt32(&args, entry))
     uint32 entry;
-        if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
-            return false;
+    if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
+        return false;
 
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(entry);
 
@@ -5607,9 +5637,25 @@ bool ChatHandler::HandleQuestRemoveCommand(char* args)
 
 bool ChatHandler::HandleQuestCompleteCommand(char* args)
 {
-    Player* player; 
+    Player* player = NULL;
 
-    if(!ExtractPlayerTarget(&args,&player))
+    char* nameStr = ExtractOptNotLastArg(&args);
+
+    if(nameStr)
+    {
+        std::string name = ExtractPlayerNameFromLink(&nameStr);
+        if(!name.empty())
+        {
+            player = sObjectMgr.GetPlayer(name.c_str());
+            if (!player)
+            {
+                SendSysMessage(LANG_PLAYER_NOT_FOUND);
+                SetSentErrorMessage(true);
+                return false;
+            }
+        }
+    }
+    if(!player)
 		player = getSelectedPlayer();
 
     if(!player)
@@ -5619,12 +5665,11 @@ bool ChatHandler::HandleQuestCompleteCommand(char* args)
         return false;
     }
 
-    // .addquest #entry'
+    // .quest complete [#player] #entry
     // number or [name] Shift-click form |color|Hquest:quest_id:quest_level|h[name]|h|r
-    //if(!ExtractInt32(&args, entry))
     uint32 entry;
-        if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
-            return false;
+    if (!ExtractUint32KeyFromLink(&args, "Hquest", entry))
+        return false;
 
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(entry);
 
