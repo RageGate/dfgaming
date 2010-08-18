@@ -1532,6 +1532,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 case 38794:                                 // Murmur's Touch (h)
                 case 45391:                                 // Summon Demonic Vapor (Felmyst)
                 case 50988:                                 // Glare of the Tribunal (Halls of Stone)
+                case 54522:                                 // Summon Ghouls On Scarlet Crusade
                 case 59870:                                 // Glare of the Tribunal (h) (Halls of Stone)
                     unMaxTargets = 1;
                     break;
