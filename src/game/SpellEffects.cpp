@@ -6247,7 +6247,7 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                 }
                 case 51904:                                 // Summon Ghouls Of Scarlet Crusade
                 {
-                    if (!unitTarget)
+                    if (!unitTarget || unitTarget->IsFriendlyTo(m_caster))
                         return;
 
                     m_caster->RemoveSpellsCausingAura(SPELL_AURA_MOD_STEALTH); // hacky
