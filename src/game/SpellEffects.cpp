@@ -2774,6 +2774,13 @@ void Spell::EffectTriggerSpell(SpellEffectIndex effIndex)
             unitTarget = m_caster;
             break;
         }
+        // Glyph of Mirror Image
+        case 58832:
+        {
+            if (m_caster->HasAura(63093))
+                m_caster->CastSpell(m_caster, 65047, true); // Mirror Image
+            break;
+        }
     }
 
     // normal case
@@ -3955,6 +3962,8 @@ void Spell::EffectSummonType(SpellEffectIndex eff_idx)
                     //SUMMON_TYPE_TOTEM2 = 647: 52893, Anti-Magic Zone (npc used)
                     if(prop_id == 121 || prop_id == 647)
                         DoSummonTotem(eff_idx);
+                    else if (prop_id == 1021)
+                        DoSummonGuardian(eff_idx, summon_prop->FactionId);
                     else
                         DoSummonWild(eff_idx, summon_prop->FactionId);
                     break;
@@ -4557,6 +4566,26 @@ void Spell::DoSummonGuardian(SpellEffectIndex eff_idx, uint32 forceFaction)
         m_caster->AddGuardian(spawnCreature);
 
         map->Add((Creature*)spawnCreature);
+
+        switch(pet_entry)
+        {
+            case 31216:
+            {
+                // set bounding and combat radiuses to player defaults values
+                spawnCreature->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, DEFAULT_WORLD_OBJECT_SIZE);
+                spawnCreature->SetFloatValue(UNIT_FIELD_COMBATREACH, 1.5f);
+                // copy onwer's SheathState and UnitBytes2_Flags
+                spawnCreature->SetUInt32Value(UNIT_FIELD_BYTES_2,m_caster->GetUInt32Value(UNIT_FIELD_BYTES_2));
+                //Set Health and Manna
+                spawnCreature->SetMaxHealth(m_caster->GetMaxHealth()/6.0f);
+                spawnCreature->SetHealth(m_caster->GetHealth()/6.0f);
+                spawnCreature->SetMaxPower(POWER_MANA, m_caster->GetMaxPower(POWER_MANA)/6.0f);
+                spawnCreature->SetPower(POWER_MANA, m_caster->GetPower(POWER_MANA)/6.0f);
+                break;
+            }
+            default:
+                break;
+         }
     }
 }
 
@@ -5984,6 +6013,9 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->CastSpell(unitTarget, 46394, true);
                     break;
                 }
+                case 45204: // Clone Me!
+                    unitTarget->CastSpell(m_caster, damage, true);
+                    break;
                 case 45206:                                 // Copy Off-hand Weapon
                 {
                     if (m_caster->GetTypeId() != TYPEID_UNIT || !unitTarget || unitTarget->GetTypeId() != TYPEID_PLAYER)
