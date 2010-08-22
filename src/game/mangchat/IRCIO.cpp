@@ -20,6 +20,7 @@
 #include "../Config/Config.h"
 #include "../Channel.h"
 #include "../World.h"
+#include "../Chat.h"
 
 IRCCmd Command;
 void IRCClient::Handle_IRC(std::string sData)
@@ -346,14 +347,7 @@ void IRCClient::Send_WoW_Player(std::string sPlayer, std::string sMsg)
 void IRCClient::Send_WoW_Player(Player *plr, string sMsg)
 {
     WorldPacket data(SMSG_MESSAGECHAT, 200);
-    data << (uint8)CHAT_MSG_SYSTEM;
-    data << (uint32)LANG_UNIVERSAL;
-    data << (uint64)plr->GetGUID();
-    data << (uint32)0;
-    data << (uint64)plr->GetGUID();
-    data << (uint32)(sMsg.length()+1);
-    data << sMsg;
-    data << (uint8)0;
+    ChatHandler::FillMessageData(&data, plr->GetSession(), CHAT_MSG_SYSTEM, LANG_UNIVERSAL, NULL, plr->GetGUID(), sMsg.c_str(), NULL);
     plr->GetSession()->SendPacket(&data);
 }
 
@@ -382,16 +376,7 @@ void IRCClient::Send_WoW_Channel(const char *channel, std::string chat)
                 if(Channel *chn = cMgr->GetChannel(channel, itr->second->GetSession()->GetPlayer()))
                 {
                     WorldPacket data;
-                    data.Initialize(SMSG_MESSAGECHAT);
-                    data << (uint8)CHAT_MSG_CHANNEL;
-                    data << (uint32)LANG_UNIVERSAL;
-                    data << (uint64)0;
-                    data << (uint32)0;
-                    data << channel;
-                    data << (uint64)0;
-                    data << (uint32) (strlen(chat.c_str()) + 1);
-                    data << IRCcol2WoW(chat.c_str());
-                    data << (uint8)0;
+                    ChatHandler::FillMessageData(&data, NULL, CHAT_MSG_CHANNEL, LANG_UNIVERSAL, channel, 0, IRCcol2WoW(chat.c_str()).c_str(), NULL);
                     itr->second->GetSession()->SendPacket(&data);
                 }
             }

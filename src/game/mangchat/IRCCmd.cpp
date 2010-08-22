@@ -393,7 +393,7 @@ bool IRCCmd::IsValid(std::string USER, std::string FROM, std::string CHAT, std::
             {
                 case E_OK:
                     sIRC.Send_IRC_Channels("Reloading MangChat Config Options. (Command Disabled)");
-                    //sIRC.LoadConfig();
+                    sIRC.LoadConfig(sIRC.CfgFile);
                     break;
                 case E_AUTH:
                     AuthValid = false;
@@ -453,7 +453,7 @@ bool IRCCmd::IsValid(std::string USER, std::string FROM, std::string CHAT, std::
                     Shutdown_Mangos(&CDATA);
                     break;
                 case E_SIZE:
-                    sIRC.Send_IRC_Channel(USER, "\0034[ERROR] : Syntax Error! ( "+sIRC._cmd_prefx+"shutdown <TimeInSeconds> )", true, "ERROR");
+                    sIRC.Send_IRC_Channel(USER, "\0034[ERROR] : Syntax Error! ( "+sIRC._cmd_prefx+"shutdown <TimeInSeconds/cancel> )", true, "ERROR");
                     break;
                 case E_AUTH:
                     AuthValid = false;
