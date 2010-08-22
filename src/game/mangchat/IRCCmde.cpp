@@ -1542,16 +1542,7 @@ void IRCCmd::PM_Player(_CDATA *CD)
         if (plr->isAcceptWhispers())
         {
             std::string sMsg = MakeMsg("|cffFE87FD[<IRC>%s] Whispers: %s|r", CD->USER.c_str(), _PARAMS[1].c_str());
-            WorldPacket data(SMSG_MESSAGECHAT, 200);
-            data << (uint8)CHAT_MSG_SYSTEM;
-            data << (uint32)LANG_UNIVERSAL;
-            data << (uint64)plr->GetGUID();
-            data << (uint32)0;
-            data << (uint64)plr->GetGUID();
-            data << (uint32)(sMsg.length()+1);
-            data << sMsg;
-            data << (uint8)0;
-            plr->GetSession()->SendPacket(&data);
+            Send_Player(plr, sMsg);
             plr->PlayDistanceSound(3081);
             Send_IRCA(ChanOrPM(CD), "\00313To ["+_PARAMS[0]+"] : "+_PARAMS[1]+".", true, CD->TYPE);
         }
