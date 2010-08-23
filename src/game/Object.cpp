@@ -1207,7 +1207,7 @@ float WorldObject::GetDistanceZ(const WorldObject* obj) const
     return ( dist > 0 ? dist : 0);
 }
 
-bool WorldObject::IsWithinDist3d(float x, float y, float z, float dist2compare) const
+bool WorldObject::IsWithinDist3d(float x, float y, float z, float dist_max, float dist_min) const
 {
     float dx = GetPositionX() - x;
     float dy = GetPositionY() - y;
@@ -1215,9 +1215,10 @@ bool WorldObject::IsWithinDist3d(float x, float y, float z, float dist2compare) 
     float distsq = dx*dx + dy*dy + dz*dz;
 
     float sizefactor = GetObjectBoundingRadius();
-    float maxdist = dist2compare + sizefactor;
+    float maxdist = dist_max + sizefactor;
+    float mindist = dist_min - sizefactor;
 
-    return distsq < maxdist * maxdist;
+    return distsq < maxdist * maxdist && (mindist < 0.0f || distsq > mindist * mindist);
 }
 
 bool WorldObject::IsWithinDist2d(float x, float y, float dist2compare) const
@@ -1232,7 +1233,7 @@ bool WorldObject::IsWithinDist2d(float x, float y, float dist2compare) const
     return distsq < maxdist * maxdist;
 }
 
-bool WorldObject::_IsWithinDist(WorldObject const* obj, float dist2compare, bool is3D) const
+bool WorldObject::_IsWithinDist(WorldObject const* obj, float dist_max, bool is3D, float dist_min) const
 {
     float dx = GetPositionX() - obj->GetPositionX();
     float dy = GetPositionY() - obj->GetPositionY();
@@ -1243,9 +1244,10 @@ bool WorldObject::_IsWithinDist(WorldObject const* obj, float dist2compare, bool
         distsq += dz*dz;
     }
     float sizefactor = GetObjectBoundingRadius() + obj->GetObjectBoundingRadius();
-    float maxdist = dist2compare + sizefactor;
+    float maxdist = dist_max + sizefactor;
+    float mindist = dist_min - sizefactor;
 
-    return distsq < maxdist * maxdist;
+    return distsq < maxdist * maxdist && (mindist < 0.0f || distsq > mindist*mindist);
 }
 
 bool WorldObject::IsWithinLOSInMap(const WorldObject* obj) const
@@ -1404,14 +1406,14 @@ bool WorldObject::isInBackInMap(WorldObject const* target, float distance, float
     return IsWithinDistInMap(target, distance) && !HasInArc( 2 * M_PI_F - arc, target );
 }
 
-bool WorldObject::isInFront(WorldObject const* target, float distance,  float arc) const
+bool WorldObject::isInFront(WorldObject const* target, float distance_max,  float arc, float distance_min) const
 {
-    return IsWithinDist(target, distance) && HasInArc( arc, target );
+    return IsWithinDist(target, distance_max, true, distance_min) && HasInArc( arc, target );
 }
 
-bool WorldObject::isInBack(WorldObject const* target, float distance, float arc) const
+bool WorldObject::isInBack(WorldObject const* target, float distance_max, float arc, float distance_min) const
 {
-    return IsWithinDist(target, distance) && !HasInArc( 2 * M_PI_F - arc, target );
+    return IsWithinDist(target, distance_max, true, distance_min) && !HasInArc( 2 * M_PI_F - arc, target );
 }
 
 void WorldObject::GetRandomPoint( float x, float y, float z, float distance, float &rand_x, float &rand_y, float &rand_z) const
