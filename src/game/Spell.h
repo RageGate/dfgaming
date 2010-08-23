@@ -400,7 +400,7 @@ class Spell
         void FillTargetMap();
         void SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList &targetUnitMap);
 
-        void FillAreaTargets(UnitList &targetUnitMap, float x, float y, float radius, SpellNotifyPushType pushType, SpellTargets spellTargets, WorldObject* originalCaster = NULL);
+        void FillAreaTargets(UnitList &targetUnitMap, float x, float y, float radius_max, SpellNotifyPushType pushType, SpellTargets spellTargets, WorldObject* originalCaster = NULL, float radius_min = 0.0f);
         void FillRaidOrPartyTargets(UnitList &targetUnitMap, Unit* member, Unit* center, float radius, bool raid, bool withPets, bool withcaster);
         void FillRaidOrPartyManaPriorityTargets(UnitList &targetUnitMap, Unit* member, Unit* center, float radius, uint32 count, bool raid, bool withPets, bool withcaster);
         void FillRaidOrPartyHealthPriorityTargets(UnitList &targetUnitMap, Unit* member, Unit* center, float radius, uint32 count, bool raid, bool withPets, bool withcaster);
@@ -692,15 +692,15 @@ namespace MaNGOS
         std::list<Unit*> *i_data;
         Spell &i_spell;
         SpellNotifyPushType i_push_type;
-        float i_radius;
+        float i_radius_max, i_radius_min;
         SpellTargets i_TargetType;
         WorldObject* i_originalCaster;
         bool i_playerControled;
 
-        SpellNotifierCreatureAndPlayer(Spell &spell, std::list<Unit*> &data, float radius, SpellNotifyPushType type,
-            SpellTargets TargetType = SPELL_TARGETS_NOT_FRIENDLY, WorldObject* originalCaster = NULL)
-            : i_data(&data), i_spell(spell), i_push_type(type), i_radius(radius), i_TargetType(TargetType),
-            i_originalCaster(originalCaster)
+        SpellNotifierCreatureAndPlayer(Spell &spell, std::list<Unit*> &data, float radius_max, SpellNotifyPushType type,
+            SpellTargets TargetType = SPELL_TARGETS_NOT_FRIENDLY, WorldObject* originalCaster = NULL, float radius_min = 0.0f)
+            : i_data(&data), i_spell(spell), i_push_type(type), i_radius_max(radius_max), i_TargetType(TargetType),
+            i_originalCaster(originalCaster), i_radius_min(radius_min)
         {
             if (!i_originalCaster)
                 i_originalCaster = i_spell.GetAffectiveCasterObject();
@@ -767,35 +767,35 @@ namespace MaNGOS
                 switch(i_push_type)
                 {
                     case PUSH_IN_FRONT:
-                        if(i_spell.GetCaster()->isInFront((Unit*)(itr->getSource()), i_radius, 2*M_PI_F/3 ))
+                        if(i_spell.GetCaster()->isInFront((Unit*)(itr->getSource()), i_radius_max, 2*M_PI_F/3, i_radius_min ))
                             i_data->push_back(itr->getSource());
                         break;
                     case PUSH_IN_FRONT_90:
-                        if(i_spell.GetCaster()->isInFront((Unit*)(itr->getSource()), i_radius, M_PI_F/2 ))
+                        if(i_spell.GetCaster()->isInFront((Unit*)(itr->getSource()), i_radius_max, M_PI_F/2, i_radius_min ))
                             i_data->push_back(itr->getSource());
                         break;
                     case PUSH_IN_FRONT_30:
-                        if(i_spell.GetCaster()->isInFront((Unit*)(itr->getSource()), i_radius, M_PI_F/6 ))
+                        if(i_spell.GetCaster()->isInFront((Unit*)(itr->getSource()), i_radius_max, M_PI_F/6, i_radius_min ))
                             i_data->push_back(itr->getSource());
                         break;
                     case PUSH_IN_FRONT_15:
-                        if(i_spell.GetCaster()->isInFront((Unit*)(itr->getSource()), i_radius, M_PI_F/12 ))
+                        if(i_spell.GetCaster()->isInFront((Unit*)(itr->getSource()), i_radius_max, M_PI_F/12, i_radius_min ))
                             i_data->push_back(itr->getSource());
                         break;
                     case PUSH_IN_BACK:
-                        if(i_spell.GetCaster()->isInBack((Unit*)(itr->getSource()), i_radius, 2*M_PI_F/3 ))
+                        if(i_spell.GetCaster()->isInBack((Unit*)(itr->getSource()), i_radius_max, 2*M_PI_F/3, i_radius_min ))
                             i_data->push_back(itr->getSource());
                         break;
                     case PUSH_SELF_CENTER:
-                        if(i_spell.GetCaster()->IsWithinDist((Unit*)(itr->getSource()), i_radius))
+                        if(i_spell.GetCaster()->IsWithinDist((Unit*)(itr->getSource()), i_radius_max, true, i_radius_min))
                             i_data->push_back(itr->getSource());
                         break;
                     case PUSH_DEST_CENTER:
-                        if(itr->getSource()->IsWithinDist3d(i_spell.m_targets.m_destX, i_spell.m_targets.m_destY, i_spell.m_targets.m_destZ,i_radius))
+                        if(itr->getSource()->IsWithinDist3d(i_spell.m_targets.m_destX, i_spell.m_targets.m_destY, i_spell.m_targets.m_destZ,i_radius_max, i_radius_min))
                             i_data->push_back(itr->getSource());
                         break;
                     case PUSH_TARGET_CENTER:
-                        if(i_spell.m_targets.getUnitTarget()->IsWithinDist((Unit*)(itr->getSource()), i_radius))
+                        if(i_spell.m_targets.getUnitTarget()->IsWithinDist((Unit*)(itr->getSource()), i_radius_max, true, i_radius_min))
                             i_data->push_back(itr->getSource());
                         break;
                 }

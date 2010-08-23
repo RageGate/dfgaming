@@ -1910,6 +1910,9 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     targetUnitMap.push_back(m_caster);
                     break;
                 default:
+                    float minrange = 0.0f;
+                    if (m_spellInfo->Id == 68921)           // HACK: Soulstorm
+                        minrange = 20.0f;
                     FillAreaTargets(targetUnitMap, m_targets.m_destX, m_targets.m_destY, radius, PUSH_DEST_CENTER, SPELL_TARGETS_AOE_DAMAGE);
                     break;
             }
@@ -6906,17 +6909,17 @@ SpellCastResult Spell::CanOpenLock(SpellEffectIndex effIndex, uint32 lockId, Ski
  * @param spellTargets         Additional rules for target selection base at hostile/friendly state to original spell caster
  * @param originalCaster       If provided set alternative original caster, if =NULL then used Spell::GetAffectiveObject() return
  */
-void Spell::FillAreaTargets(UnitList &targetUnitMap, float x, float y, float radius, SpellNotifyPushType pushType, SpellTargets spellTargets, WorldObject* originalCaster /*=NULL*/)
+void Spell::FillAreaTargets(UnitList &targetUnitMap, float x, float y, float radius_max, SpellNotifyPushType pushType, SpellTargets spellTargets, WorldObject* originalCaster /*=NULL*/, float radius_min)
 {
     CellPair p(MaNGOS::ComputeCellPair(x, y));
     Cell cell(p);
     cell.data.Part.reserved = ALL_DISTRICT;
     cell.SetNoCreate();
-    MaNGOS::SpellNotifierCreatureAndPlayer notifier(*this, targetUnitMap, radius, pushType, spellTargets, originalCaster);
+    MaNGOS::SpellNotifierCreatureAndPlayer notifier(*this, targetUnitMap, radius_max, pushType, spellTargets, originalCaster, radius_min);
     TypeContainerVisitor<MaNGOS::SpellNotifierCreatureAndPlayer, WorldTypeMapContainer > world_notifier(notifier);
     TypeContainerVisitor<MaNGOS::SpellNotifierCreatureAndPlayer, GridTypeMapContainer > grid_notifier(notifier);
-    cell.Visit(p, world_notifier, *m_caster->GetMap(), *m_caster, radius);
-    cell.Visit(p, grid_notifier, *m_caster->GetMap(), *m_caster, radius);
+    cell.Visit(p, world_notifier, *m_caster->GetMap(), *m_caster, radius_max);
+    cell.Visit(p, grid_notifier, *m_caster->GetMap(), *m_caster, radius_max);
 }
 
 void Spell::FillRaidOrPartyTargets(UnitList &targetUnitMap, Unit* member, Unit* center, float radius, bool raid, bool withPets, bool withcaster)
