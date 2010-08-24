@@ -823,7 +823,7 @@ void IRCCmd::Lookup_Player(_CDATA *CD)
         {
             QueryResult *result = CharacterDatabase.PQuery("SELECT guid, account, name, race, class, online, SUBSTRING_INDEX(SUBSTRING_INDEX(`data`, ' ' , 35), ' ' , -1) AS level, SUBSTRING_INDEX(SUBSTRING_INDEX(`data`, ' ' , 238), ' ' , -1) AS guildid, SUBSTRING_INDEX(SUBSTRING_INDEX(`data`, ' ' , 239), ' ' , -1) AS guildrank, SUBSTRING_INDEX(SUBSTRING_INDEX(`data`, ' ' , 927), ' ' , -1) AS xp, SUBSTRING_INDEX(SUBSTRING_INDEX(`data`, ' ' , 928), ' ' , -1) AS maxxp, SUBSTRING_INDEX(SUBSTRING_INDEX(data, ' ' , 1462), ' ' , -1) AS gold, SUBSTRING_INDEX(SUBSTRING_INDEX(`data`, ' ' , 1454), ' ' , -1) AS hk, totaltime FROM characters WHERE guid =%i", plguid);
             uint32 latency = 0;
-            Player *chr = sObjectMgr.GetPlayer(plguid);
+            Player *chr = sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, plguid));
             if (chr)
             {
                 latency = chr->GetSession()->GetLatency();
@@ -2027,7 +2027,7 @@ void IRCCmd::GM_Ticket(_CDATA *CD)
             return;
         }
         sTicketMgr.Delete(guid);
-        if (Player* pl = sObjectMgr.GetPlayer(MAKE_NEW_GUID(guid, 0, HIGHGUID_PLAYER)))
+        if (Player* pl = sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, guid)))
             pl->GetSession()->SendGMTicketGetTicket(0x0A, 0);
         std::string tptime = MakeMsg("\x2 Ticket [%s] Deleted\x3\x31\x30 ", CharName.c_str());
         Send_IRCA(ChanOrPM(CD), tptime, true, CD->TYPE);
