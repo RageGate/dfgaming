@@ -7025,7 +7025,7 @@ ObjectGuid Spell::GetTargetForPeriodicTriggerAura() const
                     return (*itr).targetGUID;
             }
 
-    return ObjectGuid(0);
+    return ObjectGuid();
 }
 
 void Spell::ResetEffectDamageAndHeal()

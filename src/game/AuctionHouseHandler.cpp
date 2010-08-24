@@ -126,8 +126,8 @@ void WorldSession::SendAuctionOutbiddedMail(AuctionEntry *auction, uint32 newPri
 
         if (oldBidder && !_player)
             oldBidder->GetSession()->SendAuctionBidderNotification(
-            auction->GetHouseId(), auction->Id, auctionbot.GetAHBplayerGUID(),
-            newPrice, auction->GetAuctionOutBid(), auction->item_template);
+            auction->GetHouseId(), auction->Id, ObjectGuid(HIGHGUID_PLAYER, auctionbot.GetAHBplayerGUID()),
+                newPrice, auction->GetAuctionOutBid(), auction->item_template);
 
         if (oldBidder && _player)
             oldBidder->GetSession()->SendAuctionBidderNotification(

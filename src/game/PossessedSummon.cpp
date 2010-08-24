@@ -20,8 +20,7 @@
 #include "ObjectAccessor.h"
 #include "SpellAuras.h"
 
-PossessedSummon::PossessedSummon():
-m_oldCharm(0), Creature(CREATURE_SUBTYPE_POSSESSED_SUMMON)
+PossessedSummon::PossessedSummon() : Creature(CREATURE_SUBTYPE_POSSESSED_SUMMON)
 {
 }
 

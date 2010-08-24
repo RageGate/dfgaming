@@ -88,7 +88,7 @@ void OPvPCapturePointEP_EWT::ChangeState()
             break;
         }
 
-        GameObject * flag = ObjectAccessor::GetGameObjectInWorld(m_capturePointGUID);
+        GameObject * flag = ObjectAccessor::GetGameObjectInWorld(ObjectGuid(HIGHGUID_GAMEOBJECT, m_capturePointGUID));
         GameObject * flag2 = ObjectAccessor::GetGameObjectInWorld(m_Objects[EP_EWT_FLAGS]);
         if(flag)
         {
@@ -241,7 +241,7 @@ void OPvPCapturePointEP_NPT::ChangeState()
             break;
         }
 
-        GameObject * flag = ObjectAccessor::GetGameObjectInWorld(m_capturePointGUID);
+        GameObject * flag = ObjectAccessor::GetGameObjectInWorld(ObjectGuid(HIGHGUID_GAMEOBJECT, m_capturePointGUID));
         GameObject * flag2 = ObjectAccessor::GetGameObjectInWorld(m_Objects[EP_NPT_FLAGS]);
         if(flag)
         {
@@ -386,7 +386,7 @@ void OPvPCapturePointEP_CGT::ChangeState()
             break;
         }
 
-        GameObject * flag = ObjectAccessor::GetGameObjectInWorld(m_capturePointGUID);
+        GameObject * flag = ObjectAccessor::GetGameObjectInWorld(ObjectGuid(HIGHGUID_GAMEOBJECT, m_capturePointGUID));
         GameObject * flag2 = ObjectAccessor::GetGameObjectInWorld(m_Objects[EP_CGT_FLAGS]);
         if(flag)
         {
@@ -530,7 +530,7 @@ void OPvPCapturePointEP_PWT::ChangeState()
             break;
         }
 
-        GameObject * flag = ObjectAccessor::GetGameObjectInWorld(m_capturePointGUID);
+        GameObject * flag = ObjectAccessor::GetGameObjectInWorld(ObjectGuid(HIGHGUID_GAMEOBJECT,m_capturePointGUID));
         GameObject * flag2 = ObjectAccessor::GetGameObjectInWorld(m_Objects[EP_PWT_FLAGS]);
         if(flag)
         {
