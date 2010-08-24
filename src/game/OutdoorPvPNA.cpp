@@ -33,7 +33,7 @@ void OutdoorPvPNA::HandleKillImpl(Player *plr, Unit * killed)
 {
     if(killed->GetTypeId() == TYPEID_PLAYER && plr->GetTeam() != ((Player*)killed)->GetTeam())
     {
-        plr->KilledMonsterCredit(NA_CREDIT_MARKER,0); // 0 guid, btw it isn't even used in killedmonster function :S
+        plr->KilledMonsterCredit(NA_CREDIT_MARKER, ObjectGuid(HIGHGUID_GAMEOBJECT, 0)); // 0 guid, btw it isn't even used in killedmonster function :S
         if(plr->GetTeam() == ALLIANCE)
             plr->CastSpell(plr,NA_KILL_TOKEN_ALLIANCE,true);
         else
@@ -606,7 +606,7 @@ void OPvPCapturePointNA::ChangeState()
         break;
     }
 
-    GameObject * flag = ObjectAccessor::GetGameObjectInWorld(m_capturePointGUID);
+    GameObject * flag = ObjectAccessor::GetGameObjectInWorld(ObjectGuid(HIGHGUID_GAMEOBJECT, m_capturePointGUID));
     if(flag)
     {
         flag->SetGoArtKit(artkit);

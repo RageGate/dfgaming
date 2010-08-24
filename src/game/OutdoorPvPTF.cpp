@@ -290,7 +290,7 @@ void OPvPCapturePointTF::ChangeState()
         break;
     }
 
-    GameObject * flag = ObjectAccessor::GetGameObjectInWorld(m_capturePointGUID);
+    GameObject * flag = ObjectAccessor::GetGameObjectInWorld(ObjectGuid(HIGHGUID_GAMEOBJECT, m_capturePointGUID));
     if(flag)
     {
         flag->SetGoArtKit(artkit);
