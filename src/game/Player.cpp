@@ -21271,18 +21271,15 @@ void Player::ApplyGlyphs(bool apply)
 
 void Player::SendEnterVehicle(Vehicle *vehicle)
 {
-    m_movementInfo.AddMovementFlag(MOVEFLAG_ONTRANSPORT);
-    m_movementInfo.AddMovementFlag(MOVEFLAG_ROOT);
-
     if(m_transport)                                         // if we were on a transport, leave
     {
         m_transport->RemovePassenger(this);
         m_transport = NULL;
     }
 
-    // Code of mangos master
-    // ======================
-    /*
+    WorldPacket data(SMSG_ON_CANCEL_EXPECTED_RIDE_VEHICLE_AURA, 0);
+    GetSession()->SendPacket(&data);
+
     data.Initialize(MSG_MOVE_TELEPORT_ACK, 30);
     data << GetPackGUID();
     data << uint32(0);                                      // counter?
@@ -21295,40 +21292,19 @@ void Player::SendEnterVehicle(Vehicle *vehicle)
     data << vehicle->GetOrientation();                      // o
     // transport part, TODO: load/calculate seat offsets
     data << vehicle->GetObjectGuid();                       // transport guid
-    data << float(veSeat->m_attachmentOffsetX);             // transport offsetX
-    data << float(veSeat->m_attachmentOffsetY);             // transport offsetY
-    data << float(veSeat->m_attachmentOffsetZ);             // transport offsetZ
-    data << float(0);                                       // transport orientation
+    data << float(m_movementInfo.GetTransportPos()->x);     // transport offsetX
+    data << float(m_movementInfo.GetTransportPos()->y);     // transport offsetY
+    data << float(m_movementInfo.GetTransportPos()->z);     // transport offsetZ
+    data << float(m_movementInfo.GetTransportPos()->o);     // transport orientation                                      // transport orientation
     data << uint32(getMSTime());                            // transport time
     data << uint8(0);                                       // seat
     // end of transport part
     data << uint32(0);                                      // fall time
     GetSession()->SendPacket(&data);
 
-    data.Initialize(SMSG_PET_SPELLS, 8+2+4+4+4*MAX_UNIT_ACTION_BAR_INDEX+1+1);
-    data << vehicle->GetObjectGuid();
-    data << uint16(0);
-    data << uint32(0);
-    data << uint32(0x00000101);
-
-    for(uint32 i = 0; i < 10; ++i)
-        data << uint16(0) << uint8(0) << uint8(i+8);
-
-    data << uint8(0);
-    data << uint8(0);
-    GetSession()->SendPacket(&data);
-*/
-
-    // vehicle is our transport from now, if we get to zeppelin or boat
-    // with vehicle, ONLY my vehicle will be passenger on that transport
-    // player ----> vehicle ----> zeppelin
-    WorldPacket data(SMSG_BREAK_TARGET, 8);
-    data << vehicle->GetPackGUID();
-    GetSession()->SendPacket(&data);
-
     /*data.Initialize(SMSG_UNKNOWN_1191, 12);
     data << uint64(GetGUID());
-    data << uint64(vehicle->GetVehicleId());                      // not sure
+    data << uint64(vehicle->GetVehicleId());                 // not sure
     SendMessageToSet(&data, true);*/
 }
 

@@ -10760,8 +10760,8 @@ void Unit::SetPhaseMask(uint32 newPhaseMask, bool update)
     {
         if(Pet* pet = GetPet())
             pet->SetPhaseMask(newPhaseMask,true);
-        if (Unit* charm = GetCharm())
-            charm->SetPhaseMask(newPhaseMask,true);
+        //if (Unit* charm = GetCharm())
+        //    charm->SetPhaseMask(newPhaseMask,true);
     }
 }
 
@@ -10883,7 +10883,7 @@ void Unit::EnterVehicle(Vehicle *vehicle, int8 seat_id, bool force)
     if(!veSeat)
         return;
 
-    m_movementInfo.SetTransportData(v->GetGUID(),
+    m_movementInfo.SetTransportData(v->GetObjectGuid(),
         (veSeat->m_attachmentOffsetX + v->GetObjectBoundingRadius()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
         (veSeat->m_attachmentOffsetY + v->GetObjectBoundingRadius()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
         (veSeat->m_attachmentOffsetZ + v->GetObjectBoundingRadius()) * GetFloatValue(OBJECT_FIELD_SCALE_X),
