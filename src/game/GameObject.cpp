@@ -428,8 +428,10 @@ void GameObject::Update(uint32 /*p_time*/)
             if(!m_respawnDelayTime)
                 return;
 
-            // since pool system can fail to roll unspawned object, this one can remain spawned, so must set respawn nevertheless
+            // vehicle patch
             m_respawnTime = m_spawnedByDefault ? time(NULL) + m_respawnDelayTime : 0;
+
+            // since pool system can fail to roll unspawned object, this one can remain spawned, so must set respawn nevertheless
 
             // if option not set then object will be saved at grid unload
             if(sWorld.getConfig(CONFIG_BOOL_SAVE_RESPAWN_TIME_IMMEDIATLY))

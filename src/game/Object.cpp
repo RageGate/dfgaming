@@ -308,6 +308,7 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint16 updateFlags) const
 
                 if(((Unit*)this)->GetVehicleGUID())
                     player->m_movementInfo.AddMovementFlag(MOVEFLAG_ONTRANSPORT);
+
                 if(player->IsTaxiFlying())
                 {
                     ASSERT(player->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLIGHT_MOTION_TYPE);
@@ -1120,7 +1121,7 @@ void WorldObject::Relocate(float x, float y, float z, float orientation)
     if(isType(TYPEMASK_UNIT))
     {
         ((Unit*)this)->m_movementInfo.ChangePosition(x, y, z, orientation);
-        if(((Creature*)this)->isVehicle())
+        if(((Creature*)this)->isVehicle() && IsInWorld())
             ((Vehicle*)this)->RellocatePassengers(GetMap());
     }
 }
@@ -1134,7 +1135,7 @@ void WorldObject::Relocate(float x, float y, float z)
     if(isType(TYPEMASK_UNIT))
     {
         ((Unit*)this)->m_movementInfo.ChangePosition(x, y, z, GetOrientation());
-        if(((Creature*)this)->isVehicle())
+        if(((Creature*)this)->isVehicle() && IsInWorld())
             ((Vehicle*)this)->RellocatePassengers(GetMap());
     }
 }
