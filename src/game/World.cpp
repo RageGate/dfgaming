@@ -1278,6 +1278,11 @@ void World::SetInitialWorldSettings()
     sLog.outString( "Loading Scripts text locales..." );    // must be after Load*Scripts calls
     sObjectMgr.LoadDbScriptStrings();
 
+    sLog.outString( "Loading VehicleData..." );
+    sObjectMgr.LoadVehicleData();
+    sLog.outString( "Loading VehicleSeatData..." );
+    sObjectMgr.LoadVehicleSeatData();
+
     sLog.outString( "Loading CreatureEventAI Texts...");
     sEventAIMgr.LoadCreatureEventAI_Texts(false);       // false, will checked in LoadCreatureEventAI_Scripts
 
@@ -1364,11 +1369,11 @@ void World::SetInitialWorldSettings()
     uint32 nextGameEvent = sGameEventMgr.Initialize();
     m_timers[WUPDATE_EVENTS].SetInterval(nextGameEvent);    //depend on next event
 
-    // Delete all characters which have been deleted X days before
-    Player::DeleteOldCharacters();
-
     sLog.outString("Initialize AuctionHouseBot...");
     auctionbot.Initialize();
+
+    // Delete all characters which have been deleted X days before
+    Player::DeleteOldCharacters();
 
     sLog.outString( "WORLD: World initialized" );
 

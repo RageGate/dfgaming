@@ -983,10 +983,6 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\game\UnitAuraProcHandler.cpp"
-				>
-			</File>
-			<File
 				RelativePath="..\..\src\game\SpellEffects.cpp"
 				>
 			</File>
@@ -1008,6 +1004,10 @@
 			</File>
 			<File
 				RelativePath="..\..\src\game\Transports.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\UnitAuraProcHandler.cpp"
 				>
 			</File>
 			<File

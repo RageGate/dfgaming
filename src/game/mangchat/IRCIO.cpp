@@ -267,15 +267,8 @@ void IRCClient::Handle_WoW_Channel(std::string Channel, Player *plr, int nAction
                 DoGMAnnounce = true;
             if(DoGMAnnounce)
             {
-                switch(plr->GetSession()->GetSecurity())    //switch case to determine what rank the "gm" is
-                {
-                    case 0: GMRank = "";break;
-                    case 1: GMRank = "\0037"+sIRC.ojGM1;break;
-                    case 2: GMRank = "\0037"+sIRC.ojGM2;break;
-                    case 3: GMRank = "\0037"+sIRC.ojGM3;break;
-                    case 4: GMRank = "\0037"+sIRC.ojGM4;break;
-                    case 5: GMRank = "\0037"+sIRC.ojGM5;break;
-                }
+                uint16 gmLevel = plr->GetSession()->GetSecurity();
+                GMRank = "\0037"+sIRC.ojGM[ gmLevel < SEC_CONSOLE ? gmLevel : SEC_CONSOLE];
             }
             std::string ChatTag = "";
             switch (plr->GetTeam())

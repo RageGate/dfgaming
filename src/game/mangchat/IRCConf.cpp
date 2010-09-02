@@ -91,11 +91,18 @@ bool IRCClient::LoadConfig(char const* cfgfile)
     sIRC.Status = MCConfig.GetIntDefault("irc.StatusChannel", 1);
     sIRC.anchn = MCConfig.GetIntDefault("irc.AnnounceChannel", 1);
     sIRC.autoanc = MCConfig.GetIntDefault("irc.auto.announce", 30);
-    sIRC.ojGM1 = MCConfig.GetStringDefault("irc.gm1", "[Moderator]");
-    sIRC.ojGM2 = MCConfig.GetStringDefault("irc.gm2", "[Game Master]");
-    sIRC.ojGM3 = MCConfig.GetStringDefault("irc.gm3", "[BugTracker]");
-    sIRC.ojGM4 = MCConfig.GetStringDefault("irc.gm4", "[DevTeam Admin]");
-    sIRC.ojGM5 = MCConfig.GetStringDefault("irc.gm5", "[Root Admin]");
+
+    for (uint16 i = 0; i<SEC_ADMINISTRATOR; i++)
+    {
+        std::stringstream ircKeyWord, defaultEntry;
+        ircKeyWord << "irc.gm" << i;
+        if (!i)
+            defaultEntry << "";
+        else
+            defaultEntry << "[GM" << i << "]";
+        sIRC.ojGM[i] = MCConfig.GetStringDefault(ircKeyWord.str().c_str(), defaultEntry.str().c_str());
+    }
+
     // REQUIRED GM LEVEL
     QueryResult *result = WorldDatabase.PQuery("SELECT `Command`, `gmlevel` FROM `IRC_Commands` ORDER BY `Command`");
     if (result)
