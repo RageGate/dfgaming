@@ -83,7 +83,7 @@ void PossessedSummon::UnSummon()
 
     if (Unit* uOwner = GetOwner())
     {
-        ASSERT(uOwner->GetTypeId() == TYPEID_PLAYER);
+        MANGOS_ASSERT(uOwner->GetTypeId() == TYPEID_PLAYER);
 
         Player* pOwner = (Player*)uOwner;
         Camera& camera = pOwner->GetCamera();

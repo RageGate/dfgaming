@@ -16,9 +16,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include "Common.h"
-#include "QuestDef.h"
 #include "GameObject.h"
+#include "QuestDef.h"
 #include "ObjectMgr.h"
 #include "PoolManager.h"
 #include "SpellMgr.h"
@@ -109,7 +108,7 @@ void GameObject::RemoveFromWorld()
 
 bool GameObject::Create(uint32 guidlow, uint32 name_id, Map *map, uint32 phaseMask, float x, float y, float z, float ang, float rotation0, float rotation1, float rotation2, float rotation3, uint32 animprogress, GOState go_state, uint32 artKit)
 {
-    ASSERT(map);
+    MANGOS_ASSERT(map);
     Relocate(x,y,z,ang);
     SetMap(map);
     SetPhaseMask(phaseMask,false);
