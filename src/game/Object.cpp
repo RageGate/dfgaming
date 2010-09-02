@@ -1217,9 +1217,9 @@ bool WorldObject::IsWithinDist3d(float x, float y, float z, float dist_max, floa
 
     float sizefactor = GetObjectBoundingRadius();
     float maxdist = dist_max + sizefactor;
-    float mindist = dist_min - sizefactor;
+    float mindist = dist_min + sizefactor;
 
-    return distsq < maxdist * maxdist && (mindist < 0.0f || distsq > mindist * mindist);
+    return distsq < maxdist * maxdist && (!dist_min || distsq > mindist * mindist);
 }
 
 bool WorldObject::IsWithinDist2d(float x, float y, float dist2compare) const
@@ -1246,9 +1246,9 @@ bool WorldObject::_IsWithinDist(WorldObject const* obj, float dist_max, bool is3
     }
     float sizefactor = GetObjectBoundingRadius() + obj->GetObjectBoundingRadius();
     float maxdist = dist_max + sizefactor;
-    float mindist = dist_min - sizefactor;
+    float mindist = dist_min + sizefactor;
 
-    return distsq < maxdist * maxdist && (mindist < 0.0f || distsq > mindist*mindist);
+    return distsq < maxdist * maxdist && (!dist_min || distsq > mindist * mindist);
 }
 
 bool WorldObject::IsWithinLOSInMap(const WorldObject* obj) const
