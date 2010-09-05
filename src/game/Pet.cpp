@@ -959,7 +959,7 @@ bool Pet::InitStatsForLevel(uint32 petlevel, Unit* owner)
                 // Mirror Image
                 case 31216:
                 {
-                    bonusDamage = owner->GetMaxSpellBaseDamageBonus(SPELL_SCHOOL_MASK_MAGIC);
+                    bonusDamage = owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_MAGIC) * 0.3f;
                     break;
                 }
                 default:
