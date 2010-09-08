@@ -2673,7 +2673,12 @@ void Spell::EffectForceCast(SpellEffectIndex eff_idx)
         return;
     }
 
-    unitTarget->CastSpell(unitTarget, spellInfo, true, NULL, NULL, m_originalCasterGUID);
+    // TODO: probably this is the more generic case (caster is target...)
+    Unit* triggerTarget = unitTarget;
+    if (m_spellInfo->Id == 52996)
+        triggerTarget = m_caster;
+
+    unitTarget->CastSpell(triggerTarget, spellInfo, true, NULL, NULL, m_originalCasterGUID);
 }
 
 void Spell::EffectTriggerSpell(SpellEffectIndex effIndex)
