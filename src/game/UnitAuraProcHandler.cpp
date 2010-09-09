@@ -1509,13 +1509,6 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                     triggered_spell_id = 28810;
                     break;
                 }
-                // Glyph of Prayer of Healing
-               case 55680:
-               {
-                   basepoints[0] = int32(damage * triggerAmount  / 200);   // 10% each tick
-                   triggered_spell_id = 56161;
-                   break;
-               }
                 // Glyph of Dispel Magic
                 case 55677:
                 {
@@ -1526,7 +1519,13 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                     // triggered_spell_id in spell data
                     break;
                 }
-
+                // Glyph of Prayer of Healing
+                case 55680:
+                {
+                    basepoints[0] = int32(damage * triggerAmount  / 200);   // 10% each tick
+                    triggered_spell_id = 56161;
+                    break;
+                }
             }
             break;
         }
@@ -1633,6 +1632,12 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                         return SPELL_AURA_PROC_FAILED;
                     basepoints[0] = triggerAmount * damage / 100;
                     triggered_spell_id = 54755;
+                    break;
+                }
+                // Glyph of Rake
+                case 54821:
+                {
+                    triggered_spell_id = 54820;
                     break;
                 }
                 // Item - Druid T10 Restoration 4P Bonus (Rejuvenation)
@@ -2230,6 +2235,10 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, Aura
                     }
 
                     int32 extra_attack_power = CalculateSpellDamage(pVictim, windfurySpellEntry, EFFECT_INDEX_1);
+                    
+                    // Totem of Splintering
+                    if (Aura* aura = GetAura(60764, EFFECT_INDEX_0))
+                        extra_attack_power += aura->GetModifier()->m_amount;
 
                     // Off-Hand case
                     if (castItem->GetSlot() == EQUIPMENT_SLOT_OFFHAND)

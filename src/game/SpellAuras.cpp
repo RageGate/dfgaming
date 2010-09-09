@@ -990,7 +990,7 @@ void Aura::ReapplyAffectedPassiveAuras( Unit* target, bool owner_mode )
     {
         // permanent passive or permanent area aura
         // passive spells can be affected only by own or owner spell mods)
-        if (itr->second->IsPermanent() && (owner_mode && itr->second->IsPassive() /*|| itr->second->IsAreaAura()*/) &&
+        if (itr->second->IsPermanent() && (owner_mode && itr->second->IsPassive() || itr->second->IsAreaAura()) &&
             // non deleted and not same aura (any with same spell id)
             !itr->second->IsDeleted() && itr->second->GetId() != GetId() &&
             // and affected by aura
@@ -4098,7 +4098,7 @@ void Aura::HandleInvisibility(bool apply, bool Real)
         target->m_invisibilityMask = 0;
         Unit::AuraList const& auras = target->GetAurasByType(SPELL_AURA_MOD_INVISIBILITY);
         for(Unit::AuraList::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
-            target->m_invisibilityMask |= (1 << m_modifier.m_miscvalue);
+            target->m_invisibilityMask |= (1 << (*itr)->GetModifier()->m_miscvalue);
 
         // only at real aura remove and if not have different invisibility auras.
         if(Real && target->m_invisibilityMask == 0)
@@ -4132,7 +4132,7 @@ void Aura::HandleInvisibilityDetect(bool apply, bool Real)
         target->m_detectInvisibilityMask = 0;
         Unit::AuraList const& auras = target->GetAurasByType(SPELL_AURA_MOD_INVISIBILITY_DETECTION);
         for(Unit::AuraList::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
-            target->m_detectInvisibilityMask |= (1 << m_modifier.m_miscvalue);
+            target->m_detectInvisibilityMask |= (1 << (*itr)->GetModifier()->m_miscvalue);
     }
     if(Real && target->GetTypeId()==TYPEID_PLAYER)
         ((Player*)target)->GetCamera().UpdateVisibilityForOwner();
@@ -6216,7 +6216,7 @@ void Aura::HandleShapeshiftBoosts(bool apply)
             if (MasterShaperSpellId)
             {
                 Unit::AuraList const& ShapeShifterAuras = target->GetAurasByType(SPELL_AURA_DUMMY);
-                for(Unit::AuraList::const_iterator i = ShapeShifterAuras.begin(); i != ShapeShifterAuras.end(); i++)
+                for(Unit::AuraList::const_iterator i = ShapeShifterAuras.begin(); i != ShapeShifterAuras.end(); ++i)
                 {
                     if ((*i)->GetSpellProto()->SpellIconID == 2851)
                     {
@@ -6239,11 +6239,28 @@ void Aura::HandleShapeshiftBoosts(bool apply)
             if (form == FORM_CAT && ((Player*)target)->HasAura(52610))
                 target->CastSpell(target, 62071, true);
 
+            // Survival of the Fittest (Armor part)
+            if (form == FORM_BEAR || form == FORM_DIREBEAR)
+            {
+                Unit::AuraList const& modAuras = target->GetAurasByType(SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE);
+                for (Unit::AuraList::const_iterator i = modAuras.begin(); i != modAuras.end(); ++i)
+                {
+                    if ((*i)->GetSpellProto()->SpellFamilyName == SPELLFAMILY_DRUID &&
+                        (*i)->GetSpellProto()->SpellIconID == 961)
+                    {
+                        int32 bp = (*i)->GetSpellProto()->CalculateSimpleValue(EFFECT_INDEX_2);
+                        if (bp)
+                            target->CastCustomSpell(target, 62069, &bp, NULL, NULL, true, NULL, this);
+                        break;
+                    }
+                }
+            }
+
             // Improved Moonkin Form
             if (form == FORM_MOONKIN)
             {
                 Unit::AuraList const& dummyAuras = target->GetAurasByType(SPELL_AURA_DUMMY);
-                for(Unit::AuraList::const_iterator i = dummyAuras.begin(); i != dummyAuras.end(); i++)
+                for(Unit::AuraList::const_iterator i = dummyAuras.begin(); i != dummyAuras.end(); ++i)
                 {
                     if ((*i)->GetSpellProto()->SpellFamilyName==SPELLFAMILY_DRUID &&
                         (*i)->GetSpellProto()->SpellIconID == 2855)
@@ -9505,6 +9522,15 @@ bool SpellAuraHolder::IsPersistent() const
     return false;
 }
 
+bool SpellAuraHolder::IsAreaAura() const
+{
+    for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+        if (Aura *aur = m_auras[i])
+            if (aur->IsAreaAura())
+                return true;
+    return false;
+}
+
 bool SpellAuraHolder::IsPositive() const
 {
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
@@ -9527,14 +9553,8 @@ void SpellAuraHolder::UnregisterSingleCastHolder()
     if (IsSingleTarget())
     {
         if(Unit* caster = GetCaster())
-        {
-            caster->GetSingleCastSpellAuraHolders().remove(this);
-        }
-        else
-        {
-            sLog.outError("Couldn't find the caster of the single target aura (SpellId %u), may crash later!", GetId());
-            MANGOS_ASSERT(false);
-        }
+            caster->GetSingleCastSpellTargets().erase(GetSpellProto());
+
         m_isSingleTarget = false;
     }
 }
