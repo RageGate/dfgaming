@@ -2163,19 +2163,24 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
             }
             case SPELLFAMILY_SHAMAN:
             {
-                // Tidal Force
-                if (GetId() == 55198)
+                switch(GetId())
                 {
-                    // apply max stack bufs
-                    SpellEntry const* buffEntry = sSpellStore.LookupEntry(55166);
-                    if (!buffEntry)
-                        return;
+                    case 55198:                             // Tidal Force
+                    {
+                        // apply max stack bufs
+                        SpellEntry const* buffEntry = sSpellStore.LookupEntry(55166);
+                        if (!buffEntry)
+                            return;
 
-                    for(uint32 k = 0; k < buffEntry->StackAmount; ++k)
-                        target->CastSpell(target, buffEntry, true, NULL, this);
+                        for(uint32 k = 0; k < buffEntry->StackAmount; ++k)
+                            target->CastSpell(target, buffEntry, true, NULL, this);
+
+                        return;
+                    }
                 }
+
                 // Earth Shield
-                else if ((GetSpellProto()->SpellFamilyFlags & UI64LIT(0x40000000000)))
+                if ((GetSpellProto()->SpellFamilyFlags & UI64LIT(0x40000000000)))
                 {
                     // prevent double apply bonuses
                     if (target->GetTypeId() != TYPEID_PLAYER || !((Player*)target)->GetSession()->PlayerLoading())
@@ -2294,6 +2299,14 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 if (m_removeMode == AURA_REMOVE_BY_EXPIRE)
                     target->CastSpell(target, 32301, true, NULL, this);
 
+                return;
+            }
+            case 35079:                                     // Misdirection, triggered buff
+            case 59628:                                     // Tricks of the Trade, triggered buff
+            case 59665:                                     // Vigilance, redirection spell
+            {
+                if (Unit* pCaster = GetCaster())
+                    pCaster->getHostileRefManager().ResetThreatRedirection();
                 return;
             }
             case 36730:                                     // Flame Strike
@@ -2715,7 +2728,39 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
             }
             break;
         }
+        case SPELLFAMILY_ROGUE:
+            switch(GetId())
+            {
+                case 57934:                                 // Tricks of the Trade, main spell
+                {
+                    if (apply)
+                        GetHolder()->SetAuraCharges(1);     // not have proper charges set in spell data
+                    else
+                    {
+                        // used for direct in code aura removes and spell proc event charges expire
+                        if (m_removeMode != AURA_REMOVE_BY_DEFAULT)
+                            target->getHostileRefManager().ResetThreatRedirection();
+                    }
+                    return;
+                }
+            }
+            break;
         case SPELLFAMILY_HUNTER:
+            switch(GetId())
+            {
+                case 34477:                                 // Misdirection, main spell
+                {
+                    if (apply)
+                        GetHolder()->SetAuraCharges(1);     // not have proper charges set in spell data
+                    else
+                    {
+                        // used for direct in code aura removes and spell proc event charges expire
+                        if (m_removeMode != AURA_REMOVE_BY_DEFAULT)
+                            target->getHostileRefManager().ResetThreatRedirection();
+                    }
+                    return;
+                }
+            }
             break;
         case SPELLFAMILY_PALADIN:
             switch(GetId())
@@ -2736,7 +2781,26 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
             }
             break;
         case SPELLFAMILY_SHAMAN:
+        {
+            switch(GetId())
+            {
+                case 6495:                                  // Sentry Totem
+                {
+                    if (target->GetTypeId() != TYPEID_PLAYER)
+                        return;
+
+                    Totem* totem = target->GetTotem(TOTEM_SLOT_AIR);
+
+                    if (totem && apply)
+                        ((Player*)target)->GetCamera().SetView(totem);
+                    else
+                        ((Player*)target)->GetCamera().ResetView(totem);
+
+                    return;
+                }
+            }
             break;
+        }
     }
 
     // pet auras
