@@ -367,12 +367,15 @@ struct RuneInfo
     uint8  BaseRune;
     uint8  CurrentRune;
     uint16 Cooldown;                                        // msec
+    uint32 ConvertedBy;
+    bool removeAura;
 };
 
 struct Runes
 {
     RuneInfo runes[MAX_RUNES];
     uint8 runeState;                                        // mask of available runes
+    uint8 needConvert;                                      // mask of runes that need to be converted on cooldown expires
 
     void SetRuneState(uint8 index, bool set = true)
     {
@@ -380,6 +383,13 @@ struct Runes
             runeState |= (1 << index);                      // usable
         else
             runeState &= ~(1 << index);                     // on cooldown
+    }
+    bool IsRuneNeedsConvert(uint8 index)
+    {
+        if (needConvert & (1 << index))
+            return true;
+        else
+            return false;
     }
 };
 
@@ -2398,7 +2408,30 @@ class MANGOS_DLL_SPEC Player : public Unit
         void SetBaseRune(uint8 index, RuneType baseRune) { m_runes->runes[index].BaseRune = baseRune; }
         void SetCurrentRune(uint8 index, RuneType currentRune) { m_runes->runes[index].CurrentRune = currentRune; }
         void SetRuneCooldown(uint8 index, uint16 cooldown) { m_runes->runes[index].Cooldown = cooldown; m_runes->SetRuneState(index, (cooldown == 0) ? true : false); }
-        void ConvertRune(uint8 index, RuneType newType);
+        void ConvertRune(uint8 index, RuneType newType, uint32 spellid = 0, bool removeAuraOnConsume = false);
+        void SetRuneConvertedBy(uint8 index, uint32 spellid, bool removeAuraOnConsume = false)
+        {
+            m_runes->runes[index].ConvertedBy = spellid;
+            m_runes->runes[index].removeAura = removeAuraOnConsume;
+        }
+        void ClearRuneConvertedBy(uint8 index)
+        {
+            m_runes->runes[index].ConvertedBy = 0;
+            m_runes->runes[index].removeAura = false;
+        }
+        bool IsRuneConvertedBy(uint8 index, uint32 spellid) { return m_runes->runes[index].ConvertedBy == spellid; }
+        bool IsRuneRemoveAura(uint8 index) {return m_runes->runes[index].removeAura;}
+        uint32 GetRuneConvertedBy(uint8 index){ return m_runes->runes[index].ConvertedBy;}
+        void SetNeedConvertRune(uint8 index, bool convert, uint32 spellid = 0)
+        {
+            if (convert)
+                m_runes->needConvert |= (1 << index);                      // need convert
+            else
+                m_runes->needConvert &= ~(1 << index);                     // removed from convert
+
+            if (spellid != 0)
+                SetRuneConvertedBy(index, spellid);
+        }
         void ResyncRunes(uint8 count);
         void AddRunePower(uint8 index);
         void InitRunes();

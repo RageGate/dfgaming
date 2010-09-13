@@ -481,6 +481,7 @@ class Spell
         WorldObject* GetCastingObject() const;
 
         int32 GetPowerCost() const { return m_powerCost; }
+        uint8 GetRunesState() const { return m_runesState; }// retunes the rune's state before consuming powers
 
         void UpdatePointers();                              // must be used at call Spell code after time delay (non triggered spell cast/update spell call/etc)
 
