@@ -6336,6 +6336,16 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->CastSpell(unitTarget, 54522, true);
                     break;
                 }
+                case 52361:                                 // Death Race Complete
+                {
+                    if (!unitTarget)
+                        return;
+
+                    unitTarget->RemoveAurasDueToSpell(52693);
+                    if (Vehicle *vehicle = unitTarget->GetMap()->GetVehicle(unitTarget->GetVehicleGUID()))
+                        vehicle->Dismiss();
+                    break;
+                }
                 case 52694:                                 // Recall Eye of Acherus
                 {
                     if  (m_caster->GetTypeId() != TYPEID_UNIT || !(((Creature*)m_caster)->isPossessedSummon()))
