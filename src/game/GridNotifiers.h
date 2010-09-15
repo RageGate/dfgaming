@@ -1,20 +1,20 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
+* Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+*/
 
 #ifndef MANGOS_GRIDNOTIFIERS_H
 #define MANGOS_GRIDNOTIFIERS_H
@@ -89,8 +89,8 @@ namespace MaNGOS
 
     struct MessageDelivererExcept
     {
-        uint32        i_phaseMask;
-        WorldPacket*  i_message;
+        uint32 i_phaseMask;
+        WorldPacket* i_message;
         Player const* i_skipped_receiver;
 
         MessageDelivererExcept(WorldObject const* obj, WorldPacket *msg, Player const* skipped)
@@ -159,9 +159,9 @@ namespace MaNGOS
         Creature &i_creature;
         CreatureRelocationNotifier(Creature &c) : i_creature(c) {}
         template<class T> void Visit(GridRefManager<T> &) {}
-        #ifdef WIN32
+#ifdef WIN32
         template<> void Visit(PlayerMapType &);
-        #endif
+#endif
     };
 
     struct MANGOS_DLL_DECL DynamicObjectUpdater
@@ -176,11 +176,11 @@ namespace MaNGOS
                 i_check = owner;
         }
 
-        template<class T> inline void Visit(GridRefManager<T>  &) {}
-        #ifdef WIN32
+        template<class T> inline void Visit(GridRefManager<T> &) {}
+#ifdef WIN32
         template<> inline void Visit<Player>(PlayerMapType &);
         template<> inline void Visit<Creature>(CreatureMapType &);
-        #endif
+#endif
 
         void VisitHelper(Unit* target);
     };
@@ -639,7 +639,7 @@ namespace MaNGOS
             float GetLastRange() const { return i_range; }
         private:
             WorldObject const& i_obj;
-            float  i_range;
+            float i_range;
 
             // prevent clone
             NearestGameObjectFishingHole(NearestGameObjectFishingHole const&);
@@ -654,7 +654,7 @@ namespace MaNGOS
             {
                 if(go->GetEntry() == i_entry && i_obj.IsWithinDistInMap(go, i_range))
                 {
-                    i_range = i_obj.GetDistance(go);        // use found GO range as new range limit for next check
+                    i_range = i_obj.GetDistance(go); // use found GO range as new range limit for next check
                     return true;
                 }
                 return false;
@@ -663,7 +663,7 @@ namespace MaNGOS
         private:
             WorldObject const& i_obj;
             uint32 i_entry;
-            float  i_range;
+            float i_range;
 
             // prevent clone this object
             NearestGameObjectEntryInObjectRangeCheck(NearestGameObjectEntryInObjectRangeCheck const&);
@@ -816,9 +816,9 @@ namespace MaNGOS
             bool operator()(Unit* u)
             {
                 if( u->isTargetableForAttack() && i_obj->IsWithinDistInMap(u, i_range) &&
-                    !i_funit->IsFriendlyTo(u) && u->isVisibleForOrDetect(i_funit,i_funit,false)  )
+                    !i_funit->IsFriendlyTo(u) && u->isVisibleForOrDetect(i_funit,i_funit,false) )
                 {
-                    i_range = i_obj->GetDistance(u);        // use found unit range as new range limit for next check
+                    i_range = i_obj->GetDistance(u); // use found unit range as new range limit for next check
                     return true;
                 }
 
@@ -1009,14 +1009,14 @@ namespace MaNGOS
                 if(!i_obj->IsWithinLOSInMap(u))
                     return false;
 
-                i_range = i_obj->GetDistance(u);            // use found unit range as new range limit for next check
+                i_range = i_obj->GetDistance(u); // use found unit range as new range limit for next check
                 return true;
             }
             float GetLastRange() const { return i_range; }
         private:
             Creature* const i_obj;
             Unit* const i_enemy;
-            float  i_range;
+            float i_range;
 
             // prevent clone this object
             NearestAssistCreatureInCreatureRangeCheck(NearestAssistCreatureInCreatureRangeCheck const&);
@@ -1033,7 +1033,7 @@ namespace MaNGOS
             {
                 if(u->GetEntry() == i_entry && u->isAlive()==i_alive && i_obj.IsWithinDistInMap(u, i_range))
                 {
-                    i_range = i_obj.GetDistance(u);         // use found unit range as new range limit for next check
+                    i_range = i_obj.GetDistance(u); // use found unit range as new range limit for next check
                     return true;
                 }
                 return false;
@@ -1042,8 +1042,8 @@ namespace MaNGOS
         private:
             WorldObject const& i_obj;
             uint32 i_entry;
-            bool   i_alive;
-            float  i_range;
+            bool i_alive;
+            float i_range;
 
             // prevent clone this object
             NearestCreatureEntryWithLiveStateInObjectRangeCheck(NearestCreatureEntryWithLiveStateInObjectRangeCheck const&);
@@ -1083,7 +1083,7 @@ namespace MaNGOS
 
         private:
             Builder& i_builder;
-            std::vector<WorldPacket*> i_data_cache;         // 0 = default, i => i-1 locale index
+            std::vector<WorldPacket*> i_data_cache; // 0 = default, i => i-1 locale index
     };
 
     // Prepare using Builder localized packets with caching and send to player
@@ -1108,13 +1108,14 @@ namespace MaNGOS
                                                             // 0 = default, i => i-1 locale index
     };
 
-    #ifndef WIN32
+#ifndef WIN32
     template<> void PlayerRelocationNotifier::Visit<Creature>(CreatureMapType &);
     template<> void PlayerRelocationNotifier::Visit<Player>(PlayerMapType &);
     template<> void CreatureRelocationNotifier::Visit<Player>(PlayerMapType &);
     template<> void CreatureRelocationNotifier::Visit<Creature>(CreatureMapType &);
     template<> inline void DynamicObjectUpdater::Visit<Creature>(CreatureMapType &);
     template<> inline void DynamicObjectUpdater::Visit<Player>(PlayerMapType &);
-    #endif
+#endif
 }
 #endif
+
