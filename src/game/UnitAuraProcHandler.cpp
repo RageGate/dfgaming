@@ -259,7 +259,7 @@ pAuraProcHandler AuraProcHandler[TOTAL_AURAS]=
     &Unit::HandleNULLProc,                                      //223 dummy code (cast damage spell to attacker) and another dymmy (jump to another nearby raid member)
     &Unit::HandleNULLProc,                                      //224 unused (3.0.8a-3.2.2a)
     &Unit::HandleMendingAuraProc,                               //225 SPELL_AURA_PRAYER_OF_MENDING
-    &Unit::HandleNULLProc,                                      //226 SPELL_AURA_PERIODIC_DUMMY
+    &Unit::HandlePeriodicDummyAuraProc,                             //226 SPELL_AURA_PERIODIC_DUMMY
     &Unit::HandleNULLProc,                                      //227 SPELL_AURA_PERIODIC_TRIGGER_SPELL_WITH_VALUE
     &Unit::HandleNULLProc,                                      //228 SPELL_AURA_DETECT_STEALTH
     &Unit::HandleNULLProc,                                      //229 SPELL_AURA_MOD_AOE_DAMAGE_AVOIDANCE
@@ -3928,6 +3928,71 @@ SpellAuraProcResult Unit::HandleMendingAuraProc( Unit* /*pVictim*/, uint32 /*dam
 
     // heal
     CastCustomSpell(this,33110,&heal,NULL,NULL,true,NULL,NULL,caster_guid);
+    return SPELL_AURA_PROC_OK;
+}
+
+SpellAuraProcResult Unit::HandlePeriodicDummyAuraProc( Unit* pVictim, uint32 /*damage*/, Aura* triggeredByAura, SpellEntry const* procSpell, uint32 /*procFlag*/, uint32 /*procEx*/, uint32 /*cooldown*/ )
+{
+    SpellEntry const *periodicDummySpell = triggeredByAura->GetSpellProto ();
+    SpellEffectIndex effIndex = triggeredByAura->GetEffIndex();
+
+    Item* castItem = triggeredByAura->GetCastItemGUID() && GetTypeId()==TYPEID_PLAYER
+        ? ((Player*)this)->GetItemByGuid(triggeredByAura->GetCastItemGUID()) : NULL;
+
+
+    // Death Rune Mastery
+    if (periodicDummySpell->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT && periodicDummySpell->SpellFamilyFlags & UI64LIT(0x0000000000004000))
+    {
+        if (GetTypeId() != TYPEID_PLAYER || ((Player*)this)->getClass() != CLASS_DEATH_KNIGHT)
+            return SPELL_AURA_PROC_FAILED;
+
+        Player* plr = (Player*)this;
+
+        int16 foundUnholy = -1;
+        int16 foundFrost  = -1;
+        for(uint32 i = 0; i < MAX_RUNES; ++i)
+        {
+            // from my information this proc always picks out the frost/unholy rune with the longest cd,
+            // no matter if the rune was used for the proc-spell-cast (e.g. if death runes are consumed)
+            RuneType rune = plr->GetBaseRune(i);
+
+            if (rune == RUNE_UNHOLY && (foundUnholy < 0 || plr->GetRuneCooldown(foundUnholy) < plr->GetRuneCooldown(i)))
+                foundUnholy = i;
+
+            if (rune == RUNE_FROST && (foundFrost < 0 || plr->GetRuneCooldown(foundFrost) < plr->GetRuneCooldown(i)))
+                foundFrost = i;
+        }
+        // convert runes on next cd run out
+        if (foundUnholy > -1)
+            plr->SetNeedConvertRune(foundUnholy , true, triggeredByAura->GetId());
+        if (foundFrost > -1)
+            plr->SetNeedConvertRune(foundFrost , true, triggeredByAura->GetId());
+    }
+    // Blood of the North, Reaping
+    else if (periodicDummySpell->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT &&
+        (periodicDummySpell->SpellIconID == 3041 || periodicDummySpell->SpellIconID == 22))
+    {
+        if (GetTypeId() != TYPEID_PLAYER || ((Player*)this)->getClass() != CLASS_DEATH_KNIGHT)
+            return SPELL_AURA_PROC_FAILED;
+
+        Player* plr = (Player*)this;
+
+        int16 found = -1;
+        for(uint32 i = 0; i < MAX_RUNES; ++i)
+        {
+            // from my information this proc always picks out the frost/unholy rune with the longest cd,
+            // no matter if the rune was used for the proc-spell-cast (e.g. if death runes are consumed)
+            RuneType rune = plr->GetBaseRune(i);
+
+            if (rune == RUNE_BLOOD && (found < 0 || plr->GetRuneCooldown(found) < plr->GetRuneCooldown(i)))
+                found = i;
+        }
+        // convert runes on next cd run out
+        if (found > -1)
+            plr->SetNeedConvertRune(found , true, triggeredByAura->GetId());
+    }
+
+    // default case
     return SPELL_AURA_PROC_OK;
 }
 

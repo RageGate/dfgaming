@@ -60,18 +60,16 @@ void Totem::Summon(Unit* owner)
         ((Creature*)owner)->AI()->JustSummoned((Creature*)this);
 
     // there are some totems, which exist just for their visual appeareance
-    if (!m_spells[0])
+    if (!GetSpell())
         return;
 
     switch(m_type)
     {
         case TOTEM_PASSIVE:
-            for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
-                CastSpell(this, m_spells[i], true);
+            CastSpell(this, GetSpell(), true);
             break;
         case TOTEM_STATUE:
-           for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
-                CastSpell(GetOwner(), m_spells[i], true);
+            CastSpell(GetOwner(), GetSpell(), true);
             break;
         default: break;
     }
@@ -80,14 +78,12 @@ void Totem::Summon(Unit* owner)
 void Totem::UnSummon()
 {
     CombatStop();
-     for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
-        RemoveAurasDueToSpell(m_spells[i]);
+    RemoveAurasDueToSpell(GetSpell());
 
     if (Unit *owner = GetOwner())
     {
         owner->_RemoveTotem(this);
-        for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
-            owner->RemoveAurasDueToSpell(m_spells[i]);
+        owner->RemoveAurasDueToSpell(GetSpell());
 
         //remove aura all party members too
         if (owner->GetTypeId() == TYPEID_PLAYER)
@@ -101,8 +97,7 @@ void Totem::UnSummon()
                 {
                     Player* Target = itr->getSource();
                     if(Target && pGroup->SameSubGroup((Player*)owner, Target))
-                        for (uint8 i=0; i<CREATURE_MAX_SPELLS; i++)
-                            Target->RemoveAurasDueToSpell(m_spells[i]);
+                        Target->RemoveAurasDueToSpell(GetSpell());
                 }
             }
         }
@@ -114,15 +109,12 @@ void Totem::UnSummon()
     AddObjectToRemoveList();
 }
 
-void Totem::SetOwner(uint64 guid)
+void Totem::SetOwner(Unit* owner)
 {
-    SetCreatorGUID(guid);
-    SetOwnerGUID(guid);
-    if (Unit *owner = GetOwner())
-    {
-        setFaction(owner->getFaction());
-        SetLevel(owner->getLevel());
-    }
+    SetCreatorGUID(owner->GetGUID());
+    SetOwnerGUID(owner->GetGUID());
+    setFaction(owner->getFaction());
+    SetLevel(owner->getLevel());
 }
 
 Unit *Totem::GetOwner()
@@ -136,7 +128,7 @@ Unit *Totem::GetOwner()
 void Totem::SetTypeBySummonSpell(SpellEntry const * spellProto)
 {
     // Get spell casted by totem
-    SpellEntry const * totemSpell = sSpellStore.LookupEntry(m_spells[0]);
+    SpellEntry const * totemSpell = sSpellStore.LookupEntry(GetSpell());
     if (totemSpell)
     {
         // If spell have cast time -> so its active totem

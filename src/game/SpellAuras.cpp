@@ -354,7 +354,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
     &Aura::HandleUnused,                                    //298 unused (3.2.2a)
     &Aura::HandleUnused,                                    //299 unused (3.2.2a)
     &Aura::HandleNULL,                                      //300 3 spells (share damage?)
-    &Aura::HandleNULL,                                      //301 5 spells
+    &Aura::HandleNULL,                                      //301 SPELL_AURA_HEAL_ABSORB 5 spells
     &Aura::HandleUnused,                                    //302 unused (3.2.2a)
     &Aura::HandleNULL,                                      //303 17 spells
     &Aura::HandleNULL,                                      //304 2 spells (alcohol effect?)
@@ -363,7 +363,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
     &Aura::HandleNULL,                                      //307 absorb healing?
     &Aura::HandleNULL,                                      //308 new aura for hunter traps
     &Aura::HandleNULL,                                      //309 absorb healing?
-    &Aura::HandleNULL,                                      //310 pet avoidance passive?
+    &Aura::HandleNoImmediateEffect,                         //310 SPELL_AURA_MOD_PET_AOE_DAMAGE_AVOIDANCE implemented in Unit::SpellDamageBonusTaken
     &Aura::HandleNULL,                                      //311 0 spells in 3.3
     &Aura::HandleNULL,                                      //312 0 spells in 3.3
     &Aura::HandleNULL,                                      //313 0 spells in 3.3
@@ -1174,8 +1174,11 @@ void Aura::TriggerSpell()
 //                    case 23184: break;
                     case 23493:                             // Restoration
                     {
-                        int32 heal = triggerTarget->GetMaxHealth() / 10;
-                        triggerTarget->DealHeal(triggerTarget, heal, auraSpellInfo);
+                        uint32 heal = triggerTarget->GetMaxHealth() / 10;
+                        uint32 absorb = 0;
+                        triggerTarget->CalculateHealAbsorb(heal, &absorb);
+                        triggerTarget->DealHeal(triggerTarget, heal - absorb, auraSpellInfo, false, absorb);
+
                         if (int32 mana = triggerTarget->GetMaxPower(POWER_MANA))
                         {
                             mana /= 10;
@@ -6962,7 +6965,7 @@ void Aura::PeriodicTick()
             if (pCaster->GetTypeId() == TYPEID_PLAYER)
                 pdamage -= target->GetSpellDamageReduction(pdamage);
 
-            target->CalculateAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, !(GetSpellProto()->AttributesEx2 & SPELL_ATTR_EX2_CANT_REFLECTED));
+            target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, !(GetSpellProto()->AttributesEx2 & SPELL_ATTR_EX2_CANT_REFLECTED));
 
             DETAIL_FILTER_LOG(LOG_FILTER_PERIODIC_AFFECTS, "PeriodicTick: %u (TypeId: %u) attacked %u (TypeId: %u) for %u dmg inflicted by %u abs is %u",
                 GUID_LOPART(GetCasterGUID()), GuidHigh2TypeId(GUID_HIPART(GetCasterGUID())), target->GetGUIDLow(), target->GetTypeId(), pdamage, GetId(),absorb);
@@ -7051,7 +7054,7 @@ void Aura::PeriodicTick()
             if (IS_PLAYER_GUID(GetCasterGUID()))
                 pdamage -= target->GetSpellDamageReduction(pdamage);
 
-            target->CalculateAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, !(spellProto->AttributesEx2 & SPELL_ATTR_EX2_CANT_REFLECTED));
+            target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, !(spellProto->AttributesEx2 & SPELL_ATTR_EX2_CANT_REFLECTED));
 
             if(target->GetHealth() < pdamage)
                 pdamage = uint32(target->GetHealth());
@@ -7086,7 +7089,10 @@ void Aura::PeriodicTick()
 
             int32 heal = pCaster->SpellHealingBonusTaken(pCaster, spellProto, int32(new_damage * multiplier), DOT, GetStackAmount());
 
-            int32 gain = pCaster->DealHeal(pCaster, heal, spellProto);
+            uint32 absorbHeal = 0;
+            pCaster->CalculateHealAbsorb(heal, &absorbHeal);
+            
+            int32 gain = pCaster->DealHeal(pCaster, heal, spellProto, false, absorbHeal);
             pCaster->getHostileRefManager().threatAssist(pCaster, gain * 0.5f, spellProto);
             break;
         }
@@ -7867,9 +7873,25 @@ void Aura::PeriodicDummyTick()
             // Summon Gargoyle
 //            if (spell->SpellFamilyFlags & UI64LIT(0x0000008000000000))
 //                return;
-            // Death Rune Mastery
-//            if (spell->SpellFamilyFlags & UI64LIT(0x0000000000004000))
-//                return;
+            // Death Rune Mastery, Reaping, Blood of the North
+            if (spell->SpellFamilyFlags & UI64LIT(0x0000000000004000) /*Death Rune Mastery*/
+                || spell->SpellIconID == 22 /*Reaping*/|| spell->SpellIconID == 30412 /*Blood of the North*/)
+            {
+                // revert death runes if out of combat
+                if (target->GetTypeId() != TYPEID_PLAYER || target->isInCombat())
+                    return;
+
+                Player* plr = (Player*)target;
+                for (uint32 i = 0; i < MAX_RUNES; ++i)
+                {
+                    if (plr->GetCurrentRune(i) == RUNE_DEATH && plr->IsRuneConvertedBy(i, spell->Id))
+                    {
+                        plr->ConvertRune(i, plr->GetBaseRune(i));
+                        plr->ClearRuneConvertedBy(i);
+                    }
+                }
+                return;
+            }
             // Bladed Armor
             if (spell->SpellIconID == 2653)
             {
@@ -7879,12 +7901,6 @@ void Aura::PeriodicDummyTick()
                 target->CastCustomSpell(target, 61217, &apBonus, &apBonus, NULL, true, NULL, this);
                 return;
             }
-            // Reaping
-//            if (spell->SpellIconID == 22)
-//                return;
-            // Blood of the North
-//            if (spell->SpellIconID == 30412)
-//                return;
             break;
         }
         default:
@@ -8005,7 +8021,7 @@ void Aura::HandleAuraConvertRune(bool apply, bool Real)
         {
             if (plr->GetCurrentRune(i) == runeFrom && !plr->GetRuneCooldown(i))
             {
-                plr->ConvertRune(i, runeTo);
+                plr->ConvertRune(i, runeTo, GetId(), true);
                 break;
             }
         }
@@ -8017,6 +8033,7 @@ void Aura::HandleAuraConvertRune(bool apply, bool Real)
             if(plr->GetCurrentRune(i) == runeTo && plr->GetBaseRune(i) == runeFrom)
             {
                 plr->ConvertRune(i, runeFrom);
+                plr->ClearRuneConvertedBy(i);
                 break;
             }
         }
