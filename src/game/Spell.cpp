@@ -3589,14 +3589,14 @@ void Spell::finish(bool ok)
                 if(!m_IsTriggeredSpell && m_spellInfo->SpellFamilyName == SPELLFAMILY_MAGE)
                 {
                     if((*j)->GetHolder()->DropAuraCharge())
-                        m_caster->RemoveAura((*j));
+                        m_caster->RemoveSpellAuraHolder((*j)->GetHolder());
                     break_for = true;
                 }
                 break;
             case 52437:        //Sudden death should disappear after execute
                 if (m_spellInfo->SpellIconID == 1648)
                 {
-                    m_caster->RemoveAura((*j));
+                    m_caster->RemoveSpellAuraHolder((*j)->GetHolder());
                     break_for = true;
                 }
                 break;
@@ -3604,7 +3604,7 @@ void Spell::finish(bool ok)
             case 68051:        // Glyph of overpower - Both should disappear after overpower
                 if(m_spellInfo->Id == 7384)
                 {
-                    m_caster->RemoveAura((*j));
+                    m_caster->RemoveSpellAuraHolder((*j)->GetHolder());
                     break_for = true;
                 }
                 break;
