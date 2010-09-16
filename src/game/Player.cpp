@@ -1779,6 +1779,10 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
     if(!InBattleGround() && mEntry->IsBattleGroundOrArena())
         return false;
 
+	// temporary hack to prevent that player can be portet to northrend on flight mount
+	if(mapid == 571/* Northrend */ && HasAuraType(SPELL_AURA_MOUNTED) && GetMapId() == 530/* Outland */)
+		RemoveSpellsCausingAura(SPELL_AURA_MOUNTED);
+
     // client without expansion support
     if(GetSession()->Expansion() < mEntry->Expansion())
     {
