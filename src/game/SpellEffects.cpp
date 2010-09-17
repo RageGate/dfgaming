@@ -6063,6 +6063,17 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->CastSpell(unitTarget, 46394, true);
                     break;
                 }
+                case 23301: // Ebon Blade Banner
+                {
+                    if(m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    if(Creature* pTemp = (Creature*)unitTarget)
+                        if(!pTemp->isAlive())
+                        {
+                            ((Player*)m_caster)->KilledMonsterCredit(30220);
+                            pTemp->ForcedDespawn();
+                        }
+                }
                 case 45204: // Clone Me!
                     unitTarget->CastSpell(m_caster, damage, true);
                     break;
