@@ -1169,7 +1169,7 @@ void Pet::_SaveSpells()
 void Pet::_LoadAuras(uint32 timediff)
 {
     RemoveAllAuras();
-    
+
     QueryResult *result = CharacterDatabase.PQuery("SELECT caster_guid,item_guid,spell,stackcount,remaincharges,basepoints0,basepoints1,basepoints2,maxduration0,maxduration1,maxduration2,remaintime0,remaintime1,remaintime2,effIndexMask FROM pet_aura WHERE guid = '%u'",m_charmInfo->GetPetNumber());
 
     if(result)
@@ -1237,7 +1237,7 @@ void Pet::_LoadAuras(uint32 timediff)
                 aura->SetLoadedState(damage[i], maxduration[i], remaintime[i]);
                 holder->AddAura(aura, SpellEffectIndex(i));
             }
-            
+
             if (!holder->IsEmptyHolder())
             {
                 holder->SetLoadedState(caster_guid, ObjectGuid(HIGHGUID_ITEM, item_lowguid), stackcount, remaincharges);
@@ -1612,9 +1612,6 @@ bool Pet::resetTalents(bool no_cost)
         return false;
 
     Player *player = (Player *)owner;
-
-    uint32 level = getLevel();
-    uint32 talentPointsForLevel = GetMaxTalentPointsForLevel(level);
 
     if (m_usedTalentCount == 0)
     {

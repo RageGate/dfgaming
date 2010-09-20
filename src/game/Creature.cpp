@@ -886,7 +886,7 @@ void Creature::PrepareBodyLootState()
                 // ... or can have skinning after
                 GetCreatureInfo()->SkinLootId && sWorld.getConfig(CONFIG_BOOL_CORPSE_EMPTY_LOOT_SHOW))
             {
-                SetUInt32Value(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
+                SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
                 return;
             }
         }
@@ -970,6 +970,7 @@ void Creature::SetLootRecipient(Unit *unit)
         m_lootRecipientGuid.Clear();
         m_lootGroupRecipientId = 0;
         RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_TAPPED);
+        RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_TAPPED_BY_PLAYER);
         return;
     }
 
@@ -985,6 +986,7 @@ void Creature::SetLootRecipient(Unit *unit)
         m_lootGroupRecipientId = group->GetId();
 
     SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_TAPPED);
+    SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_TAPPED_BY_PLAYER);
 }
 
 void Creature::SaveToDB()

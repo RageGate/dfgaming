@@ -407,7 +407,7 @@ void TradeData::SetAccepted(bool state, bool crosssend /*= false*/)
 
 UpdateMask Player::updateVisualBits;
 
-Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputationMgr(this), m_mover(this), m_camera(this)
+Player::Player (WorldSession *session): Unit(), m_mover(this), m_camera(this), m_achievementMgr(this), m_reputationMgr(this)
 {
     m_transport = 0;
 
@@ -15991,7 +15991,11 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
 
 bool Player::isAllowedToLoot(Creature* creature)
 {
-    if(Player* recipient = creature->GetLootRecipient())
+    // never tapped by any (mob solo kill)
+    if (!creature->HasFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_TAPPED))
+        return false;
+
+    if (Player* recipient = creature->GetLootRecipient())
     {
         if (recipient == this)
             return true;
