@@ -5495,6 +5495,16 @@ SpellCastResult Spell::CheckCast(bool strict)
 
                 break;
             }
+            case SPELL_AURA_MOD_FEAR:
+            {
+                // target HACK for 12530
+                if (m_spellInfo->Id == 50979)
+                    if (m_targets.getUnitTarget()->GetTypeId() != TYPEID_UNIT ||
+                        ((Creature*)m_targets.getUnitTarget())->GetCreatureInfo()->Entry != 28127)
+                        return SPELL_FAILED_BAD_TARGETS;
+
+                break;
+            }
             case SPELL_AURA_MOD_POSSESS_PET:
             {
                 if(m_caster->GetTypeId() != TYPEID_PLAYER)
