@@ -7796,7 +7796,7 @@ uint32 Unit::MeleeDamageBonusTaken(Unit *pCaster, uint32 pdamage,WeaponAttackTyp
     {
         TakenPercent *= GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_AOE_DAMAGE_AVOIDANCE, schoolMask);
         if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->isPet())
-            TakenPercent *=   (SPELL_AURA_MOD_PET_AOE_DAMAGE_AVOIDANCE);
+            TakenPercent *= GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_PET_AOE_DAMAGE_AVOIDANCE, schoolMask);
     }
 
     // ..taken (SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN)
