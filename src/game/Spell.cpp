@@ -5497,12 +5497,26 @@ SpellCastResult Spell::CheckCast(bool strict)
             }
             case SPELL_AURA_MOD_FEAR:
             {
-                // target HACK for 12530
-                if (m_spellInfo->Id == 50979)
-                    if (m_targets.getUnitTarget()->GetTypeId() != TYPEID_UNIT ||
-                        ((Creature*)m_targets.getUnitTarget())->GetCreatureInfo()->Entry != 28127)
-                        return SPELL_FAILED_BAD_TARGETS;
-
+                // some target HACK's of strange quest itmes (spells)
+                switch (m_spellInfo->Id)
+                {
+                    case 50979:
+                    {
+                        if (m_targets.getUnitTarget()->GetTypeId() != TYPEID_UNIT ||
+                            ((Creature*)m_targets.getUnitTarget())->GetCreatureInfo()->Entry != 28127)
+                            return SPELL_FAILED_BAD_TARGETS;
+                        break;
+                    }
+                    case 60983:
+                    {
+                        if (m_targets.getUnitTarget()->GetTypeId() != TYPEID_UNIT ||
+                            ((Creature*)m_targets.getUnitTarget())->GetCreatureInfo()->Entry != 30164)
+                            return SPELL_FAILED_BAD_TARGETS;
+                        break;
+                    }
+                    default:
+                        break;
+                }
                 break;
             }
             case SPELL_AURA_MOD_POSSESS_PET:
