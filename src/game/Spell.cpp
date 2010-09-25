@@ -5495,6 +5495,7 @@ SpellCastResult Spell::CheckCast(bool strict)
 
                 break;
             }
+            case SPELL_AURA_MOD_STUN:
             case SPELL_AURA_MOD_FEAR:
             {
                 // some target HACK's of strange quest itmes (spells)
@@ -5512,6 +5513,15 @@ SpellCastResult Spell::CheckCast(bool strict)
                         if (m_targets.getUnitTarget()->GetTypeId() != TYPEID_UNIT ||
                             ((Creature*)m_targets.getUnitTarget())->GetCreatureInfo()->Entry != 30164)
                             return SPELL_FAILED_BAD_TARGETS;
+                        break;
+                    }
+                    case 63124:
+                    {
+                        if (m_targets.getUnitTarget()->GetTypeId() != TYPEID_UNIT ||
+                            ((Creature*)m_targets.getUnitTarget())->GetCreatureInfo()->Entry != 33498)
+                            return SPELL_FAILED_BAD_TARGETS;
+                        else if (m_targets.getUnitTarget()->HasInArc(M_PI_F, m_caster))
+                            return SPELL_FAILED_NOT_BEHIND;
                         break;
                     }
                     default:
