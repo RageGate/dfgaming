@@ -612,8 +612,8 @@ enum ConditionType
     CONDITION_QUESTAVAILABLE        = 19,                   // quest_id     0       for case when loot/gossip possible only if player can start quest
     CONDITION_ACHIEVEMENT           = 20,                   // ach_id       0, 1 (0: has achievement, 1: hasn't achievement) for player
     CONDITION_ACHIEVEMENT_REALM     = 21,                   // ach_id       0, 1 (0: has achievement, 1: hasn't achievement) for server
-    CONDITION_QUEST_NONE            = 22,                    // quest_id     0 (quest did not take and not rewarded)
-    CONDITION_PET_ACTIVE_NOT_DEAD   = 23                   // 0            0
+    CONDITION_QUEST_NONE            = 22,                   // quest_id     0 (quest did not take and not rewarded)
+    CONDITION_PET_ACTIVE_NOT_DEAD   = 23                    // 0            0
 };
 
 #define MAX_CONDITION                 24                    // maximum value in ConditionType enum

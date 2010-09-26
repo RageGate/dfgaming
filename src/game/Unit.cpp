@@ -5744,26 +5744,6 @@ bool Unit::IsNeutralToAll() const
     return my_faction->IsNeutralToAll();
 }
 
-bool Unit::isControlledByPlayer() const
-{
-    // this method will return true, if this unit is directly controlled by a player,
-    // that means player has a pet cast bar
-    Unit* owner = GetCharmerOrOwner();
-
-    if (!owner || owner->GetTypeId() != TYPEID_PLAYER)
-        return false;
-
-    // player-charmed units always have pet action bar (hope this is correct)
-    if (isCharmed())
-        return true;
-
-    if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->isPet() &&
-        ((Pet*)this)->isControlled())
-        return true;
-
-    return false;
-}
-
 bool Unit::Attack(Unit *victim, bool meleeAttack)
 {
     if(!victim || victim == this)
@@ -6392,20 +6372,13 @@ uint32 Unit::SpellDamageBonusDone(Unit *pVictim, SpellEntry const *spellProto, u
     AuraList const& mModDamagePercentDone = GetAurasByType(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE);
     for(AuraList::const_iterator i = mModDamagePercentDone.begin(); i != mModDamagePercentDone.end(); ++i)
     {
-        if( ((*i)->GetModifier()->m_miscvalue & GetSpellSchoolMask(spellProto)) &&
-            (*i)->GetSpellProto()->EquippedItemClass == -1 &&
-                                                            // -1 == any item class (not wand then)
-            (*i)->GetSpellProto()->EquippedItemInventoryTypeMask == 0 )
-                                                            // 0 == any inventory type (not wand then)
+        if( (*i)->GetModifier()->m_miscvalue & GetSpellSchoolMask(spellProto) &&                // school check
+            ((*i)->GetSpellProto()->EquippedItemClass == -1 ||                                  // general, weapon independent
+            (*i)->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE &&  // OR weapon dependent with attribute
+            GetTypeId() == TYPEID_PLAYER &&                                                     // and player has correct weapon equipped for aura
+            ((Player*)this)->HasItemFitToSpellReqirements((*i)->GetSpellProto())) )
         {
-            if( (*i)->GetModifier()->m_miscvalue & GetSpellSchoolMask(spellProto) &&                // school check
-                ((*i)->GetSpellProto()->EquippedItemClass == -1 ||                                  // general, weapon independent
-                (*i)->GetSpellProto()->AttributesEx5 & SPELL_ATTR_EX5_WEAPON_DMG_MOD_ALL_DAMAGE &&  // OR weapon dependent with attribute
-                GetTypeId() == TYPEID_PLAYER &&                                                     // and player has correct weapon equipped for aura
-                ((Player*)this)->HasItemFitToSpellReqirements((*i)->GetSpellProto())) )
-            {
-                DoneTotalMod *= ((*i)->GetModifier()->m_amount+100.0f)/100.0f;
-            }
+            DoneTotalMod *= ((*i)->GetModifier()->m_amount+100.0f)/100.0f;
         }
     }
 

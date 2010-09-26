@@ -2774,9 +2774,6 @@ void Spell::prepare(SpellCastTargets const* targets, Aura* triggeredByAura)
     // set timer base at cast time
     ReSetTimer();
 
-    // send global cooldown
-    SendGlobalCooldown();
-
     // stealth must be removed at cast starting (at show channel bar)
     // skip triggered spell (item equip spell casting and other not explicit character casts/item uses)
     if ( !m_IsTriggeredSpell && isSpellBreakStealth(m_spellInfo) )
@@ -3292,7 +3289,7 @@ void Spell::SendSpellCooldown()
         case TYPEID_UNIT:
         {
             // store cooldown only for controlled creatures
-            if (!m_caster->isControlledByPlayer())
+            if (!m_caster->GetCharmInfo())
                 return;
         }break;
         case TYPEID_PLAYER:
@@ -3315,37 +3312,6 @@ void Spell::SendSpellCooldown()
     if(m_spellInfo->Attributes & (SPELL_ATTR_DISABLED_WHILE_ACTIVE | SPELL_ATTR_PASSIVE))
         return;
     m_caster->AddSpellAndCategoryCooldowns(m_spellInfo, m_CastItem ? m_CastItem->GetEntry() : 0, this);
-}
-
-void Spell::SendGlobalCooldown()
-{
-    if (!m_spellInfo->StartRecoveryTime)
-        return;
-
-    // server side handling only for charmed creatures and pets
-    if (m_caster->GetTypeId() != TYPEID_UNIT)
-        return;
-
-    if (!m_caster->isControlledByPlayer())
-        return;
-
-}
-
-void Spell::ResetGlobalCooldown()
-{
-    // spells without gcd can't reset it
-    if (!m_spellInfo->StartRecoveryTime)
-        return;
-
-    // server side handling only for charmed creatures and pets
-    if (m_caster->GetTypeId() != TYPEID_UNIT)
-        return;
-
-     if (!m_caster->isControlledByPlayer())
-        return;
-
-     // need to send packet for controlled creatures (to the controller), this will clear gcd
-     ((Player*)m_caster->GetCharmerOrOwner())->SendClearCooldown(m_spellInfo->Id, m_caster);
 }
 
 void Spell::update(uint32 difftime)

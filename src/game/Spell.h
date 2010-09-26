@@ -423,8 +423,6 @@ class Spell
         void SendSpellStart();
         void SendSpellGo();
         void SendSpellCooldown();
-        void SendGlobalCooldown();
-        void ResetGlobalCooldown();
         void SendLogExecute();
         void SendInterrupted(uint8 result);
         void SendChannelUpdate(uint32 time);
