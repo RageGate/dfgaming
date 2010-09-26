@@ -1617,14 +1617,14 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
         case TARGET_RANDOM_NEARBY_DEST:
         {
             // Get a random point IN the CIRCEL around current M_TARGETS COORDINATES(!).
-            if (radius > 0)
+            if (radius > 0.0f)
             {
                 // Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
                 radius *= sqrtf(rand_norm_f());
                 float angle = 2.0f * M_PI_F * rand_norm_f();
                 float dest_x = m_targets.m_destX + cos(angle) * radius;
                 float dest_y = m_targets.m_destY + sin(angle) * radius;
-                float dest_z = m_caster->GetPositionZ();
+                float dest_z = m_targets.m_destZ;
                 m_caster->UpdateGroundPositionZ(dest_x, dest_y, dest_z);
                 m_targets.setDestination(dest_x, dest_y, dest_z);
             }
