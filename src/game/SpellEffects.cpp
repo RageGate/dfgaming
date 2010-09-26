@@ -6070,17 +6070,6 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->CastSpell(unitTarget, 46394, true);
                     break;
                 }
-                case 23301: // Ebon Blade Banner
-                {
-                    if(m_caster->GetTypeId() != TYPEID_PLAYER)
-                        return;
-                    if(Creature* pTemp = (Creature*)unitTarget)
-                        if(!pTemp->isAlive())
-                        {
-                            ((Player*)m_caster)->KilledMonsterCredit(30220);
-                            pTemp->ForcedDespawn();
-                        }
-                }
                 case 37834: // Unbansih Azaloth
                     if(m_caster->GetTypeId() != TYPEID_PLAYER)
                         return;
