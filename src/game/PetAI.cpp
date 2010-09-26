@@ -214,8 +214,7 @@ void PetAI::UpdateAI(const uint32 diff)
             if (!spellInfo)
                 continue;
 
-            // do not cast if spell is on global cooldown
-            if (spellInfo->StartRecoveryTime > 0 && m_creature->GetGlobalCooldown())
+            if (m_creature->GetCharmInfo() && m_creature->GetCharmInfo()->GetGlobalCooldownMgr().HasGlobalCooldown(spellInfo))
                 continue;
 
             // ignore some combinations of combat state and combat/noncombat spells

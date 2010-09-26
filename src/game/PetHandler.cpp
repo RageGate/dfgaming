@@ -170,7 +170,6 @@ void WorldSession::HandlePetAction( WorldPacket & recv_data )
         case ACT_ENABLED:                                   // 0xC1    spell
         {
             Unit* unit_target = NULL;
-
             if(guid2)
                 unit_target = _player->GetMap()->GetUnit(guid2);
 
@@ -182,7 +181,7 @@ void WorldSession::HandlePetAction( WorldPacket & recv_data )
                 return;
             }
 
-            if (spellInfo->StartRecoveryTime && ((Creature*)pet)->GetGlobalCooldown() > 0)
+            if (pet->GetCharmInfo() && pet->GetCharmInfo()->GetGlobalCooldownMgr().HasGlobalCooldown(spellInfo))
                 return;
 
             for(int i = 0; i < MAX_EFFECT_INDEX;++i)
@@ -635,7 +634,7 @@ void WorldSession::HandlePetCastSpellOpcode( WorldPacket& recvPacket )
         return;
     }
 
-    if (spellInfo->StartRecoveryTime && pet->GetGlobalCooldown() > 0)
+    if (pet->GetCharmInfo() && pet->GetCharmInfo()->GetGlobalCooldownMgr().HasGlobalCooldown(spellInfo))
         return;
 
     // do not cast not learned spells
