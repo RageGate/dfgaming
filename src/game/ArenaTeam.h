@@ -118,6 +118,7 @@ struct ArenaTeamStats
 };
 
 #define MAX_ARENA_SLOT 3                                    // 0..2 slots
+#define ARENA_SEASON_ID_NEW_RATING_SYSTEM 5                 // ov custom: we already use the new system in season 5
 
 class ArenaTeam
 {

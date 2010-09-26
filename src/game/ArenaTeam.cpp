@@ -49,7 +49,7 @@ ArenaTeam::ArenaTeam()
     int32 conf_value = sWorld.getConfig(CONFIG_INT32_ARENA_STARTRATING);
     if (conf_value < 0)                                     // -1 = select by season id
     {
-        if (sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_ID) >= 6)
+        if (sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_ID) >= ARENA_SEASON_ID_NEW_RATING_SYSTEM)
             m_stats.rating    = 0;
         else
             m_stats.rating    = 1500;
@@ -155,7 +155,7 @@ bool ArenaTeam::AddMember(ObjectGuid playerGuid)
     int32 conf_value = sWorld.getConfig(CONFIG_INT32_ARENA_STARTPERSONALRATING);
     if (conf_value < 0)                                     // -1 = select by season id
     {
-        if (sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_ID) >= 6)
+        if (sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_ID) >= ARENA_SEASON_ID_NEW_RATING_SYSTEM)
         {
             if (m_stats.rating < 1000)
                 newmember.personal_rating = 0;
@@ -566,7 +566,7 @@ float ArenaTeam::GetChanceAgainst(uint32 own_rating, uint32 enemy_rating)
     // returns the chance to win against a team with the given rating, used in the rating adjustment calculation
     // ELO system
 
-    if (sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_ID) >= 6)
+    if (sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_ID) >= ARENA_SEASON_ID_NEW_RATING_SYSTEM)
         if (enemy_rating < 1000)
             enemy_rating = 1000;
     return 1.0f/(1.0f+exp(log(10.0f)*(float)((float)enemy_rating - (float)own_rating)/400.0f));
