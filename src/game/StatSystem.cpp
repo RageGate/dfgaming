@@ -966,10 +966,18 @@ void Pet::UpdateAttackPowerAndDamage(bool ranged)
     float val = 0.0f;
     UnitMods unitMod = UNIT_MOD_ATTACK_POWER;
 
-    if(GetEntry() == 416)                                   // imp's attack power (probably this is correct for all "casters",
-        val = GetStat(STAT_STRENGTH) - 10.0f;               // e.g. also mage's water elemental
-    else
-        val = 2 * GetStat(STAT_STRENGTH) - 20.0f;           // this is also not correct for all pets, e.g. dk ghoul gets less ap
+    switch (GetEntry())
+    {
+        case 416:                                           // imp's attack power (probably this is correct for all "casters",
+            val = GetStat(STAT_STRENGTH) - 10.0f;           // e.g. also mage's water elemental
+            break;
+        case 26125:
+            val = 1.473f * GetStat(STAT_STRENGTH) + 100.0f; // dk's ghoul (quite strange, but calc. from the two confirmed poits I have)
+            break;
+        default:
+            val = 2 * GetStat(STAT_STRENGTH) - 20.0f;
+            break;
+    }
 
     SetModifierValue(UNIT_MOD_ATTACK_POWER, BASE_VALUE, val);
 
