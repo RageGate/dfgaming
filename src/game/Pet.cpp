@@ -26,6 +26,7 @@
 #include "SpellAuras.h"
 #include "CreatureAI.h"
 #include "Unit.h"
+#include "Totem.h"
 #include "Util.h"
 
 char const* petTypeSuffix[MAX_PET_TYPE] =
@@ -960,6 +961,31 @@ bool Pet::InitStatsForLevel(uint32 petlevel, Unit* owner)
                 case 31216:
                 {
                     bonusDamage = owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_MAGIC) * 0.3f;
+                    break;
+                }
+                // Greater Earth Elemetal (Earth Elemeantal Totem)
+                case 15352:
+                {
+                    if (owner->GetTypeId() == TYPEID_UNIT && ((Creature*)owner)->isTotem())
+                        if (Unit* ownerOwner = ((Totem*)owner)->GetOwner())
+                        {
+                            statBonus[STAT_STAMINA] = ownerOwner->GetStat(STAT_STAMINA) * 0.5f;
+                            bonusDamage = ownerOwner->GetMaxSpellBaseDamageBonus(SPELL_SCHOOL_MASK_SPELL) * 0.3f;
+                            apBonus = ownerOwner->GetMaxSpellBaseDamageBonus(SPELL_SCHOOL_MASK_SPELL) * 0.4f;
+                        }
+                    break;
+                }
+                // Greater Fire Elemetal (Fire Elemeantal Totem)
+                case 15438:
+                {
+                    if (owner->GetTypeId() == TYPEID_UNIT && ((Creature*)owner)->isTotem())
+                        if (Unit* ownerOwner = ((Totem*)owner)->GetOwner())
+                        {
+                            statBonus[STAT_STAMINA] = ownerOwner->GetStat(STAT_STAMINA) * 0.2f;
+                            statBonus[STAT_INTELLECT] = ownerOwner->GetStat(STAT_INTELLECT) * 0.1;
+                            bonusDamage += ownerOwner->GetMaxSpellBaseDamageBonus(SPELL_SCHOOL_MASK_SPELL) * 0.4f;
+                            apBonus = ownerOwner->GetMaxSpellBaseDamageBonus(SPELL_SCHOOL_MASK_SPELL) * 0.8;
+                        }
                     break;
                 }
                 default:
