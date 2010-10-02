@@ -333,7 +333,7 @@ void SpellCastTargets::write( ByteBuffer& data ) const
         data << m_strTarget;
 }
 
-Spell::Spell( Unit* caster, SpellEntry const *info, bool triggered, ObjectGuid originalCasterGUID, Spell** triggeringContainer )
+Spell::Spell( Unit* caster, SpellEntry const *info, bool triggered, ObjectGuid originalCasterGUID, SpellEntry const* triggeredBy )
 {
     MANGOS_ASSERT( caster != NULL && info != NULL );
     MANGOS_ASSERT( info == sSpellStore.LookupEntry( info->Id ) && "`info` must be pointer to sSpellStore element");
@@ -349,9 +349,9 @@ Spell::Spell( Unit* caster, SpellEntry const *info, bool triggered, ObjectGuid o
     else
         m_spellInfo = info;
 
+    m_triggeredBySpellInfo = triggeredBy;
     m_caster = caster;
     m_selfContainer = NULL;
-    m_triggeringContainer = triggeringContainer;
     m_referencedFromCurrentSpell = false;
     m_executedCurrently = false;
     m_delayStart = 0;
@@ -845,12 +845,16 @@ void Spell::AddUnitTarget(Unit* pVictim, SpellEffectIndex effIndex)
     bool canMiss = (m_triggeredByAuraSpell || !m_IsTriggeredSpell);
     target.missCondition = m_caster->SpellHitResult(pVictim, m_spellInfo, m_canReflect, canMiss);
 
+    // spell fly from visual cast object
+    WorldObject* affectiveObject = GetAffectiveCasterObject();
+
     // Spell have speed - need calculate incoming time
-    if (m_spellInfo->speed > 0.0f)
+    if (m_spellInfo->speed > 0.0f && affectiveObject && pVictim != affectiveObject)
     {
         // calculate spell incoming interval
-        float dist = m_caster->GetDistance(pVictim->GetPositionX(), pVictim->GetPositionY(), pVictim->GetPositionZ());
-        if (dist < 5.0f) dist = 5.0f;
+        float dist = affectiveObject->GetDistance(pVictim->GetPositionX(), pVictim->GetPositionY(), pVictim->GetPositionZ());
+        if (dist < 5.0f)
+            dist = 5.0f;
         target.timeDelay = (uint64) floor(dist / m_spellInfo->speed * 1000.0f);
 
         // Calculate minimum incoming time
@@ -914,11 +918,14 @@ void Spell::AddGOTarget(GameObject* pVictim, SpellEffectIndex effIndex)
     target.processed  = false;                              // Effects not apply on target
     target.deleted    = false;
 
+    // spell fly from visual cast object
+    WorldObject* affectiveObject = GetAffectiveCasterObject();
+
     // Spell have speed - need calculate incoming time
-    if (m_spellInfo->speed > 0.0f)
+    if (m_spellInfo->speed > 0.0f && affectiveObject && pVictim != affectiveObject)
     {
         // calculate spell incoming interval
-        float dist = m_caster->GetDistance(pVictim->GetPositionX(), pVictim->GetPositionY(), pVictim->GetPositionZ());
+        float dist = affectiveObject->GetDistance(pVictim->GetPositionX(), pVictim->GetPositionY(), pVictim->GetPositionZ());
         if (dist < 5.0f)
             dist = 5.0f;
         target.timeDelay = (uint64) floor(dist / m_spellInfo->speed * 1000.0f);
@@ -4447,7 +4454,7 @@ void Spell::CastTriggerSpells()
 {
     for(SpellInfoList::const_iterator si = m_TriggerSpells.begin(); si != m_TriggerSpells.end(); ++si)
     {
-        Spell* spell = new Spell(m_caster, (*si), true, m_originalCasterGUID, m_selfContainer);
+        Spell* spell = new Spell(m_caster, (*si), true, m_originalCasterGUID);
         spell->prepare(&m_targets);                         // use original spell original targets
     }
 }

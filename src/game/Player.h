@@ -2434,7 +2434,8 @@ class MANGOS_DLL_SPEC Player : public Unit
             if (spellid != 0)
                 SetRuneConvertedBy(index, spellid);
         }
-        void ResyncRunes(uint8 count);
+        void ResyncRunes();
+        bool ActivateRunes(RuneType type, uint32 count);
         void AddRunePower(uint8 index);
         void InitRunes();
 
@@ -2758,7 +2759,6 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         // Temporary removed pet cache
         uint32 m_temporaryUnsummonedPetNumber;
-        uint32 m_oldpetspell;
 
         uint32 m_petScalingUpdateTimer;
 
