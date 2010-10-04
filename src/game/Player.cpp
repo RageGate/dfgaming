@@ -2614,6 +2614,9 @@ void Player::GiveXP(uint32 xp, Unit* victim)
 
     if(!isAlive())
         return;
+    
+	if(HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_XP_USER_DISABLED))
+       return;
 
     uint32 level = getLevel();
 
