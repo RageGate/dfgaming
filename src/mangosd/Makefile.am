@@ -16,52 +16,56 @@
 
 ## Process this file with automake to produce Makefile.in
 
+## Sub-directories to parse
+
 ## CPP flags for includes, defines, etc.
-AM_CPPFLAGS = $(MANGOS_INCLUDES) -I$(top_builddir)/src/shared -I$(srcdir)/../../dep/include -I$(srcdir)/../../dep/include/gsoap -I$(srcdir)/../framework -I$(srcdir)/../shared  -I$(srcdir)/../game -I$(srcdir) -DSYSCONFDIR=\"$(sysconfdir)/\"
+AM_CPPFLAGS = $(MANGOS_INCLUDES) -I$(top_builddir)/src/shared -I$(srcdir) -I$(srcdir)/../../../dep/include -I$(srcdir)/../../framework -I$(srcdir)/../../shared -I$(srcdir)/../../shared/vmap -I$(srcdir)/../../realmd -DSYSCONFDIR=\"$(sysconfdir)/\"
 
-## Build world daemon as standalone program
-bin_PROGRAMS = mangos-worldd
-mangos_worldd_SOURCES = \
-	CliRunnable.cpp \
-	CliRunnable.h \
-	Main.cpp \
-	Master.cpp \
-	Master.h \
-	RASocket.cpp \
-	RASocket.h \
-	MaNGOSsoap.cpp \
-	MaNGOSsoap.h \
-	WorldRunnable.cpp \
-	WorldRunnable.h \
-	soapH.h  \
-	soapStub.h \
-	soapC.cpp \
-	soapServer.cpp
+## Build MaNGOS game library as convenience library.
+# libmangosbot shared library will later be reused by world server daemon.
+noinst_LIBRARIES = libmangosbot.a
 
-## Link world daemon against the shared library
-mangos_worldd_LDADD = \
-	../bindings/ScriptDev2/libmangosscript.la \
-	../game/libmangosgame.a \
-       ../game/mangchat/libmangoschat.a \
-	../shared/Database/libmangosdatabase.a \
-	../shared/Config/libmangosconfig.a \
-	../shared/Auth/libmangosauth.a \
-	../shared/libmangosshared.a \
-	../shared/vmap/libmangosvmaps.a \
-	../framework/libmangosframework.a \
-	../../dep/src/g3dlite/libg3dlite.a \
-	../../dep/src/gsoap/libgsoap.a
-
-mangos_worldd_LDFLAGS = -L../../dep/src/g3dlite -L../../dep/src/gsoap -L../bindings/ScriptDev2/ -L$(libdir) $(MANGOS_LIBS) -export-dynamic
+#  libmangossgame library will later be reused by ...
+libmangosbot_a_SOURCES = \
+        config.h \
+        PlayerbotMgr.cpp \
+        PlayerbotMgr.h \
+        PlayerbotAI.cpp \
+        PlayerbotAI.h \
+        PlayerbotClassAI.cpp \
+        PlayerbotClassAI.h \
+        PlayerbotDeathKnightAI.cpp \
+        PlayerbotDeathKnightAI.h \
+        PlayerbotDruidAI.cpp \
+        PlayerbotDruidAI.h \
+        PlayerbotHunterAI.cpp \
+        PlayerbotHunterAI.h \
+        PlayerbotMageAI.cpp \
+        PlayerbotMageAI.h \
+        PlayerbotPaladinAI.cpp \
+        PlayerbotPaladinAI.h \
+        PlayerbotPriestAI.cpp \
+        PlayerbotPriestAI.h \
+        PlayerbotRogueAI.cpp \
+        PlayerbotRogueAI.h \
+        PlayerbotShamanAI.cpp \
+        PlayerbotShamanAI.h \
+        PlayerbotWarlockAI.cpp \
+        PlayerbotWarlockAI.h \
+        PlayerbotWarriorAI.cpp \
+        PlayerbotWarriorAI.h
 
 ## Additional files to include when running 'make dist'
-#  Include world daemon configuration
+#  Precompiled Headers for WIN
 EXTRA_DIST = \
 	mangosd.conf.dist
+	config.h \
+	playerbot.conf.dist
 
 ## Additional files to install
 sysconf_DATA = \
 	mangosd.conf.dist
+	playerbot.conf.dist
 
 install-data-hook:
 	@list='$(sysconf_DATA)'
