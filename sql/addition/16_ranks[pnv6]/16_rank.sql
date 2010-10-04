@@ -203,6 +203,7 @@ INSERT INTO `command` VALUES
 ('movegens',14,'Syntax: .movegens\r\n  Show movement generators stack for selected creature or player.'),
 ('mute',7,'Syntax: .mute [$playerName] $timeInMinutes\r\n\r\nDisible chat messaging for any character from account of character $playerName (or currently selected) at $timeInMinutes minutes. Player can be offline.'),
 ('namego',5,'Syntax: .namego [$charactername]\r\n\r\nTeleport the given character to you. Character can be offline.'),
+('nameannounce',5,'Syntax: .nameannounce $MessageToBroadcast\r\n\r\nSend a global message to all players online in chat log with colored sender\'s name.'),
 ('neargrave',14,'Syntax: .neargrave [alliance|horde]\r\n\r\nFind nearest graveyard linked to zone (or only nearest from accepts alliance or horde faction ghosts).'),
 ('notify',9,'Syntax: .notify $MessageToBroadcast\r\n\r\nSend a global message to all players online in screen.'),
 ('npc add',9,'Syntax: .npc add #creatureid\r\n\r\nSpawn a creature by the given template id of #creatureid.'),

@@ -138,6 +138,57 @@ bool ChatHandler::HandleAnnounceCommand(char* args)
     return true;
 }
 
+// Nameannounce
+bool ChatHandler::HandleNameAnnounceCommand(char* args)
+{
+  int32 strid = 0;
+
+    if(!*args)
+        return false;
+
+    switch(m_session->GetSecurity()) {
+      case SEC_TrialGM:
+        strid = LANG_SYSTEMMESSAGE_TrialGM;
+        break;
+      case SEC_MODERATOR:
+        strid = LANG_SYSTEMMESSAGE_MODERATOR;
+        break;
+      case SEC_GM:
+        strid = LANG_SYSTEMMESSAGE_GM;
+        break;
+	  case SEC_GAMEMASTER:
+        strid = LANG_SYSTEMMESSAGE_GAMEMASTER;
+        break;
+      case SEC_DEVS:
+        strid = LANG_SYSTEMMESSAGE_DEVS;
+        break;
+      case SEC_HEADDEVS:
+        strid = LANG_SYSTEMMESSAGE_HEADDEVS;
+        break;
+	  case SEC_JRADMIN:
+        strid = LANG_SYSTEMMESSAGE_JRADMIN;
+         break;
+	  case SEC_ADMIN:
+        strid = LANG_SYSTEMMESSAGE_ADMIN;
+         break;
+      case SEC_HEADADMIN:
+        strid = LANG_SYSTEMMESSAGE_HEADADMIN;
+        break;
+      case SEC_COOWNER:
+        strid = LANG_SYSTEMMESSAGE_COOWNER;
+        break;
+      case SEC_ADMINISTRATOR:
+        strid = LANG_SYSTEMMESSAGE_ADMINISTRATOR;
+        break;
+      default:
+        return false;
+    }
+
+    sWorld.SendWorldText(strid, m_session->GetPlayerName(), args);
+
+    return true;
+}
+
 //notification player at the screen
 bool ChatHandler::HandleNotifyCommand(char* args)
 {

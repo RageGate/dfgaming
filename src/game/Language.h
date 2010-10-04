@@ -897,6 +897,19 @@ enum MangosStrings
     // Room for old clients 1.x           1400-1499 not used
 
     // FREE IDS                           1500-9999
+	
+	// NameAnnounce
+    LANG_SYSTEMMESSAGE_TrialGM          = 4000,
+    LANG_SYSTEMMESSAGE_MODERATOR        = 4001,
+    LANG_SYSTEMMESSAGE_GM               = 4002,
+	LANG_SYSTEMMESSAGE_GAMEMASTER       = 4003,
+    LANG_SYSTEMMESSAGE_DEVS             = 4004,
+    LANG_SYSTEMMESSAGE_HEADDEVS         = 4005,
+    LANG_SYSTEMMESSAGE_JRADMIN          = 4006,
+    LANG_SYSTEMMESSAGE_ADMIN            = 4007,
+    LANG_SYSTEMMESSAGE_HEADADMIN        = 4008,
+	LANG_SYSTEMMESSAGE_COOWNER          = 4009,
+    LANG_SYSTEMMESSAGE_ADMINISTRATOR    = 4010,
 
     // Use for not-in-offcial-sources patches
     //                                    10000-10999
