@@ -6503,10 +6503,34 @@ bool ChatHandler::HandleServerPLimitCommand(char *args)
         int val;
         if(     strncmp(param,"player",l) == 0 )
             sWorld.SetPlayerLimit(-SEC_PLAYER);
-        else if(strncmp(param,"moderator",l) == 0 )
+        else if(strncmp(param,"Tester",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_Tester);
+        else if(strncmp(param,"Fulltester",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_Fulltester);
+        else if(strncmp(param,"vip",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_VIP);
+        else if(strncmp(param,"donator",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_DONATOR);
+        else if(strncmp(param,"trialgm",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_TrialGM);
+		else if(strncmp(param,"moderator",l) == 0 )
             sWorld.SetPlayerLimit(-SEC_MODERATOR);
-        else if(strncmp(param,"gamemaster",l) == 0 )
+        else if(strncmp(param,"gm",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_GM);
+		else if(strncmp(param,"gamemaster",l) == 0 )
             sWorld.SetPlayerLimit(-SEC_GAMEMASTER);
+        else if(strncmp(param,"devs",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_DEVS);
+		else if(strncmp(param,"headdevs",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_HEADDEVS);
+        else if(strncmp(param,"jradmin",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_JRADMIN);
+		else if(strncmp(param,"admin",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_ADMIN);
+        else if(strncmp(param,"headadmin",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_HEADADMIN);
+		else if(strncmp(param,"coowner",l) == 0 )
+            sWorld.SetPlayerLimit(-SEC_COOWNER);
         else if(strncmp(param,"administrator",l) == 0 )
             sWorld.SetPlayerLimit(-SEC_ADMINISTRATOR);
         else if(strncmp(param,"reset",l) == 0 )
@@ -6532,8 +6556,20 @@ bool ChatHandler::HandleServerPLimitCommand(char *args)
     switch(allowedAccountType)
     {
         case SEC_PLAYER:        secName = "Player";        break;
+		case SEC_Tester:        secName = "Tester";        break;
+        case SEC_Fulltester:    secName = "Fulltester";    break;
+        case SEC_VIP:           secName = "Vip";           break;
+        case SEC_DONATOR:       secName = "Donator";       break;
+        case SEC_TrialGM:       secName = "Trialgm";       break;
         case SEC_MODERATOR:     secName = "Moderator";     break;
+		case SEC_GM:            secName = "Gm";            break;
         case SEC_GAMEMASTER:    secName = "Gamemaster";    break;
+		case SEC_DEVS:          secName = "Devs";          break;
+        case SEC_HEADDEVS:      secName = "Headdevs";      break;
+        case SEC_JRADMIN:       secName = "Jradmin";       break;
+		case SEC_ADMIN:         secName = "admin";         break;
+        case SEC_HEADADMIN:     secName = "Headadmin";     break;
+        case SEC_COOWNER:       secName = "Coowner";       break;
         case SEC_ADMINISTRATOR: secName = "Administrator"; break;
         default:                secName = "<unknown>";     break;
     }

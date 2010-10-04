@@ -437,7 +437,7 @@ Player::Player (WorldSession *session): Unit(), m_mover(this), m_camera(this), m
     m_divider = 0;
 
     m_ExtraFlags = 0;
-    if(GetSession()->GetSecurity() >= SEC_GAMEMASTER)
+    if(GetSession()->GetSecurity() >= SEC_TrialGM)
         SetAcceptTicket(true);
 
     // players always accept
