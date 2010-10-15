@@ -18,6 +18,11 @@ std::string GetUser(std::string szU)
     int pos = szU.find("!");
     return szU.substr(0, pos);
 }
+
+bool isCRTerminated(std::string arg)
+{
+    return (arg.end() != arg.begin() && (*--arg.end()) == 0x0D);
+}
 // Delink will remove anything considered "non chat" from a string
 // Linked items (items that players can click on to see a description)
 // contain extra characters wich the client filter out, this function

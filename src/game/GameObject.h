@@ -588,6 +588,8 @@ class Unit;
 // 5 sec for bobber catch
 #define FISHING_BOBBER_READY_TIME 5
 
+#define GO_ANIMPROGRESS_DEFAULT 0xFF
+
 class MANGOS_DLL_SPEC GameObject : public WorldObject
 {
     public:
@@ -597,7 +599,7 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
         void AddToWorld();
         void RemoveFromWorld();
 
-        bool Create(uint32 guidlow, uint32 name_id, Map *map, uint32 phaseMask, float x, float y, float z, float ang, float rotation0, float rotation1, float rotation2, float rotation3, uint32 animprogress, GOState go_state, uint32 artKit = 0);
+        bool Create(uint32 guidlow, uint32 name_id, Map *map, uint32 phaseMask, float x, float y, float z, float ang, float rotation0, float rotation1, float rotation2, float rotation3, uint8 animprogress, GOState go_state, uint32 artKit = 0);
         void Update(uint32 p_time);
         GameObjectInfo const* GetGOInfo() const { return m_goInfo; }
         GameObjectData const* GetGOData() const { return m_goData; }

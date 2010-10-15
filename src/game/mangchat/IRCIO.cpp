@@ -98,7 +98,7 @@ void IRCClient::Handle_IRC(std::string sData)
                 if(CMD == "join")
                 {
                     size_t p = sData.find(":", p1);
-                    std::string CHAN = sData.substr(p + 1, sData.size() - p - 2);
+                    std::string CHAN = sData.substr(p + 1, sData.size() - (p + 1 + isCRTerminated(sData)));
                     // if the user is us it means we join the channel
                     if ((szUser == sIRC._Nick) )
                     {
@@ -119,7 +119,7 @@ void IRCClient::Handle_IRC(std::string sData)
                 if(CMD == "part" || CMD == "quit")
                 {
                     size_t p3 = sData.find(" ", p2 + 1);
-                    std::string CHAN = sData.substr(p2 + 1, p3 - p2 - 1);
+                    std::string CHAN = sData.substr(p2 + 1, p3 - (p2 - isCRTerminated(sData)));
                     // Logout IRC Nick From MangChat If User Leaves Or Quits IRC.
                     if(Command.IsLoggedIn(szUser))
                     {
@@ -134,13 +134,13 @@ void IRCClient::Handle_IRC(std::string sData)
                 // someone changed their nick
 			    if (CMD == "nick" && (sIRC.BOTMASK & 128) != 0)
                 {
-                    MakeMsg(MakeMsg(GetChatLine(CHANGE_NICK), "$Name", szUser), "$NewName", sData.substr(sData.find(":", p2) + 1));
+                    MakeMsg(MakeMsg(GetChatLine(CHANGE_NICK), "$Name", szUser), "$NewName", sData.substr(sData.find(":", p2) + 1, sData.size()- isCRTerminated(sData)));
 				    // If the user is logged in and changes their nick
 				    // then we want to either log them out or update
 				    // their nick in the bot. I chose to update the bots user list.
 				    if(Command.IsLoggedIn(szUser))
 				    {
-                        std::string NewNick = sData.substr(sData.find(":", p2) + 1);
+                        std::string NewNick = sData.substr(sData.find(":", p2) + 1, isCRTerminated(sData));
 					    // On freenode I noticed the server sends an extra character
 					    // at the end of the string, so we need to erase the last
 					    // character of the string. if you have a problem with getting
@@ -169,8 +169,8 @@ void IRCClient::Handle_IRC(std::string sData)
                     size_t p4 = sData.find(" ", p3 + 1);
                     size_t p5 = sData.find(":", p4);
                     std::string CHAN = sData.substr(p2 + 1, p3 - p2 - 1);
-                    std::string WHO = sData.substr(p3 + 1, p4 - p3 - 1);
-                    std::string BY = sData.substr(p4 + 1, sData.size() - p4 - 1);
+                    std::string WHO = sData.substr(p3 + 1, p4 - (p3 + 1));
+                    std::string BY = sData.substr(p4 + 1, sData.size() - (p4 + isCRTerminated(sData)));
                     // if the one kicked was us
                     if(WHO == sIRC._Nick)
                     {
@@ -196,13 +196,13 @@ void IRCClient::Handle_IRC(std::string sData)
                     // extract the values
                     size_t p = sData.find(" ", p2 + 1);
                     std::string FROM = sData.substr(p2 + 1, p - p2 - 1);
-                    std::string CHAT = sData.substr(p + 2, sData.size() - p - 3);
+                    std::string CHAT = sData.substr(p + 2, sData.size() - (p + 2 + isCRTerminated(sData)));
                     // if this is our username it means we recieved a PM
                     if(FROM == sIRC._Nick)
                     {
                         if(CHAT.find("\001VERSION\001") < CHAT.size())
                         {
-                            Send_IRC_Channel(szUser, MakeMsg("\001VERSION MangChat %s ©2008 |Death|\001", "%s" , sIRC._Mver.c_str()), true, "PRIVMSG");
+                            Send_IRC_Channel(szUser, MakeMsg("\001VERSION MangChat %s ©2008 |Death|\001", "%s" , sIRC._Mver.c_str()), true, "NOTICE");
                         }
                         // a pm is required for certain commands
                         // such as login. to validate the command
